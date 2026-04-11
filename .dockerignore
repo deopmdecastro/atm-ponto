@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.qodo
+.npm-cache
+.docker
+.env
+.env.local
+

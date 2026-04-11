@@ -1,0 +1,101 @@
+{
+  "name": "TimesheetRecord",
+  "type": "object",
+  "properties": {
+    "employee_name": {
+      "type": "string",
+      "title": "Nome do Colaborador"
+    },
+    "employee_number": {
+      "type": "string",
+      "title": "N\u00ba Pessoal"
+    },
+    "month": {
+      "type": "string",
+      "title": "M\u00eas"
+    },
+    "year": {
+      "type": "number",
+      "title": "Ano"
+    },
+    "date": {
+      "type": "string",
+      "title": "Data"
+    },
+    "normal_hours": {
+      "type": "number",
+      "title": "Horas Normais"
+    },
+    "extra_hours": {
+      "type": "number",
+      "title": "Horas Extras"
+    },
+    "travel_hours": {
+      "type": "number",
+      "title": "Horas de Viagem"
+    },
+    "absence_hours": {
+      "type": "number",
+      "title": "Horas de Aus\u00eancia"
+    },
+    "day_type": {
+      "type": "string",
+      "title": "Tipo de Dia",
+      "enum": [
+        "Dia \u00datil",
+        "Desc.Comp",
+        "Desc. Obrig",
+        "Feriado"
+      ]
+    },
+    "absence_type": {
+      "type": "string",
+      "title": "Tipo de Aus\u00eancia"
+    },
+    "project_number": {
+      "type": "string",
+      "title": "N\u00ba Projeto"
+    },
+    "project_client": {
+      "type": "string",
+      "title": "Cliente do Projeto"
+    },
+    "project_description": {
+      "type": "string",
+      "title": "Descri\u00e7\u00e3o do Projeto"
+    },
+    "compensated": {
+      "type": "boolean",
+      "title": "Compensado"
+    },
+    "period_start": {
+      "type": "string",
+      "title": "In\u00edcio do Per\u00edodo"
+    },
+    "period_end": {
+      "type": "string",
+      "title": "Fim do Per\u00edodo"
+    },
+    "pause_hours": {
+      "type": "number",
+      "title": "Pausa"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "normal",
+        "alerta",
+        "erro"
+      ]
+    },
+    "observations": {
+      "type": "string",
+      "title": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "employee_name",
+    "date"
+  ]
+}

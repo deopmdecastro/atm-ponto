@@ -1,0 +1,47 @@
+services:
+  web:
+    build:
+      context: .
+    ports:
+      - "5173:5173"
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      VITE_BASE44_APP_ID: "${VITE_BASE44_APP_ID}"
+      VITE_BASE44_APP_BASE_URL: "${VITE_BASE44_APP_BASE_URL}"
+      VITE_BASE44_FUNCTIONS_VERSION: "${VITE_BASE44_FUNCTIONS_VERSION}"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+
+  api:
+    build:
+      context: ./backend
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-atm}:${POSTGRES_PASSWORD:-atm}@db:5432/${POSTGRES_DB:-atm}"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-atm}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-atm}"
+      POSTGRES_DB: "${POSTGRES_DB:-atm}"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  db_data:
