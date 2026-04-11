@@ -6,7 +6,16 @@ const connectionString =
   process.env.DATABASE_URL ||
   `postgresql://${process.env.POSTGRES_USER || "atm"}:${process.env.POSTGRES_PASSWORD || "atm"}@${process.env.POSTGRES_HOST || "localhost"}:${process.env.POSTGRES_PORT || "5432"}/${process.env.POSTGRES_DB || "atm"}`;
 
-export const pool = new Pool({ connectionString });
+const pgSslMode = String(process.env.PGSSLMODE || "").trim().toLowerCase();
+const sslRequired =
+  pgSslMode === "require" ||
+  String(process.env.DATABASE_SSL || "").trim().toLowerCase() === "true" ||
+  (Boolean(process.env.RENDER) && pgSslMode !== "disable");
+
+export const pool = new Pool({
+  connectionString,
+  ...(sslRequired ? { ssl: { rejectUnauthorized: false } } : {})
+});
 
 export async function initDb() {
   await pool.query(`

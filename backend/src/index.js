@@ -46,21 +46,59 @@ app.use(express.json({ limit: "5mb" }));
 app.use("/uploads", express.static(uploadsDir));
 
 let dbReady = false;
-try {
-  await initDb();
-  dbReady = true;
-} catch (e) {
-  // eslint-disable-next-line no-console
-  console.error("[db] failed to initialize; /api routes will return 503", e?.message || e);
+let dbInitInFlight = null;
+let dbLastError = null;
+
+async function ensureDbReady() {
+  if (dbReady) return true;
+  if (dbInitInFlight) return dbInitInFlight;
+
+  dbInitInFlight = (async () => {
+    try {
+      await initDb();
+      dbReady = true;
+      dbLastError = null;
+      return true;
+    } catch (e) {
+      dbReady = false;
+      dbLastError = e?.message || String(e);
+      // eslint-disable-next-line no-console
+      console.error("[db] init failed", dbLastError);
+      return false;
+    } finally {
+      dbInitInFlight = null;
+    }
+  })();
+
+  return dbInitInFlight;
 }
 
-app.use("/api", (req, res, next) => {
-  if (dbReady) return next();
-  res.status(503).json({
-    error: "Database not available. Start Postgres (docker compose up -d db) and restart the backend.",
-    status: 503
-  });
-});
+try {
+  await ensureDbReady();
+} catch (e) {
+  // ignore; ensureDbReady already logged
+}
+
+if (typeof setInterval === "function") {
+  const t = setInterval(() => {
+    if (!dbReady) ensureDbReady();
+  }, 15000);
+  if (typeof t?.unref === "function") t.unref();
+}
+
+app.use(
+  "/api",
+  asyncHandler(async (req, res, next) => {
+    const ready = await ensureDbReady();
+    if (ready) return next();
+    res.status(503).json({
+      error:
+        "Database not available. Configure DATABASE_URL (Render) / PGSSLMODE=require, or start Postgres locally (docker compose up -d db) and restart the backend.",
+      status: 503,
+      details: dbLastError ? `DB init error: ${dbLastError}` : undefined
+    });
+  })
+);
 
 app.get("/", (req, res) => {
   res.type("text/plain").send(
@@ -68,7 +106,13 @@ app.get("/", (req, res) => {
   );
 });
 
-app.get("/health", (req, res) => res.json({ ok: true }));
+app.get("/health", (req, res) =>
+  res.json({
+    ok: true,
+    dbReady,
+    dbError: dbReady ? null : dbLastError || null
+  })
+);
 
 function parseOrder(order, fallbackColumn) {
   if (!order || typeof order !== "string") return { column: fallbackColumn, dir: "DESC" };

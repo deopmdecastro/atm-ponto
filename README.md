@@ -85,6 +85,8 @@ On Render:
 1. Create a **New Blueprint Instance** from this repo
 2. After deploying your frontend, set `CORS_ORIGIN` to your frontend URL (or keep `*` while testing)
 
+If you are not using the Blueprint, you must create a Render Postgres database and set `DATABASE_URL` (and `PGSSLMODE=require`) in the web service environment variables.
+
 **Deploy frontend on Vercel**
 
 Deploy the Vite frontend (repo root) on Vercel and point it to the Render API.

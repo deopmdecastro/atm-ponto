@@ -1,10 +1,30 @@
 import { createClient } from "@base44/sdk";
 import { appParams } from "@/lib/app-params";
 
+function normalizeBaseUrl(value) {
+  let s = String(value || "").trim();
+  if (!s) return "";
+
+  // Common deployment misconfigurations (e.g. "=https:/host" copied into env var).
+  if (s.startsWith("=")) s = s.slice(1).trim();
+  s = s.replace(/^https:\/(?!\/)/i, "https://");
+  s = s.replace(/^http:\/(?!\/)/i, "http://");
+
+  // Remove trailing slash to avoid double-slash joins.
+  s = s.replace(/\/+$/, "");
+  return s;
+}
+
 function createFetchClient(baseUrl) {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+  if (baseUrl && !normalizedBaseUrl) {
+    // eslint-disable-next-line no-console
+    console.warn("[api] Invalid VITE_LOCAL_BACKEND_URL, falling back to relative paths:", baseUrl);
+  }
+
   function buildUrl(path) {
-    if (!baseUrl) return path;
-    return `${baseUrl}${path}`;
+    if (!normalizedBaseUrl) return path;
+    return `${normalizedBaseUrl}${path}`;
   }
 
   async function request(method, path, body) {
@@ -105,7 +125,7 @@ function createFetchClient(baseUrl) {
 }
 
 const useLocalBackend = import.meta.env.VITE_USE_LOCAL_BACKEND === "true";
-const localBackendUrl = import.meta.env.VITE_LOCAL_BACKEND_URL || "http://localhost:3001";
+const localBackendUrl = normalizeBaseUrl(import.meta.env.VITE_LOCAL_BACKEND_URL) || "http://localhost:3001";
 
 export const base44 = useLocalBackend
   ? createFetchClient(localBackendUrl)

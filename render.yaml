@@ -24,10 +24,11 @@ services:
         fromDatabase:
           name: atm-ponto-db
           property: connectionString
+      - key: PGSSLMODE
+        value: require
       # Put your frontend URL(s) here (comma-separated) after you deploy it.
       # Example: https://atm-ponto-frontend.onrender.com
       - key: CORS_ORIGIN
         value: "*"
       - key: UPLOADS_DIR
         value: /var/data/uploads
-
