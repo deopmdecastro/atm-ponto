@@ -4,7 +4,6 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
-import { clearSession, getCurrentSession, getUserById, loginLocal, registerLocal } from "@/lib/localAuth";
 
 const AuthContext = createContext();
 const useLocalBackend = import.meta.env.VITE_USE_LOCAL_BACKEND === "true";
@@ -19,13 +18,21 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (useLocalBackend) {
-      const session = getCurrentSession();
-      const existingUser = session?.userId ? getUserById(session.userId) : null;
-      setUser(existingUser);
-      setIsAuthenticated(Boolean(existingUser));
-      setIsLoadingAuth(false);
-      setIsLoadingPublicSettings(false);
-      setAppPublicSettings({ id: "local", public_settings: {} });
+      (async () => {
+        setIsLoadingAuth(true);
+        setIsLoadingPublicSettings(false);
+        setAppPublicSettings({ id: "local", public_settings: {} });
+        try {
+          const currentUser = await base44.auth.me();
+          setUser(currentUser);
+          setIsAuthenticated(true);
+        } catch {
+          setUser(null);
+          setIsAuthenticated(false);
+        } finally {
+          setIsLoadingAuth(false);
+        }
+      })();
       return;
     }
     checkAppState();
@@ -130,7 +137,7 @@ export const AuthProvider = ({ children }) => {
     
     if (shouldRedirect) {
       if (useLocalBackend) {
-        clearSession();
+        base44.auth.logout();
         return;
       }
 
@@ -139,7 +146,7 @@ export const AuthProvider = ({ children }) => {
     } else {
       // Just remove the token without redirect
       if (useLocalBackend) {
-        clearSession();
+        base44.auth.logout();
         return;
       }
       base44.auth.logout();
@@ -147,14 +154,17 @@ export const AuthProvider = ({ children }) => {
   };
 
   const navigateToLogin = () => {
-    if (useLocalBackend) return;
+    if (useLocalBackend) {
+      base44.auth.redirectToLogin();
+      return;
+    }
     // Use the SDK's redirectToLogin method
     base44.auth.redirectToLogin(window.location.href);
   };
 
   const login = async ({ email, password }) => {
     if (!useLocalBackend) throw new Error("Login local não disponível neste modo");
-    const u = await loginLocal(email, password);
+    const u = await base44.auth.login({ email, password });
     setUser(u);
     setIsAuthenticated(true);
     return u;
@@ -190,6 +200,19 @@ export const AuthProvider = ({ children }) => {
     if (!Array.isArray(dailyRecords) || dailyRecords.length === 0) {
       throw new Error("Não foram encontrados registos diários no ficheiro.");
     }
+
+    if (typeof onProgress === "function") onProgress("A criar conta...");
+    const u = await base44.auth.register({
+      email,
+      password,
+      profile: {
+        employee_name: extracted.employee_name || "",
+        employee_number: extracted.employee_number || "",
+        department: extracted.department || extracted.observations || ""
+      }
+    });
+    setUser(u);
+    setIsAuthenticated(true);
 
     if (typeof onProgress === "function") onProgress(`A guardar ${dailyRecords.length} registos...`);
 
@@ -236,18 +259,6 @@ export const AuthProvider = ({ children }) => {
       // ignore
     }
 
-    if (typeof onProgress === "function") onProgress("A criar conta...");
-    const u = await registerLocal({
-      email,
-      password,
-      profile: {
-        employee_name: extracted.employee_name || "",
-        employee_number: extracted.employee_number || "",
-        department: extracted.department || extracted.observations || ""
-      }
-    });
-    setUser(u);
-    setIsAuthenticated(true);
     return { user: u, timesheet };
   };
 

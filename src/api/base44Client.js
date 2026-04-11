@@ -1,6 +1,8 @@
 import { createClient } from "@base44/sdk";
 import { appParams } from "@/lib/app-params";
 
+const TOKEN_KEY = "atm.auth.token.v1";
+
 function normalizeBaseUrl(value) {
   let s = String(value || "").trim();
   if (!s) return "";
@@ -13,6 +15,23 @@ function normalizeBaseUrl(value) {
   // Remove trailing slash to avoid double-slash joins.
   s = s.replace(/\/+$/, "");
   return s;
+}
+
+function getToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function setToken(token) {
+  try {
+    if (!token) localStorage.removeItem(TOKEN_KEY);
+    else localStorage.setItem(TOKEN_KEY, String(token));
+  } catch {
+    // ignore
+  }
 }
 
 function createFetchClient(baseUrl) {
@@ -28,9 +47,13 @@ function createFetchClient(baseUrl) {
   }
 
   async function request(method, path, body) {
+    const token = getToken();
     const res = await fetch(buildUrl(path), {
       method,
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {})
+      },
       body: body ? JSON.stringify(body) : undefined
     });
     if (!res.ok) {
@@ -53,8 +76,10 @@ function createFetchClient(baseUrl) {
     const formData = new FormData();
     formData.append("file", file);
 
+    const token = getToken();
     const res = await fetch(buildUrl(path), {
       method: "POST",
+      headers: token ? { authorization: `Bearer ${token}` } : undefined,
       body: formData
     });
     if (!res.ok) {
@@ -109,9 +134,29 @@ function createFetchClient(baseUrl) {
       inviteUser: async () => ({ ok: true })
     },
     auth: {
-      me: async () => ({ id: "local", email: "local@localhost", role: "admin" }),
-      logout: async () => ({ ok: true }),
-      redirectToLogin: async () => ({ ok: true })
+      login: async ({ email, password }) => {
+        const payload = await request("POST", "/auth/login", { email, password });
+        if (payload?.token) setToken(payload.token);
+        return payload?.user || null;
+      },
+      register: async ({ email, password, profile }) => {
+        const payload = await request("POST", "/auth/register", { email, password, profile });
+        if (payload?.token) setToken(payload.token);
+        return payload?.user || null;
+      },
+      me: async () => request("GET", "/auth/me"),
+      logout: async () => {
+        try {
+          await request("POST", "/auth/logout");
+        } finally {
+          setToken("");
+        }
+        return { ok: true };
+      },
+      redirectToLogin: async () => {
+        window.location.href = "/login";
+        return { ok: true };
+      }
     },
     integrations: {
       Core: {

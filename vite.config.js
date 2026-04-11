@@ -41,6 +41,7 @@ export default defineConfig(({ mode }) => {
           },
           proxy: {
             "/api": localTarget,
+            "/auth": localTarget,
             "/integrations": localTarget,
             "/uploads": localTarget
           }

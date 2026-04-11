@@ -48,6 +48,8 @@ This repo can also run with a local backend for `Employee` and `TimesheetRecord`
    - `VITE_USE_LOCAL_BACKEND=true`
    - `VITE_LOCAL_BACKEND_URL=http://localhost:3001`
 
+The local backend now includes authentication. Create an account at `/login` (first user becomes `admin`), then use the app normally. All `/api/*` routes require `Authorization: Bearer <token>` (handled automatically by the frontend).
+
 Note: The local backend now implements the Base44-style integrations used in `UploadPage`:
 
 - `UploadFile`: saves the uploaded file under `backend/uploads` and returns a `file_url`
@@ -86,6 +88,11 @@ On Render:
 2. After deploying your frontend, set `CORS_ORIGIN` to your frontend URL (or keep `*` while testing)
 
 If you are not using the Blueprint, you must create a Render Postgres database and set `DATABASE_URL` (and `PGSSLMODE=require`) in the web service environment variables.
+
+The backend also needs user authentication:
+
+- First user that registers becomes `admin`.
+- The frontend stores an access token in `localStorage` and sends it as `Authorization: Bearer <token>`.
 
 **Deploy frontend on Vercel**
 

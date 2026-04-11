@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { randomUUID } from "node:crypto";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,7 +39,9 @@ app.use(
           if (!origin) return cb(null, true);
           if (corsOrigins.includes(origin)) return cb(null, true);
           return cb(new Error(`CORS blocked for origin: ${origin}`));
-        }
+        },
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"]
       })
     : cors()
 );
@@ -86,6 +89,97 @@ if (typeof setInterval === "function") {
   if (typeof t?.unref === "function") t.unref();
 }
 
+app.get("/", (req, res) => {
+  res.type("text/plain").send(
+    "ATM API is running.\n\nTry:\n- GET /health\n- GET /api/employees\n- GET /api/timesheet-records\n"
+  );
+});
+
+app.get("/health", (req, res) =>
+  res.json({
+    ok: true,
+    dbReady,
+    dbError: dbReady ? null : dbLastError || null
+  })
+);
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+async function derivePasswordHash({ password, saltB64, iterations = 100000 }) {
+  const pwd = String(password || "");
+  const salt = Buffer.from(String(saltB64 || ""), "base64");
+  const hash = await new Promise((resolve, reject) => {
+    crypto.pbkdf2(pwd, salt, iterations, 32, "sha256", (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(derivedKey);
+    });
+  });
+  return Buffer.from(hash).toString("base64");
+}
+
+function genToken() {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+function tokenHash(token) {
+  return crypto.createHash("sha256").update(String(token || "")).digest("hex");
+}
+
+function sanitizeUser(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    email: row.email,
+    role: row.role,
+    profile: row.profile || {},
+    created_date: row.created_date
+  };
+}
+
+async function createSession(userId) {
+  const token = genToken();
+  const hash = tokenHash(token);
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30); // 30 days
+  const id = randomUUID();
+  await pool.query(
+    `INSERT INTO user_sessions (id, user_id, token_hash, expires_at) VALUES ($1,$2,$3,$4)`,
+    [id, userId, hash, expiresAt.toISOString()]
+  );
+  return { token, tokenHash: hash, sessionId: id, expiresAt: expiresAt.toISOString() };
+}
+
+async function authRequired(req, res, next) {
+  if (req.method === "OPTIONS") return next();
+  const header = String(req.headers.authorization || "");
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (!token) return next(httpError(401, "Missing Authorization header"));
+
+  const hash = tokenHash(token);
+  const { rows } = await pool.query(
+    `
+    SELECT s.id AS session_id, s.token_hash, u.*
+    FROM user_sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.token_hash = $1 AND s.expires_at > now()
+    LIMIT 1
+    `,
+    [hash]
+  );
+
+  const row = rows[0];
+  if (!row) return next(httpError(401, "Invalid or expired token"));
+
+  req.user = sanitizeUser(row);
+  req.session = { id: row.session_id, tokenHash: row.token_hash };
+
+  // Best-effort last_used update
+  pool.query(`UPDATE user_sessions SET last_used = now() WHERE id = $1`, [row.session_id]).catch(() => {});
+
+  return next();
+}
+
 app.use(
   "/api",
   asyncHandler(async (req, res, next) => {
@@ -100,17 +194,126 @@ app.use(
   })
 );
 
-app.get("/", (req, res) => {
-  res.type("text/plain").send(
-    "ATM API is running.\n\nTry:\n- GET /health\n- GET /api/employees\n- GET /api/timesheet-records\n"
-  );
-});
+app.use(
+  "/api",
+  asyncHandler(async (req, res, next) => {
+    await authRequired(req, res, next);
+  })
+);
 
-app.get("/health", (req, res) =>
-  res.json({
-    ok: true,
-    dbReady,
-    dbError: dbReady ? null : dbLastError || null
+app.post(
+  "/auth/register",
+  asyncHandler(async (req, res) => {
+    const ready = await ensureDbReady();
+    if (!ready) {
+      res.status(503).json({
+        error: "Database not available",
+        status: 503,
+        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
+      });
+      return;
+    }
+    const data = req.body || {};
+    const email = normalizeEmail(data.email);
+    const password = String(data.password || "");
+    if (!email) throw httpError(400, "Email é obrigatório");
+    if (!password || password.length < 6) throw httpError(400, "Senha deve ter pelo menos 6 caracteres");
+
+    const { rows: existing } = await pool.query(`SELECT id FROM users WHERE email = $1 LIMIT 1`, [email]);
+    if (existing[0]) throw httpError(409, "Já existe uma conta com este email");
+
+    const { rows: countRows } = await pool.query(`SELECT COUNT(*)::int AS n FROM users`);
+    const isFirstUser = Number(countRows?.[0]?.n || 0) === 0;
+
+    const salt = crypto.randomBytes(16).toString("base64");
+    const iterations = 100000;
+    const hash = await derivePasswordHash({ password, saltB64: salt, iterations });
+
+    const id = randomUUID();
+    const role = isFirstUser ? "admin" : "user";
+    const profile = data.profile && typeof data.profile === "object" ? data.profile : {};
+
+    const { rows } = await pool.query(
+      `
+      INSERT INTO users (id, email, role, password_salt, password_iterations, password_hash, profile)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      RETURNING *;
+      `,
+      [id, email, role, salt, iterations, hash, profile]
+    );
+
+    const user = sanitizeUser(rows[0]);
+    const session = await createSession(user.id);
+
+    res.status(201).json({ token: session.token, user });
+  })
+);
+
+app.post(
+  "/auth/login",
+  asyncHandler(async (req, res) => {
+    const ready = await ensureDbReady();
+    if (!ready) {
+      res.status(503).json({
+        error: "Database not available",
+        status: 503,
+        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
+      });
+      return;
+    }
+    const data = req.body || {};
+    const email = normalizeEmail(data.email);
+    const password = String(data.password || "");
+    if (!email) throw httpError(400, "Email é obrigatório");
+    if (!password) throw httpError(400, "Senha é obrigatória");
+
+    const { rows } = await pool.query(`SELECT * FROM users WHERE email = $1 LIMIT 1`, [email]);
+    const userRow = rows[0];
+    if (!userRow) throw httpError(401, "Credenciais inválidas");
+
+    const expected = String(userRow.password_hash || "");
+    const derived = await derivePasswordHash({
+      password,
+      saltB64: userRow.password_salt,
+      iterations: Number(userRow.password_iterations || 100000)
+    });
+    if (derived !== expected) throw httpError(401, "Credenciais inválidas");
+
+    const user = sanitizeUser(userRow);
+    const session = await createSession(user.id);
+    res.json({ token: session.token, user });
+  })
+);
+
+app.get(
+  "/auth/me",
+  asyncHandler(async (req, res, next) => {
+    const ready = await ensureDbReady();
+    if (!ready) {
+      res.status(503).json({
+        error: "Database not available",
+        status: 503,
+        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
+      });
+      return;
+    }
+    return authRequired(req, res, () => res.json(req.user));
+  })
+);
+
+app.post(
+  "/auth/logout",
+  asyncHandler(async (req, res, next) => {
+    const ready = await ensureDbReady();
+    if (!ready) {
+      res.status(503).json({ error: "Database not available", status: 503 });
+      return;
+    }
+    return authRequired(req, res, async () => {
+      const hash = req.session?.tokenHash;
+      if (hash) await pool.query(`DELETE FROM user_sessions WHERE token_hash = $1`, [hash]);
+      res.json({ ok: true });
+    });
   })
 );
 

@@ -19,6 +19,30 @@ export const pool = new Pool({
 
 export async function initDb() {
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id uuid PRIMARY KEY,
+      created_date timestamptz NOT NULL DEFAULT now(),
+      email text NOT NULL UNIQUE,
+      role text NOT NULL DEFAULT 'user',
+      password_salt text NOT NULL,
+      password_iterations integer NOT NULL DEFAULT 100000,
+      password_hash text NOT NULL,
+      profile jsonb NOT NULL DEFAULT '{}'::jsonb
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      id uuid PRIMARY KEY,
+      created_date timestamptz NOT NULL DEFAULT now(),
+      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash text NOT NULL UNIQUE,
+      expires_at timestamptz NOT NULL,
+      last_used timestamptz
+    );
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS timesheets (
       id uuid PRIMARY KEY,
       created_date timestamptz NOT NULL DEFAULT now(),
@@ -99,4 +123,5 @@ export async function initDb() {
 
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_timesheet_records_timesheet_id ON timesheet_records(timesheet_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_timesheets_created_date ON timesheets(created_date DESC);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);`);
 }
