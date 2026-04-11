@@ -4,6 +4,7 @@ import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Upload, Clock, AlertTriangle, Users, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
+import atmIcon from "@/img/atm_icon.png";
 
 const useLocalBackend = import.meta.env.VITE_USE_LOCAL_BACKEND === "true";
 
@@ -28,9 +29,7 @@ export default function Layout() {
       <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
-              <Clock className="h-5 w-5 text-primary-foreground" />
-            </div>
+            <img src={atmIcon} alt="ATM Ponto" className="h-9 w-9 object-contain" draggable={false} />
             <div>
               <h1 className="text-lg font-bold tracking-tight text-foreground">ATM Ponto</h1>
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground leading-none">Controle de Horas</p>
