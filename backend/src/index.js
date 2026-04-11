@@ -592,9 +592,9 @@ app.post(
   "/api/timesheets",
   asyncHandler(async (req, res) => {
     const data = req.body || {};
-    const employeeName = String(data.employee_name || "");
-    const employeeNumber = String(data.employee_number || "");
-    const month = String(data.month || "");
+    const employeeName = String(data.employee_name || "").trim();
+    const employeeNumber = String(data.employee_number || "").trim();
+    const month = String(data.month || "").trim();
     const year = data.year != null && data.year !== "" ? Number(data.year) : null;
     const replace = Boolean(data.replace);
 
@@ -608,10 +608,16 @@ app.post(
           SELECT id
           FROM timesheets
           WHERE year = $1
-            AND month = $2
+            AND lower(regexp_replace(btrim(month), '\\s+', ' ', 'g')) =
+              lower(regexp_replace(btrim($2), '\\s+', ' ', 'g'))
             AND (
-              employee_number = $3
-              OR ($3 = '' AND employee_name = $4)
+              regexp_replace(btrim(COALESCE(employee_number, '')), '\\s+', '', 'g') =
+                regexp_replace(btrim($3), '\\s+', '', 'g')
+              OR (
+                regexp_replace(btrim($3), '\\s+', '', 'g') = ''
+                AND lower(regexp_replace(btrim(COALESCE(employee_name, '')), '\\s+', ' ', 'g')) =
+                  lower(regexp_replace(btrim($4), '\\s+', ' ', 'g'))
+              )
             )
           `,
           [year, month, employeeNumber, employeeName]
