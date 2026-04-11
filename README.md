@@ -66,6 +66,15 @@ For Excel extraction on Windows, the backend will use (in this order):
 2. Create a `.env` (or export env vars) based on `.env.example`
 3. Run: `docker compose up --build`
 
+**Production env templates**
+
+This repo includes production-ready env templates:
+
+- Frontend (Vite): `.env.production.example` → copy to `.env.production` when testing `npm run build` locally, or set the same vars in your host (e.g. Vercel).
+- Backend (Node): `backend/.env.production.example` → copy to `backend/.env.production` for self-hosting, or set the same vars in your host (e.g. Render).
+
+The backend auto-loads `.env`, `.env.<mode>`, `.env.local`, `.env.<mode>.local` (where `<mode>` is `NODE_ENV`) without overriding real environment variables.
+
 **Database in Docker (optional)**
 
 This repo is a Base44 frontend (there is no backend code here). If you still want a local database container (for a separate backend), the `docker-compose.yml` includes a Postgres service named `db`.

@@ -2,15 +2,22 @@
   "name": "ATM Ponto",
   "short_name": "ATM Ponto",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0f172a",
   "icons": [
     {
-      "src": "https://base44.com/logo_v2.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icons/icon-1080.png",
+      "sizes": "1080x1080",
+      "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-1080.png",
+      "sizes": "1080x1080",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

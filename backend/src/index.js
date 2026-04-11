@@ -9,6 +9,9 @@ import { initDb, pool } from "./db.js";
 import { asyncHandler, httpError } from "./http.js";
 import multer from "multer";
 import { extractRowsFromPrompt, extractTimesheetDailyRecords } from "./timesheetExtract.js";
+import { loadEnv } from "./loadEnv.js";
+
+loadEnv();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = (() => {

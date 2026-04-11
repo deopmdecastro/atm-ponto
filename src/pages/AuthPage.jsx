@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { FileSpreadsheet, Lock, UserPlus } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
+import atmIcon from "@/img/atm_icon.png";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -85,9 +86,7 @@ export default function AuthPage() {
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-md space-y-6">
         <div className="flex items-center justify-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
-            <FileSpreadsheet className="h-5 w-5 text-primary-foreground" />
-          </div>
+          <img src={atmIcon} alt="ATM Ponto" className="h-10 w-10 object-contain" draggable={false} />
           <div className="text-left">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">ATM Ponto</h1>
             <p className="text-sm text-muted-foreground">Entre para continuar</p>
@@ -248,4 +247,3 @@ export default function AuthPage() {
     </div>
   );
 }
-

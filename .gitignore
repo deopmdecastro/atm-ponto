@@ -1,8 +1,9 @@
  
 
-#env
+# env (keep templates committed)
 .env
 .env.*
+!.env*.example
 
 # Logs
 /logs
@@ -19,6 +20,10 @@ dist-ssr
 *.local
 .npm-cache
 
+# Runtime data
+uploads/
+backend/uploads/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -30,5 +35,4 @@ dist-ssr
 *.sln
 *.sw?
 
-.env
 .vite
