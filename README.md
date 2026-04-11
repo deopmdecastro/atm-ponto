@@ -72,6 +72,37 @@ This repo is a Base44 frontend (there is no backend code here). If you still wan
 - Check logs: `docker compose logs -f db`
 - Stop: `docker compose down`
 
+**Deploy backend on Render**
+
+This repo includes a Render Blueprint in `render.yaml` that provisions:
+
+- A Node web service from `backend/`
+- A Postgres database (wired to `DATABASE_URL`)
+- A small persistent disk for uploads (`/var/data`, used via `UPLOADS_DIR=/var/data/uploads`)
+
+On Render:
+
+1. Create a **New Blueprint Instance** from this repo
+2. After deploying your frontend, set `CORS_ORIGIN` to your frontend URL (or keep `*` while testing)
+
+**Deploy frontend on Vercel**
+
+Deploy the Vite frontend (repo root) on Vercel and point it to the Render API.
+
+In Vercel:
+
+1. Import the repo
+2. Set **Root Directory** to `/` (repo root) and Framework to **Vite**
+3. Set environment variables:
+
+   - `VITE_USE_LOCAL_BACKEND=true`
+   - `VITE_LOCAL_BACKEND_URL=https://<your-render-service>.onrender.com`
+
+Notes:
+
+- `vercel.json` includes an SPA rewrite for React Router.
+- On Render, set `CORS_ORIGIN` to your Vercel domain (or multiple domains separated by commas).
+
 **Publish your changes**
 
 Open [Base44.com](http://Base44.com) and click on Publish.

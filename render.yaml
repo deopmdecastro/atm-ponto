@@ -1,0 +1,33 @@
+databases:
+  - name: atm-ponto-db
+    plan: free
+    databaseName: atm
+    user: atm
+
+services:
+  - type: web
+    name: atm-ponto-api
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    disk:
+      name: atm-ponto-api-disk
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATABASE_URL
+        fromDatabase:
+          name: atm-ponto-db
+          property: connectionString
+      # Put your frontend URL(s) here (comma-separated) after you deploy it.
+      # Example: https://atm-ponto-frontend.onrender.com
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: UPLOADS_DIR
+        value: /var/data/uploads
+

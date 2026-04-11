@@ -10,13 +10,38 @@ import multer from "multer";
 import { extractRowsFromPrompt, extractTimesheetDailyRecords } from "./timesheetExtract.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.resolve(__dirname, "..", "uploads");
+const uploadsDir = (() => {
+  const envDir = process.env.UPLOADS_DIR;
+  if (!envDir) return path.resolve(__dirname, "..", "uploads");
+  return path.isAbsolute(envDir) ? envDir : path.resolve(process.cwd(), envDir);
+})();
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 const upload = multer({ dest: uploadsDir });
 
 const app = express();
-app.use(cors());
+app.set("trust proxy", 1);
+
+const corsOriginEnv = String(process.env.CORS_ORIGIN || "").trim();
+const corsOrigins =
+  corsOriginEnv && corsOriginEnv !== "*"
+    ? corsOriginEnv
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : null;
+
+app.use(
+  corsOrigins
+    ? cors({
+        origin(origin, cb) {
+          if (!origin) return cb(null, true);
+          if (corsOrigins.includes(origin)) return cb(null, true);
+          return cb(new Error(`CORS blocked for origin: ${origin}`));
+        }
+      })
+    : cors()
+);
 app.use(express.json({ limit: "5mb" }));
 app.use("/uploads", express.static(uploadsDir));
 

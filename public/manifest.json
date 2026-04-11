@@ -1,6 +1,6 @@
 {
-  "name": "ATM App",
-  "short_name": "ATM",
+  "name": "ATM Ponto",
+  "short_name": "ATM Ponto",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
