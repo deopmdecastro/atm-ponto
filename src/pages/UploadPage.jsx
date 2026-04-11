@@ -1,10 +1,20 @@
  
 
-import { useState, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 
 const useLocalBackend = import.meta.env.VITE_USE_LOCAL_BACKEND === "true";
 
@@ -14,6 +24,24 @@ export default function UploadPage() {
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const confirmResolveRef = useRef(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmInfo, setConfirmInfo] = useState({ period: "", employeeLabel: "" });
+
+  function confirmReplace({ period, employeeLabel }) {
+    setConfirmInfo({ period: String(period || ""), employeeLabel: String(employeeLabel || "") });
+    setConfirmOpen(true);
+    return new Promise((resolve) => {
+      confirmResolveRef.current = resolve;
+    });
+  }
+
+  function closeConfirm(choice) {
+    const resolve = confirmResolveRef.current;
+    confirmResolveRef.current = null;
+    setConfirmOpen(false);
+    if (typeof resolve === "function") resolve(Boolean(choice));
+  }
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
@@ -169,9 +197,7 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
             ? `${timesheetPayload.employee_name} (Nº ${timesheetPayload.employee_number})`
             : timesheetPayload.employee_name;
 
-          const ok = window.confirm(
-            `Já existe um timesheet importado de ${period} para ${employeeLabel}.\n\nPretende substituir? Isto irá apagar o import anterior desse mês.`
-          );
+          const ok = await confirmReplace({ period, employeeLabel });
 
           if (!ok) {
             setStatus("idle");
@@ -330,5 +356,26 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
         )}
       </Button>
     </div>
+
+    <AlertDialog open={confirmOpen} onOpenChange={(open) => (open ? setConfirmOpen(true) : closeConfirm(false))}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Substituir Timesheet?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Já existe um timesheet importado de <strong>{confirmInfo.period}</strong> para{" "}
+            <strong>{confirmInfo.employeeLabel}</strong>.
+            <br />
+            <br />
+            Pretende substituir? Isto irá apagar o import anterior desse mês.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => closeConfirm(false)}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => closeConfirm(true)}>
+            Substituir
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
