@@ -147,18 +147,44 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
     const canCreateTimesheet = typeof base44.entities?.Timesheet?.create === "function";
 
     // 3. Create a new timesheet (do not delete older imports)
-    const timesheet = canCreateTimesheet
-      ? await base44.entities.Timesheet.create({
-          employee_name: extracted.employee_name || "Desconhecido",
-          employee_number: String(extracted.employee_number || ""),
-          month: extracted.month || "",
-          year: extracted.year || new Date().getFullYear(),
-          department: extracted.department || extracted.observations || "",
-          source_filename: file?.name || "",
-          total_compensation_hours: extracted.total_compensation_hours ?? 0,
-          total_descanso_compensatorio_hours: extracted.total_descanso_compensatorio_hours ?? 0
-        })
-      : null;
+    const timesheetPayload = {
+      employee_name: extracted.employee_name || "Desconhecido",
+      employee_number: String(extracted.employee_number || ""),
+      month: extracted.month || "",
+      year: extracted.year || new Date().getFullYear(),
+      department: extracted.department || extracted.observations || "",
+      source_filename: file?.name || "",
+      total_compensation_hours: extracted.total_compensation_hours ?? 0,
+      total_descanso_compensatorio_hours: extracted.total_descanso_compensatorio_hours ?? 0
+    };
+
+    let timesheet = null;
+    if (canCreateTimesheet) {
+      try {
+        timesheet = await base44.entities.Timesheet.create(timesheetPayload);
+      } catch (err) {
+        if (err && typeof err === "object" && err.status === 409) {
+          const period = `${timesheetPayload.month} ${timesheetPayload.year}`.trim();
+          const employeeLabel = timesheetPayload.employee_number
+            ? `${timesheetPayload.employee_name} (Nº ${timesheetPayload.employee_number})`
+            : timesheetPayload.employee_name;
+
+          const ok = window.confirm(
+            `Já existe um timesheet importado de ${period} para ${employeeLabel}.\n\nPretende substituir? Isto irá apagar o import anterior desse mês.`
+          );
+
+          if (!ok) {
+            setStatus("idle");
+            setProgress("");
+            return;
+          }
+
+          timesheet = await base44.entities.Timesheet.create({ ...timesheetPayload, replace: true });
+        } else {
+          throw err;
+        }
+      }
+    }
 
     // 4. Create new records
     const toCreate = dailyRecords.map(r => ({

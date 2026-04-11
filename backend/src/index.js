@@ -592,40 +592,88 @@ app.post(
   "/api/timesheets",
   asyncHandler(async (req, res) => {
     const data = req.body || {};
-    const id = randomUUID();
-    const { rows } = await pool.query(
-      `
-      INSERT INTO timesheets
-        (
+    const employeeName = String(data.employee_name || "");
+    const employeeNumber = String(data.employee_number || "");
+    const month = String(data.month || "");
+    const year = data.year != null && data.year !== "" ? Number(data.year) : null;
+    const replace = Boolean(data.replace);
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      if (month && year != null && (employeeNumber || employeeName)) {
+        const { rows: existing } = await client.query(
+          `
+          SELECT id
+          FROM timesheets
+          WHERE year = $1
+            AND month = $2
+            AND (
+              employee_number = $3
+              OR ($3 = '' AND employee_name = $4)
+            )
+          `,
+          [year, month, employeeNumber, employeeName]
+        );
+
+        const existingIds = existing.map((r) => r.id).filter(Boolean);
+        if (existingIds.length > 0 && !replace) {
+          await client.query("ROLLBACK");
+          res.status(409).json({
+            error: "Timesheet already exists",
+            existing_timesheet_ids: existingIds
+          });
+          return;
+        }
+
+        if (existingIds.length > 0 && replace) {
+          await client.query(`DELETE FROM timesheets WHERE id = ANY($1::uuid[])`, [existingIds]);
+        }
+      }
+
+      const id = randomUUID();
+      const { rows } = await client.query(
+        `
+        INSERT INTO timesheets
+          (
+            id,
+            employee_name,
+            employee_number,
+            month,
+            year,
+            department,
+            source_filename,
+            total_compensation_hours,
+            total_descanso_compensatorio_hours
+          )
+        VALUES
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        RETURNING *;
+        `,
+        [
           id,
-          employee_name,
-          employee_number,
+          employeeName,
+          employeeNumber,
           month,
           year,
-          department,
-          source_filename,
-          total_compensation_hours,
-          total_descanso_compensatorio_hours
-        )
-      VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-      RETURNING *;
-      `,
-      [
-        id,
-        data.employee_name || "",
-        data.employee_number || "",
-        data.month || "",
-        data.year ? Number(data.year) : null,
-        data.department || "",
-        data.source_filename || "",
-        data.total_compensation_hours != null ? Number(data.total_compensation_hours) : 0,
-        data.total_descanso_compensatorio_hours != null
-          ? Number(data.total_descanso_compensatorio_hours)
-          : 0
-      ]
-    );
-    res.status(201).json(rows[0]);
+          data.department || "",
+          data.source_filename || "",
+          data.total_compensation_hours != null ? Number(data.total_compensation_hours) : 0,
+          data.total_descanso_compensatorio_hours != null
+            ? Number(data.total_descanso_compensatorio_hours)
+            : 0
+        ]
+      );
+
+      await client.query("COMMIT");
+      res.status(201).json(rows[0]);
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
   })
 );
 
