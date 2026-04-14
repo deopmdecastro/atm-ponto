@@ -10,6 +10,7 @@ import { asyncHandler, httpError } from "./http.js";
 import multer from "multer";
 import { extractRowsFromPrompt, extractTimesheetDailyRecords } from "./timesheetExtract.js";
 import { loadEnv } from "./loadEnv.js";
+import { generateCompensationSummaryXlsx } from "./reports/compensationSummaryXlsx.js";
 
 loadEnv();
 
@@ -327,14 +328,30 @@ function parseOrder(order, fallbackColumn) {
   const map = {
     created_date: "created_date",
     date: "date",
-    full_name: "full_name"
+    full_name: "full_name",
+    enjoy_date: "enjoy_date"
   };
   return { column: map[key] || fallbackColumn, dir };
+}
+
+function requireAdmin(req) {
+  if (req.user?.role !== "admin") throw httpError(403, "Admin access required");
+}
+
+async function ensureTimesheetOwned({ timesheetId, userId, client = pool }) {
+  if (!timesheetId) return true;
+  const { rows } = await client.query(`SELECT id FROM timesheets WHERE id = $1 AND user_id = $2 LIMIT 1`, [
+    timesheetId,
+    userId
+  ]);
+  if (!rows[0]) throw httpError(403, "Timesheet not found (or not owned by current user)");
+  return true;
 }
 
 app.get(
   "/api/employees",
   asyncHandler(async (req, res) => {
+    requireAdmin(req);
     const limit = Math.min(Number(req.query.limit || 200) || 200, 1000);
     const { column, dir } = parseOrder(req.query.order, "created_date");
     const { rows } = await pool.query(
@@ -348,6 +365,7 @@ app.get(
 app.post(
   "/api/employees",
   asyncHandler(async (req, res) => {
+    requireAdmin(req);
     const data = req.body || {};
     if (!data.full_name || !data.email) throw httpError(400, "full_name and email are required");
     const id = randomUUID();
@@ -378,6 +396,7 @@ app.put(
   "/api/employees/:id",
   asyncHandler(async (req, res) => {
     const id = req.params.id;
+    requireAdmin(req);
     const data = req.body || {};
     const { rows } = await pool.query(
       `
@@ -411,6 +430,7 @@ app.put(
 app.delete(
   "/api/employees/:id",
   asyncHandler(async (req, res) => {
+    requireAdmin(req);
     const { rowCount } = await pool.query(`DELETE FROM employees WHERE id = $1`, [req.params.id]);
     if (!rowCount) throw httpError(404, "employee not found");
     res.json({ ok: true });
@@ -423,8 +443,33 @@ app.get(
     const limit = Math.min(Number(req.query.limit || 500) || 500, 5000);
     const { column, dir } = parseOrder(req.query.order, "date");
     const timesheetId = req.query.timesheet_id ? String(req.query.timesheet_id) : null;
-    const where = timesheetId ? `WHERE timesheet_id = $2` : "";
-    const params = timesheetId ? [limit, timesheetId] : [limit];
+    const date = req.query.date ? String(req.query.date) : null;
+    const from = req.query.from ? String(req.query.from) : null;
+    const to = req.query.to ? String(req.query.to) : null;
+
+    const clauses = [`user_id = $2`];
+    const params = [limit, req.user.id];
+    let idx = 3;
+
+    if (timesheetId) {
+      clauses.push(`timesheet_id = $${idx++}`);
+      params.push(timesheetId);
+    }
+    if (date) {
+      clauses.push(`date = $${idx++}`);
+      params.push(date);
+    } else {
+      if (from) {
+        clauses.push(`date >= $${idx++}`);
+        params.push(from);
+      }
+      if (to) {
+        clauses.push(`date <= $${idx++}`);
+        params.push(to);
+      }
+    }
+
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     const { rows } = await pool.query(
       `SELECT * FROM timesheet_records ${where} ORDER BY ${column} ${dir} LIMIT $1`,
       params
@@ -443,21 +488,23 @@ app.post(
   asyncHandler(async (req, res) => {
     const data = req.body || {};
     if (!data.employee_name || !data.date) throw httpError(400, "employee_name and date are required");
+    await ensureTimesheetOwned({ timesheetId: data.timesheet_id || null, userId: req.user.id });
     const id = randomUUID();
     const { rows } = await pool.query(
       `
       INSERT INTO timesheet_records
-        (id, timesheet_id, employee_name, employee_number, month, year, date, normal_hours, extra_hours, travel_hours, absence_hours,
+        (id, user_id, timesheet_id, employee_name, employee_number, month, year, date, normal_hours, extra_hours, travel_hours, absence_hours,
          day_type, absence_type, project_number, project_client, project_description, compensated, period_start, period_end,
          pause_hours, status, observations)
       VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
-         $12,$13,$14,$15,$16,$17,$18,$19,
-         $20,$21,$22)
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
+         $13,$14,$15,$16,$17,$18,$19,$20,
+         $21,$22,$23)
       RETURNING *;
       `,
       [
         id,
+        req.user.id,
         data.timesheet_id || null,
         data.employee_name,
         data.employee_number || "",
@@ -496,23 +543,37 @@ app.post(
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+
+      const uniqueTimesheetIds = [
+        ...new Set(
+          items
+            .map((i) => i?.timesheet_id)
+            .filter(Boolean)
+            .map((v) => String(v))
+        )
+      ];
+      for (const tsId of uniqueTimesheetIds) {
+        await ensureTimesheetOwned({ timesheetId: tsId, userId: req.user.id, client });
+      }
+
       for (const item of items) {
         if (!item?.employee_name || !item?.date) throw httpError(400, "Each item needs employee_name and date");
         const id = randomUUID();
         const { rows } = await client.query(
           `
           INSERT INTO timesheet_records
-            (id, timesheet_id, employee_name, employee_number, month, year, date, normal_hours, extra_hours, travel_hours, absence_hours,
+            (id, user_id, timesheet_id, employee_name, employee_number, month, year, date, normal_hours, extra_hours, travel_hours, absence_hours,
              day_type, absence_type, project_number, project_client, project_description, compensated, period_start, period_end,
              pause_hours, status, observations)
           VALUES
-            ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
-             $12,$13,$14,$15,$16,$17,$18,$19,
-             $20,$21,$22)
+            ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
+             $13,$14,$15,$16,$17,$18,$19,$20,
+             $21,$22,$23)
           RETURNING *;
           `,
           [
             id,
+            req.user.id,
             item.timesheet_id || null,
             item.employee_name,
             item.employee_number || "",
@@ -572,11 +633,12 @@ app.get(
         MAX(r.date) AS period_end
       FROM timesheets t
       LEFT JOIN timesheet_records r ON r.timesheet_id = t.id
+      WHERE t.user_id = $2
       GROUP BY t.id
       ORDER BY t.created_date DESC
       LIMIT $1
       `,
-      [limit]
+      [limit, req.user.id]
     );
     res.json(
       rows.map((r) => ({
@@ -607,7 +669,8 @@ app.post(
           `
           SELECT id
           FROM timesheets
-          WHERE year = $1
+          WHERE user_id = $5
+            AND year = $1
             AND lower(regexp_replace(btrim(month), '\\s+', ' ', 'g')) =
               lower(regexp_replace(btrim($2), '\\s+', ' ', 'g'))
             AND (
@@ -620,7 +683,7 @@ app.post(
               )
             )
           `,
-          [year, month, employeeNumber, employeeName]
+          [year, month, employeeNumber, employeeName, req.user.id]
         );
 
         const existingIds = existing.map((r) => r.id).filter(Boolean);
@@ -644,6 +707,7 @@ app.post(
         INSERT INTO timesheets
           (
             id,
+            user_id,
             employee_name,
             employee_number,
             month,
@@ -654,11 +718,12 @@ app.post(
             total_descanso_compensatorio_hours
           )
         VALUES
-          ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         RETURNING *;
         `,
         [
           id,
+          req.user.id,
           employeeName,
           employeeNumber,
           month,
@@ -686,7 +751,10 @@ app.post(
 app.get(
   "/api/timesheets/:id",
   asyncHandler(async (req, res) => {
-    const { rows } = await pool.query(`SELECT * FROM timesheets WHERE id = $1`, [req.params.id]);
+    const { rows } = await pool.query(`SELECT * FROM timesheets WHERE id = $1 AND user_id = $2`, [
+      req.params.id,
+      req.user.id
+    ]);
     if (!rows[0]) throw httpError(404, "timesheet not found");
     res.json(rows[0]);
   })
@@ -708,7 +776,7 @@ app.put(
         source_filename = COALESCE($7, source_filename),
         total_compensation_hours = COALESCE($8, total_compensation_hours),
         total_descanso_compensatorio_hours = COALESCE($9, total_descanso_compensatorio_hours)
-      WHERE id = $1
+      WHERE id = $1 AND user_id = $10
       RETURNING *;
       `,
       [
@@ -722,7 +790,8 @@ app.put(
         data.total_compensation_hours != null ? Number(data.total_compensation_hours) : null,
         data.total_descanso_compensatorio_hours != null
           ? Number(data.total_descanso_compensatorio_hours)
-          : null
+          : null,
+        req.user.id
       ]
     );
     if (!rows[0]) throw httpError(404, "timesheet not found");
@@ -733,9 +802,99 @@ app.put(
 app.delete(
   "/api/timesheets/:id",
   asyncHandler(async (req, res) => {
-    const { rowCount } = await pool.query(`DELETE FROM timesheets WHERE id = $1`, [req.params.id]);
+    const { rowCount } = await pool.query(`DELETE FROM timesheets WHERE id = $1 AND user_id = $2`, [
+      req.params.id,
+      req.user.id
+    ]);
     if (!rowCount) throw httpError(404, "timesheet not found");
     res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/compensation-enjoyments",
+  asyncHandler(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit || 200) || 200, 2000);
+    const { column, dir } = parseOrder(req.query.order, "enjoy_date");
+    const from = req.query.from ? String(req.query.from) : null;
+    const to = req.query.to ? String(req.query.to) : null;
+
+    const clauses = [`user_id = $2`];
+    const params = [limit, req.user.id];
+    let idx = 3;
+    if (from) {
+      clauses.push(`enjoy_date >= $${idx++}`);
+      params.push(from);
+    }
+    if (to) {
+      clauses.push(`enjoy_date <= $${idx++}`);
+      params.push(to);
+    }
+
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const { rows } = await pool.query(
+      `SELECT * FROM compensation_enjoyments ${where} ORDER BY ${column} ${dir} LIMIT $1`,
+      params
+    );
+    res.json(
+      rows.map((r) => ({
+        ...r,
+        enjoy_date: r.enjoy_date ? r.enjoy_date.toISOString().slice(0, 10) : r.enjoy_date
+      }))
+    );
+  })
+);
+
+app.post(
+  "/api/compensation-enjoyments",
+  asyncHandler(async (req, res) => {
+    const data = req.body || {};
+    const enjoyDate = String(data.enjoy_date || "").trim();
+    const hours = Number(data.hours);
+    const reason = data.reason != null ? String(data.reason) : null;
+
+    if (!enjoyDate) throw httpError(400, "enjoy_date is required");
+    if (!Number.isFinite(hours) || hours <= 0) throw httpError(400, "hours must be a positive number");
+
+    const id = randomUUID();
+    const { rows } = await pool.query(
+      `
+      INSERT INTO compensation_enjoyments (id, user_id, enjoy_date, hours, reason)
+      VALUES ($1,$2,$3,$4,$5)
+      RETURNING *;
+      `,
+      [id, req.user.id, enjoyDate, hours, reason]
+    );
+    const row = rows[0];
+    res.status(201).json({
+      ...row,
+      enjoy_date: row.enjoy_date ? row.enjoy_date.toISOString().slice(0, 10) : row.enjoy_date
+    });
+  })
+);
+
+app.delete(
+  "/api/compensation-enjoyments/:id",
+  asyncHandler(async (req, res) => {
+    const { rowCount } = await pool.query(`DELETE FROM compensation_enjoyments WHERE id = $1 AND user_id = $2`, [
+      req.params.id,
+      req.user.id
+    ]);
+    if (!rowCount) throw httpError(404, "compensation enjoyment not found");
+    res.json({ ok: true });
+  })
+);
+
+app.get(
+  "/api/reports/compensation-summary.xlsx",
+  asyncHandler(async (req, res) => {
+    const buffer = await generateCompensationSummaryXlsx({ userId: req.user.id });
+    res.setHeader(
+      "content-type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("content-disposition", `attachment; filename="ATM-Resumo-Horas.xlsx"`);
+    res.send(buffer);
   })
 );
 
@@ -744,6 +903,9 @@ app.put(
   asyncHandler(async (req, res) => {
     const id = req.params.id;
     const data = req.body || {};
+    if (data.timesheet_id != null) {
+      await ensureTimesheetOwned({ timesheetId: data.timesheet_id, userId: req.user.id });
+    }
     const { rows } = await pool.query(
       `
       UPDATE timesheet_records SET
@@ -767,7 +929,7 @@ app.put(
         pause_hours = COALESCE($19, pause_hours),
         status = COALESCE($20, status),
         observations = COALESCE($21, observations)
-      WHERE id = $1
+      WHERE id = $1 AND user_id = $22
       RETURNING *;
       `,
       [
@@ -791,7 +953,8 @@ app.put(
         data.period_end ?? null,
         data.pause_hours != null ? Number(data.pause_hours) : null,
         data.status ?? null,
-        data.observations ?? null
+        data.observations ?? null,
+        req.user.id
       ]
     );
     if (!rows[0]) throw httpError(404, "timesheet record not found");
@@ -803,7 +966,10 @@ app.put(
 app.delete(
   "/api/timesheet-records/:id",
   asyncHandler(async (req, res) => {
-    const { rowCount } = await pool.query(`DELETE FROM timesheet_records WHERE id = $1`, [req.params.id]);
+    const { rowCount } = await pool.query(`DELETE FROM timesheet_records WHERE id = $1 AND user_id = $2`, [
+      req.params.id,
+      req.user.id
+    ]);
     if (!rowCount) throw httpError(404, "timesheet record not found");
     res.json({ ok: true });
   })

@@ -97,6 +97,27 @@ function createFetchClient(baseUrl) {
     return res.json();
   }
 
+  async function download(path) {
+    const token = getToken();
+    const res = await fetch(buildUrl(path), {
+      method: "GET",
+      headers: token ? { authorization: `Bearer ${token}` } : undefined
+    });
+    if (!res.ok) {
+      let payload = null;
+      try {
+        payload = await res.json();
+      } catch {
+        // ignore
+      }
+      const err = new Error(payload?.error || `Request failed: ${res.status}`);
+      err.status = res.status;
+      err.data = payload;
+      throw err;
+    }
+    return res.blob();
+  }
+
   const entities = {
     Employee: {
       list: (order = "-created_date", limit = 200) =>
@@ -119,12 +140,28 @@ function createFetchClient(baseUrl) {
           limit: String(limit)
         });
         if (filters?.timesheet_id) qs.set("timesheet_id", String(filters.timesheet_id));
+        if (filters?.date) qs.set("date", String(filters.date));
+        if (filters?.from) qs.set("from", String(filters.from));
+        if (filters?.to) qs.set("to", String(filters.to));
         return request("GET", `/api/timesheet-records?${qs.toString()}`);
       },
       create: (data) => request("POST", "/api/timesheet-records", data),
       bulkCreate: (items) => request("POST", "/api/timesheet-records/bulk", items),
       update: (id, data) => request("PUT", `/api/timesheet-records/${encodeURIComponent(id)}`, data),
       delete: (id) => request("DELETE", `/api/timesheet-records/${encodeURIComponent(id)}`)
+    },
+    CompensationEnjoyment: {
+      list: (order = "-enjoy_date", limit = 200, filters = {}) => {
+        const qs = new URLSearchParams({
+          order,
+          limit: String(limit)
+        });
+        if (filters?.from) qs.set("from", String(filters.from));
+        if (filters?.to) qs.set("to", String(filters.to));
+        return request("GET", `/api/compensation-enjoyments?${qs.toString()}`);
+      },
+      create: (data) => request("POST", "/api/compensation-enjoyments", data),
+      delete: (id) => request("DELETE", `/api/compensation-enjoyments/${encodeURIComponent(id)}`)
     }
   };
 
@@ -132,6 +169,9 @@ function createFetchClient(baseUrl) {
     entities,
     users: {
       inviteUser: async () => ({ ok: true })
+    },
+    reports: {
+      downloadCompensationSummaryXlsx: () => download("/api/reports/compensation-summary.xlsx")
     },
     auth: {
       login: async ({ email, password }) => {
@@ -182,3 +222,12 @@ export const base44 = useLocalBackend
       requiresAuth: false,
       appBaseUrl: appParams.appBaseUrl
     });
+
+// Reports only exist on the local backend implementation. Provide a safe no-op for Base44-hosted mode.
+if (!base44.reports) {
+  base44.reports = {
+    downloadCompensationSummaryXlsx: async () => {
+      throw new Error("Relatório Excel indisponível neste modo (use o backend local).");
+    }
+  };
+}

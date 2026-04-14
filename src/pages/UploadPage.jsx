@@ -1,10 +1,20 @@
  
 
-import { useState, useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 
 const useLocalBackend = import.meta.env.VITE_USE_LOCAL_BACKEND === "true";
 
@@ -13,7 +23,25 @@ export default function UploadPage() {
   const [status, setStatus] = useState("idle"); // idle | uploading | extracting | saving | done | error
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmInfo, setConfirmInfo] = useState({ period: "", employeeLabel: "" });
+  const confirmResolveRef = useRef(null);
   const navigate = useNavigate();
+
+  function requestReplaceConfirmation({ period, employeeLabel }) {
+    return new Promise((resolve) => {
+      confirmResolveRef.current = resolve;
+      setConfirmInfo({ period, employeeLabel });
+      setConfirmOpen(true);
+    });
+  }
+
+  function resolveReplaceConfirmation(ok) {
+    const resolve = confirmResolveRef.current;
+    confirmResolveRef.current = null;
+    setConfirmOpen(false);
+    if (typeof resolve === "function") resolve(Boolean(ok));
+  }
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
@@ -169,9 +197,9 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
             ? `${timesheetPayload.employee_name} (Nº ${timesheetPayload.employee_number})`
             : timesheetPayload.employee_name;
 
-          const ok = window.confirm(
+          const ok = await requestReplaceConfirmation({ period, employeeLabel }); /*
             `Já existe um timesheet importado de ${period} para ${employeeLabel}.\n\nPretende substituir? Isto irá apagar o import anterior desse mês.`
-          );
+          */
 
           if (!ok) {
             setStatus("idle");
@@ -236,7 +264,8 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
+    <>
+      <div className="max-w-2xl mx-auto space-y-8">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-foreground">Importar Folha de Ponto</h2>
         <p className="text-sm text-muted-foreground mt-1">
@@ -330,5 +359,33 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
         )}
       </Button>
     </div>
+
+    <AlertDialog
+      open={confirmOpen}
+      onOpenChange={(v) => {
+        if (!v && confirmOpen) resolveReplaceConfirmation(false);
+        else setConfirmOpen(v);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Substituir Time Sheet?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Já existe um time sheet importado de <strong>{confirmInfo.period}</strong> para{" "}
+            <strong>{confirmInfo.employeeLabel}</strong>.
+            <br />
+            <br />
+            Pretende substituir? Isto irá apagar o import anterior desse mês.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => resolveReplaceConfirmation(false)}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => resolveReplaceConfirmation(true)}>
+            Substituir
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
