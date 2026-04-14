@@ -1,6 +1,8 @@
  
 
 import { useRef, useState, useCallback } from "react";
+=======
+import { useCallback, useRef, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
@@ -23,6 +25,9 @@ export default function UploadPage() {
   const [status, setStatus] = useState("idle"); // idle | uploading | extracting | saving | done | error
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmInfo, setConfirmInfo] = useState({ period: "", employeeLabel: "" });
+  const confirmResolveRef = useRef(null);
   const navigate = useNavigate();
   const confirmResolveRef = useRef(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -41,6 +46,21 @@ export default function UploadPage() {
     confirmResolveRef.current = null;
     setConfirmOpen(false);
     if (typeof resolve === "function") resolve(Boolean(choice));
+  }
+
+  function requestReplaceConfirmation({ period, employeeLabel }) {
+    return new Promise((resolve) => {
+      confirmResolveRef.current = resolve;
+      setConfirmInfo({ period, employeeLabel });
+      setConfirmOpen(true);
+    });
+  }
+
+  function resolveReplaceConfirmation(ok) {
+    const resolve = confirmResolveRef.current;
+    confirmResolveRef.current = null;
+    setConfirmOpen(false);
+    if (typeof resolve === "function") resolve(Boolean(ok));
   }
 
   const handleDrop = useCallback((e) => {
@@ -197,7 +217,13 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
             ? `${timesheetPayload.employee_name} (Nº ${timesheetPayload.employee_number})`
             : timesheetPayload.employee_name;
 
+<<<<<<< HEAD
           const ok = await confirmReplace({ period, employeeLabel });
+=======
+          const ok = await requestReplaceConfirmation({ period, employeeLabel }); /*
+            `Já existe um timesheet importado de ${period} para ${employeeLabel}.\n\nPretende substituir? Isto irá apagar o import anterior desse mês.`
+          */
+>>>>>>> minhas-edicoes
 
           if (!ok) {
             setStatus("idle");
@@ -262,7 +288,8 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
+    <>
+      <div className="max-w-2xl mx-auto space-y-8">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-foreground">Importar Folha de Ponto</h2>
         <p className="text-sm text-muted-foreground mt-1">
@@ -357,12 +384,27 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
       </Button>
     </div>
 
+<<<<<<< HEAD
     <AlertDialog open={confirmOpen} onOpenChange={(open) => (open ? setConfirmOpen(true) : closeConfirm(false))}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Substituir Timesheet?</AlertDialogTitle>
           <AlertDialogDescription>
             Já existe um timesheet importado de <strong>{confirmInfo.period}</strong> para{" "}
+=======
+    <AlertDialog
+      open={confirmOpen}
+      onOpenChange={(v) => {
+        if (!v && confirmOpen) resolveReplaceConfirmation(false);
+        else setConfirmOpen(v);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Substituir Time Sheet?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Já existe um time sheet importado de <strong>{confirmInfo.period}</strong> para{" "}
+>>>>>>> minhas-edicoes
             <strong>{confirmInfo.employeeLabel}</strong>.
             <br />
             <br />
@@ -370,12 +412,21 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
+<<<<<<< HEAD
           <AlertDialogCancel onClick={() => closeConfirm(false)}>Cancelar</AlertDialogCancel>
           <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => closeConfirm(true)}>
+=======
+          <AlertDialogCancel onClick={() => resolveReplaceConfirmation(false)}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => resolveReplaceConfirmation(true)}>
+>>>>>>> minhas-edicoes
             Substituir
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+<<<<<<< HEAD
+=======
+    </>
+>>>>>>> minhas-edicoes
   );
 }
