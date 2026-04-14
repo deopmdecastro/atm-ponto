@@ -11,6 +11,16 @@ function normalizeHeaderCell(value) {
     .replace(/\p{Diacritic}/gu, "");
 }
 
+function normalizeSheetName(name) {
+  return String(name ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[\s_-]+/g, "")
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
 function excelSerialToISO(serial) {
   if (typeof serial !== "number") return null;
   if (!Number.isFinite(serial)) return null;
@@ -323,6 +333,29 @@ function extractMetaFromTimeSheetMatrix(matrix) {
     }
   }
 
+  // Fallback for common encoding issues (e.g. "Nº" showing as "NÂº").
+  if (!meta.employee_number) {
+    for (let r = 0; r < Math.min(matrix.length, 30); r++) {
+      const row = matrix[r] || [];
+      for (let c = 0; c < row.length; c++) {
+        const key = normalizeHeaderCell(row[c])
+          .replace(/\s+/g, "")
+          .replace(/[º°]/g, "o")
+          .replace(/[^a-z0-9:]/g, "");
+        const short = key.length <= 4;
+        const isEmployeeNumberKey =
+          short && (key === "n" || key === "n:" || key === "no" || key === "no:" || key === "nao" || key === "nao:");
+        if (!isEmployeeNumberKey) continue;
+        const v = nextNonEmpty(row, c);
+        if (v) {
+          meta.employee_number = v;
+          break;
+        }
+      }
+      if (meta.employee_number) break;
+    }
+  }
+
   // Often appears as "... | Mar | 2026" in row ~12
   let best = null;
   for (let r = 0; r < Math.min(matrix.length, 25); r++) {
@@ -337,6 +370,57 @@ function extractMetaFromTimeSheetMatrix(matrix) {
           best = { month: prev, year };
         }
       }
+    }
+  }
+
+  if (!best) {
+    const monthNames = [
+      "janeiro",
+      "fevereiro",
+      "marco",
+      "março",
+      "abril",
+      "maio",
+      "junho",
+      "julho",
+      "agosto",
+      "setembro",
+      "outubro",
+      "novembro",
+      "dezembro",
+      "jan",
+      "fev",
+      "mar",
+      "abr",
+      "mai",
+      "jun",
+      "jul",
+      "ago",
+      "set",
+      "out",
+      "nov",
+      "dez"
+    ];
+
+    for (let r = 0; r < Math.min(matrix.length, 30); r++) {
+      const row = matrix[r] || [];
+      for (let c = 0; c < row.length; c++) {
+        const raw = String(row[c] ?? "").trim();
+        if (!raw) continue;
+        const norm = normalizeHeaderCell(raw);
+        if (!monthNames.includes(norm)) continue;
+
+        for (let d = -2; d <= 2; d++) {
+          if (d === 0) continue;
+          const year = Number(String(row[c + d] ?? "").trim());
+          if (Number.isInteger(year) && year >= 2020 && year <= 2100) {
+            best = { month: raw, year };
+            break;
+          }
+        }
+        if (best) break;
+      }
+      if (best) break;
     }
   }
 
@@ -361,12 +445,18 @@ async function readWithXlsx(filePath, sheetName) {
   }
 
   const wb = xlsx.readFile(filePath, { cellDates: true });
-  const chosenSheet =
-    (sheetName && wb.Sheets[sheetName] && sheetName) || wb.SheetNames?.[0] || null;
+  const preferredNorm = normalizeSheetName(sheetName);
+  const sheetNames = Array.isArray(wb.SheetNames) ? wb.SheetNames : [];
+  const byExact = sheetName && wb.Sheets[sheetName] ? sheetName : null;
+  const byNormalized =
+    !byExact && preferredNorm ? sheetNames.find((n) => normalizeSheetName(n) === preferredNorm) || null : null;
+  const byTimesheet =
+    !byExact && !byNormalized ? sheetNames.find((n) => normalizeSheetName(n).includes("timesheet")) || null : null;
+  const chosenSheet = byExact || byNormalized || byTimesheet || sheetNames?.[0] || null;
   if (!chosenSheet) return { sheet: null, matrix: [] };
   const ws = wb.Sheets[chosenSheet];
   const matrix = xlsx.utils.sheet_to_json(ws, { header: 1, defval: "" });
-  const meta = chosenSheet === "TimeSheet" ? extractMetaFromTimeSheetMatrix(matrix) : null;
+  const meta = normalizeSheetName(chosenSheet).includes("timesheet") ? extractMetaFromTimeSheetMatrix(matrix) : null;
   return { sheet: chosenSheet, matrix, meta };
 }
 

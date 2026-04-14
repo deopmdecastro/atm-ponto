@@ -67,6 +67,13 @@ function normalizeTimesheetUsed(ts, usedFromRecords) {
   return Math.max(0, recordsUsed + manualUsed);
 }
 
+function timesheetMonthKey(ts) {
+  const y = Number(ts?.year || 0);
+  const m = monthIndex(ts?.month);
+  if (!y || !m) return "";
+  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}`;
+}
+
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const [filterMode, setFilterMode] = useState("all"); // all | month | date
@@ -122,6 +129,19 @@ export default function Dashboard() {
   const timesheets = Array.isArray(timesheetsQuery.data) ? timesheetsQuery.data : [];
   const allRecords = Array.isArray(allRecordsQuery.data) ? allRecordsQuery.data : [];
   const enjoyments = Array.isArray(enjoymentsQuery.data) ? enjoymentsQuery.data : [];
+
+  const enjoyedByMonthKey = useMemo(() => {
+    const map = new Map();
+    for (const e of enjoyments) {
+      const iso = String(e?.enjoy_date || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
+      const key = iso.slice(0, 7);
+      const hours = Number(e?.hours || 0);
+      if (!Number.isFinite(hours) || hours <= 0) continue;
+      map.set(key, (map.get(key) || 0) + hours);
+    }
+    return map;
+  }, [enjoyments]);
 
   const createEnjoyment = useMutation({
     mutationFn: (payload) => base44.entities.CompensationEnjoyment.create(payload),
@@ -255,7 +275,11 @@ export default function Dashboard() {
             const prevTotal = last ? last._total : 0;
             const prevUsed = last ? last._used : 0;
             const total = prevTotal + Number(ts?.total_compensation_hours || 0);
-            const used = prevUsed + normalizeTimesheetUsed(ts, usedByTimesheetId.get(ts?.id) || 0);
+            const enjoyedThisMonth = enjoyedByMonthKey.get(timesheetMonthKey(ts)) || 0;
+            const used =
+              prevUsed +
+              normalizeTimesheetUsed(ts, usedByTimesheetId.get(ts?.id) || 0) +
+              Number(enjoyedThisMonth || 0);
             const available = Math.max(0, total - used);
             acc.push({
               label: `${ts.month} ${ts.year}`.trim(),

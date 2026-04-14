@@ -1010,6 +1010,15 @@ app.post(
 
     try {
       const { records, sheet, meta } = await extractTimesheetDailyRecords({ filePath, sheetName: "TimeSheet" });
+      if (!Array.isArray(records) || records.length === 0) {
+        res.json({
+          status: "error",
+          details:
+            `Não foram encontradas linhas diárias na folha "${sheet || "?"}". ` +
+            `Confirme se o ficheiro é o template ATM e se a aba correta (TimeSheet/Time Sheet) existe.`
+        });
+        return;
+      }
       res.json({
         status: "ok",
         output: {
