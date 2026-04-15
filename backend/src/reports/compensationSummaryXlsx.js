@@ -52,13 +52,17 @@ function hexColor(rgbHex) {
   return "000000";
 }
 
-function applyHeaderStyle(ws, addr, { fillRgb, fontRgb }) {
+function applyHeaderStyle(ws, addr, { fillRgb, fontRgb, fontSize = 11 }) {
   const cell = ws[addr];
   if (!cell) return;
   cell.s = {
-    font: { bold: true, color: { rgb: hexColor(fontRgb) } },
+    font: { bold: true, color: { rgb: hexColor(fontRgb) }, sz: fontSize },
     fill: { patternType: "solid", fgColor: { rgb: hexColor(fillRgb) } },
-    alignment: { vertical: "center", horizontal: "center", wrapText: true }
+    alignment: { vertical: "center", horizontal: "center", wrapText: true },
+    border: {
+      top: { style: "thin", color: { rgb: hexColor("FFFFFF") } },
+      bottom: { style: "thin", color: { rgb: hexColor("FFFFFF") } }
+    }
   };
 }
 
@@ -247,16 +251,17 @@ export async function generateCompensationSummaryXlsx({ userId }) {
 
   // Merge title
   wsResumo["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
-  applyHeaderStyle(wsResumo, "A1", { fillRgb: ATM_PRIMARY, fontRgb: WHITE });
-  applyHeaderStyle(wsResumo, "B1", { fillRgb: ATM_PRIMARY, fontRgb: WHITE });
+  applyHeaderStyle(wsResumo, "A1", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 18 });
+  applyHeaderStyle(wsResumo, "B1", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 18 });
+  wsResumo["!rows"] = [{ hpt: 30 }];
 
   // Section headers (merge across both columns)
   wsResumo["!merges"].push({ s: { r: 8, c: 0 }, e: { r: 8, c: 1 } });
   wsResumo["!merges"].push({ s: { r: 14, c: 0 }, e: { r: 14, c: 1 } });
-  applyHeaderStyle(wsResumo, "A9", { fillRgb: ATM_PRIMARY, fontRgb: WHITE });
-  applyHeaderStyle(wsResumo, "B9", { fillRgb: ATM_PRIMARY, fontRgb: WHITE });
-  applyHeaderStyle(wsResumo, "A15", { fillRgb: ATM_PRIMARY, fontRgb: WHITE });
-  applyHeaderStyle(wsResumo, "B15", { fillRgb: ATM_PRIMARY, fontRgb: WHITE });
+  applyHeaderStyle(wsResumo, "A9", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
+  applyHeaderStyle(wsResumo, "B9", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
+  applyHeaderStyle(wsResumo, "A15", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
+  applyHeaderStyle(wsResumo, "B15", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
 
   // Key column style
   for (let r = 2; r < resumoAoa.length; r++) {
@@ -321,9 +326,25 @@ export async function generateCompensationSummaryXlsx({ userId }) {
   ];
 
   // Style header row (row 1)
+  wsMeses["!rows"] = [{ hpt: 26 }];
   for (let c = 0; c < header.length; c++) {
     const addr = xlsx.utils.encode_cell({ r: 0, c });
-    applyHeaderStyle(wsMeses, addr, { fillRgb: ATM_PRIMARY, fontRgb: WHITE });
+    applyHeaderStyle(wsMeses, addr, { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
+  }
+
+  // Add subtle alternating row fill for readability
+  for (let r = 1; r < mesesAoa.length; r++) {
+    const fillRgb = r % 2 === 0 ? "FBE7EC" : "FFFFFF";
+    for (let c = 0; c < header.length; c++) {
+      const addr = xlsx.utils.encode_cell({ r, c });
+      const cell = wsMeses[addr];
+      if (!cell) continue;
+      cell.s = {
+        ...(cell.s || {}),
+        fill: { patternType: "solid", fgColor: { rgb: hexColor(fillRgb) } },
+        alignment: { vertical: "center", horizontal: c < 2 ? "left" : "right" }
+      };
+    }
   }
 
   // Number format columns C..L
