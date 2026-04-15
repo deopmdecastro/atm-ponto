@@ -80,7 +80,7 @@ export default function HistoryPage() {
 
   const timesheetCountLabel = useMemo(() => {
     const n = timesheets.length;
-    return `${n} timesheet(s) importado(s)`;
+    return `${n} folhas de ponto importadas`;
   }, [timesheets.length]);
 
   const deleteTimesheet = useMutation({
@@ -158,7 +158,7 @@ export default function HistoryPage() {
               <SelectValue placeholder="Selecione" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="timesheets">Histórico de Time Sheet</SelectItem>
+              <SelectItem value="timesheets">Histórico de Folhas de Ponto</SelectItem>
               <SelectItem value="compensation">Histórico de Horas de Compensação</SelectItem>
             </SelectContent>
           </Select>
@@ -180,13 +180,13 @@ export default function HistoryPage() {
                 <Clock className="h-8 w-8 text-muted-foreground" />
               </div>
               <div>
-                <p className="font-semibold text-foreground">Sem timesheets importados</p>
+                <p className="font-semibold text-foreground">Sem folhas de ponto importadas</p>
                 <p className="text-sm text-muted-foreground mt-1">Faça upload de uma folha de ponto para começar</p>
               </div>
               <Button asChild>
                 <Link to="/upload">
                   <Upload className="h-4 w-4 mr-2" />
-                  Importar Folha
+                  Importar Folha de Ponto
                 </Link>
               </Button>
             </div>
@@ -257,9 +257,9 @@ export default function HistoryPage() {
           <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Apagar Time Sheet</AlertDialogTitle>
+                <AlertDialogTitle>Apagar Folha de Ponto</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Tens a certeza que queres apagar o time sheet de{" "}
+                  Tens a certeza que queres apagar a folha de ponto de{" "}
                   <strong>{deleteTarget?.employee_name || "Desconhecido"}</strong> referente a{" "}
                   <strong>
                     {deleteTarget?.month} {deleteTarget?.year}

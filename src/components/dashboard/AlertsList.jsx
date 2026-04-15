@@ -46,7 +46,7 @@ export default function AlertsList({ alerts }) {
             <div key={i} className={`flex items-start gap-3 px-6 py-4 ${colorMap[alert.type] || ""}`}>
               <Icon className={`h-5 w-5 mt-0.5 flex-shrink-0 ${iconColorMap[alert.type]}`} />
               <div>
-                <p className="text-sm font-medium">{alert.message}</p>
+                <p className="text-sm font-medium break-words">{alert.message}</p>
                 {alert.date && alert.date !== '-' && (
                   <p className="text-xs opacity-70 mt-0.5">Data: {alert.date}</p>
                 )}

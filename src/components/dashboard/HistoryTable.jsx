@@ -86,7 +86,7 @@ export default function HistoryTable({ history, onToggleCompensate }) {
                       {row.bankStatus}
                     </Badge>
                   </td>
-                  <td className="px-3 py-3 text-left text-xs text-muted-foreground max-w-[200px] truncate">
+                  <td className="px-3 py-3 text-left text-xs text-muted-foreground max-w-[240px] break-words">
                     {row.project_number || '-'}
                   </td>
                 </tr>

@@ -19,20 +19,20 @@ export default function SummaryCards({ summary }) {
       {cards.map(card => (
         <div
           key={card.key}
-          className="group relative bg-card rounded-xl border border-border p-5 hover:shadow-lg hover:border-primary/20 transition-all duration-300"
+          className="group relative bg-card rounded-xl border border-border p-5 hover:shadow-lg hover:border-primary/20 transition-all duration-300 min-w-0"
         >
           <div className="flex items-center gap-2 mb-3">
             <div className="h-8 w-8 rounded-lg bg-accent flex items-center justify-center">
               <card.icon className="h-4 w-4 text-accent-foreground" />
             </div>
           </div>
-          <p className="text-2xl font-bold tracking-tight text-foreground">
+          <p className="text-2xl font-bold tracking-tight text-foreground break-words">
             {typeof summary[card.key] === 'number' 
               ? (Number.isInteger(summary[card.key]) ? summary[card.key] : summary[card.key].toFixed(1))
               : summary[card.key]}
             <span className="text-sm font-normal text-muted-foreground">{card.suffix}</span>
           </p>
-          <p className="text-xs text-muted-foreground mt-1 font-medium">{card.label}</p>
+          <p className="text-xs text-muted-foreground mt-1 font-medium break-words">{card.label}</p>
         </div>
       ))}
     </div>

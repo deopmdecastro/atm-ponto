@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 import { Link } from "react-router-dom";
-import { Calendar as CalendarIcon, Download, FileSpreadsheet, Upload } from "lucide-react";
+import { Download, FileSpreadsheet, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
 import AlertsList from "@/components/dashboard/AlertsList";
@@ -18,7 +15,6 @@ import { buildHourBankHistory, calculateSummary } from "@/lib/parseTimesheet";
 
 const FILTER_KEY = "atm.dashboard.filterMode.v1";
 const MONTH_KEY = "atm.dashboard.monthTimesheetId.v1";
-const DATE_KEY = "atm.dashboard.filterDate.v1";
 
 function monthIndex(name) {
   const m = String(name || "").trim().toLowerCase();
@@ -76,19 +72,16 @@ function timesheetMonthKey(ts) {
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
-  const [filterMode, setFilterMode] = useState("all"); // all | month | date
+  const [filterMode, setFilterMode] = useState("all");
   const [monthTimesheetId, setMonthTimesheetId] = useState("");
-  const [selectedDate, setSelectedDate] = useState(null);
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     try {
-      const m = localStorage.getItem(FILTER_KEY);
+      const mode = localStorage.getItem(FILTER_KEY);
       const tsId = localStorage.getItem(MONTH_KEY);
-      const date = localStorage.getItem(DATE_KEY);
-      if (m === "all" || m === "month" || m === "date") setFilterMode(m);
+      if (mode === "all" || mode === "month") setFilterMode(mode);
       if (tsId) setMonthTimesheetId(tsId);
-      if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) setSelectedDate(new Date(`${date}T00:00:00`));
     } catch {
       // ignore
     }
@@ -97,16 +90,13 @@ export default function Dashboard() {
   useEffect(() => {
     try {
       localStorage.setItem(FILTER_KEY, filterMode);
-      if (monthTimesheetId) localStorage.setItem(MONTH_KEY, monthTimesheetId);
-      if (selectedDate instanceof Date && !Number.isNaN(selectedDate.getTime())) {
-        localStorage.setItem(DATE_KEY, format(selectedDate, "yyyy-MM-dd"));
-      } else {
-        localStorage.removeItem(DATE_KEY);
+      if (monthTimesheetId) {
+        localStorage.setItem(MONTH_KEY, monthTimesheetId);
       }
     } catch {
       // ignore
     }
-  }, [filterMode, monthTimesheetId, selectedDate]);
+  }, [filterMode, monthTimesheetId]);
 
   const timesheetsQuery = useQuery({
     queryKey: ["timesheets"],
@@ -151,30 +141,20 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    if (filterMode !== "month") return;
     if (monthTimesheetId && timesheets.some((t) => t.id === monthTimesheetId)) return;
     if (timesheets.length === 0) return;
     setMonthTimesheetId(timesheets[0].id);
-  }, [filterMode, monthTimesheetId, timesheets]);
+  }, [monthTimesheetId, timesheets]);
 
   const selectedMeta = useMemo(() => {
-    if (filterMode !== "month") return null;
     return timesheets.find((t) => t.id === monthTimesheetId) || null;
-  }, [filterMode, timesheets, monthTimesheetId]);
+  }, [timesheets, monthTimesheetId]);
 
   const filteredRecords = useMemo(() => {
-    if (filterMode === "month") {
-      if (!monthTimesheetId) return [];
-      return allRecords.filter((r) => String(r?.timesheet_id || "") === String(monthTimesheetId));
-    }
-    if (filterMode === "date") {
-      const iso =
-        selectedDate instanceof Date && !Number.isNaN(selectedDate.getTime()) ? format(selectedDate, "yyyy-MM-dd") : "";
-      if (!iso) return [];
-      return allRecords.filter((r) => String(r?.date || "") === iso);
-    }
-    return allRecords;
-  }, [allRecords, filterMode, monthTimesheetId, selectedDate]);
+    if (filterMode === "all") return allRecords;
+    if (!monthTimesheetId) return [];
+    return allRecords.filter((r) => String(r?.timesheet_id || "") === String(monthTimesheetId));
+  }, [allRecords, filterMode, monthTimesheetId]);
 
   const loading = timesheetsQuery.isLoading || allRecordsQuery.isLoading || enjoymentsQuery.isLoading;
   if (loading) {
@@ -260,9 +240,8 @@ export default function Dashboard() {
   }
 
   const chartData =
-    filterMode === "month" || filterMode === "date"
-      ? dailyHistory.map((h) => ({ label: toDayLabel(h.date), saldo: h.bankBalance }))
-      : [...timesheets]
+    filterMode === "all"
+      ? [...timesheets]
           .slice()
           .sort((a, b) => {
             const ay = Number(a?.year || 0);
@@ -289,7 +268,8 @@ export default function Dashboard() {
             });
             return acc;
           }, [])
-          .map(({ label, saldo }) => ({ label, saldo }));
+          .map(({ label, saldo }) => ({ label, saldo }))
+      : dailyHistory.map((h) => ({ label: toDayLabel(h.date), saldo: h.bankBalance }));
 
   const employeeInfo = (() => {
     if (filterMode === "month" && selectedMeta) {
@@ -365,13 +345,12 @@ export default function Dashboard() {
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Select value={filterMode} onValueChange={setFilterMode}>
-            <SelectTrigger className="w-full bg-card/80 backdrop-blur border-border/60 sm:w-[180px]">
+            <SelectTrigger className="w-full bg-card/80 backdrop-blur border-border/60 sm:w-[160px]">
               <SelectValue placeholder="Filtro" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="month">Mês</SelectItem>
-              <SelectItem value="date">Data</SelectItem>
             </SelectContent>
           </Select>
 
@@ -388,22 +367,6 @@ export default function Dashboard() {
                 ))}
               </SelectContent>
             </Select>
-          )}
-
-          {filterMode === "date" && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start gap-2 sm:w-[220px]">
-                  <CalendarIcon className="h-4 w-4" />
-                  {selectedDate instanceof Date && !Number.isNaN(selectedDate.getTime())
-                    ? format(selectedDate, "dd/MM/yyyy")
-                    : "Selecionar data"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={selectedDate} onSelect={(d) => setSelectedDate(d || null)} initialFocus />
-              </PopoverContent>
-            </Popover>
           )}
 
           <Button asChild variant="outline" size="sm" className="w-full gap-2 sm:w-auto">
