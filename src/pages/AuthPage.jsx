@@ -132,6 +132,7 @@ export default function AuthPage() {
                       id="email"
                       type="email"
                       autoComplete="email"
+                      maxLength={254}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="seu@email.com"
@@ -142,6 +143,7 @@ export default function AuthPage() {
                     <PasswordInput
                       id="password"
                       autoComplete="current-password"
+                      maxLength={256}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
@@ -161,6 +163,7 @@ export default function AuthPage() {
                       id="email2"
                       type="email"
                       autoComplete="email"
+                      maxLength={254}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="seu@email.com"
@@ -172,9 +175,11 @@ export default function AuthPage() {
                       <PasswordInput
                         id="passwordNew"
                         autoComplete="new-password"
+                        minLength={10}
+                        maxLength={256}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="mín. 6"
+                        placeholder="mín. 10"
                       />
                     </div>
                     <div className="space-y-2">
@@ -182,6 +187,8 @@ export default function AuthPage() {
                       <PasswordInput
                         id="passwordNew2"
                         autoComplete="new-password"
+                        minLength={10}
+                        maxLength={256}
                         value={password2}
                         onChange={(e) => setPassword2(e.target.value)}
                         placeholder="repita"
@@ -241,6 +248,18 @@ export default function AuthPage() {
             </Tabs>
           </CardContent>
         </Card>
+
+        <p className="text-center text-xs text-muted-foreground">
+          Designed by:{" "}
+          <a
+            href="https://pt.linkedin.com/in/deogracia-manuel-de-castro-6a4a8a296"
+            target="_blank"
+            rel="noreferrer"
+            className="font-bold text-red-600 hover:text-red-700 hover:underline"
+          >
+            Deogracia Castro
+          </a>
+        </p>
       </div>
     </div>
   );

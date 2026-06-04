@@ -141,6 +141,7 @@ export default function SettingsPage() {
               <PasswordInput
                 id="settings-current-password"
                 autoComplete="current-password"
+                maxLength={256}
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Digite sua senha atual"
@@ -153,6 +154,8 @@ export default function SettingsPage() {
                 <PasswordInput
                   id="settings-new-password"
                   autoComplete="new-password"
+                  minLength={10}
+                  maxLength={256}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Nova senha"
@@ -163,6 +166,8 @@ export default function SettingsPage() {
                 <PasswordInput
                   id="settings-confirm-password"
                   autoComplete="new-password"
+                  minLength={10}
+                  maxLength={256}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirme a nova senha"

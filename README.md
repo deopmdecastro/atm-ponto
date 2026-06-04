@@ -94,13 +94,14 @@ This repo includes a Render Blueprint in `render.yaml` that provisions:
 On Render:
 
 1. Create a **New Blueprint Instance** from this repo
-2. After deploying your frontend, set `CORS_ORIGIN` to your frontend URL (or keep `*` while testing)
+2. After deploying your frontend, set `CORS_ORIGIN` to your exact frontend URL. Do not use `*` in production.
 
 If you are not using the Blueprint, you must create a Render Postgres database and set `DATABASE_URL` (and `PGSSLMODE=require`) in the web service environment variables.
 
 The backend also needs user authentication:
 
 - First user that registers becomes `admin`.
+- Set `REGISTRATION_ENABLED=false` on Render after creating the authorized accounts if public registration is not needed.
 - The frontend stores an access token in `localStorage` and sends it as `Authorization: Bearer <token>`.
 
 **Deploy frontend on Vercel**

@@ -22,35 +22,125 @@ const uploadsDir = (() => {
 })();
 fs.mkdirSync(uploadsDir, { recursive: true });
 
-const upload = multer({ dest: uploadsDir });
+const isProduction = process.env.NODE_ENV === "production";
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const PASSWORD_MIN_LENGTH = 10;
+const PASSWORD_MAX_LENGTH = 256;
+const PASSWORD_ITERATIONS = 310000;
+const DUMMY_PASSWORD_SALT = crypto.randomBytes(16).toString("base64");
+const registrationEnabled = process.env.REGISTRATION_ENABLED !== "false";
+
+const upload = multer({
+  dest: uploadsDir,
+  limits: {
+    fileSize: MAX_UPLOAD_BYTES,
+    files: 1
+  },
+  fileFilter(req, file, cb) {
+    const extension = path.extname(String(file.originalname || "")).toLowerCase();
+    if (extension !== ".xlsx" && extension !== ".xls") {
+      cb(httpError(400, "Apenas arquivos Excel .xlsx ou .xls são permitidos"));
+      return;
+    }
+    cb(null, true);
+  }
+});
 
 const app = express();
 app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
+  if (req.secure || String(req.headers["x-forwarded-proto"] || "").toLowerCase() === "https") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
 
 const corsOriginEnv = String(process.env.CORS_ORIGIN || "").trim();
-const corsOrigins =
-  corsOriginEnv && corsOriginEnv !== "*"
-    ? corsOriginEnv
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : null;
+const allowInsecureCors = process.env.ALLOW_INSECURE_CORS === "true";
+const corsOrigins = corsOriginEnv
+  .split(",")
+  .map((s) => s.trim().replace(/\/+$/, ""))
+  .filter((origin) => origin && origin !== "*");
+const allowAllCors = !isProduction && (!corsOriginEnv || corsOriginEnv === "*");
 
 app.use(
-  corsOrigins
-    ? cors({
-        origin(origin, cb) {
-          if (!origin) return cb(null, true);
-          if (corsOrigins.includes(origin)) return cb(null, true);
-          return cb(new Error(`CORS blocked for origin: ${origin}`));
-        },
-        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"]
-      })
-    : cors()
+  cors({
+    origin(origin, cb) {
+      if (!origin || allowAllCors || allowInsecureCors) return cb(null, true);
+      if (corsOrigins.includes(String(origin).replace(/\/+$/, ""))) return cb(null, true);
+      return cb(httpError(403, "Origin não permitida"));
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    maxAge: 86400
+  })
 );
-app.use(express.json({ limit: "5mb" }));
-app.use("/uploads", express.static(uploadsDir));
+app.use(express.json({ limit: "1mb", strict: true }));
+
+function createRateLimit({ windowMs, max, message }) {
+  const buckets = new Map();
+  return (req, res, next) => {
+    const now = Date.now();
+    const key = req.ip || req.socket?.remoteAddress || "unknown";
+    const current = buckets.get(key);
+    const bucket = !current || current.resetAt <= now ? { count: 0, resetAt: now + windowMs } : current;
+    bucket.count += 1;
+    buckets.set(key, bucket);
+    if (buckets.size > 10000) {
+      for (const [bucketKey, value] of buckets) {
+        if (value.resetAt <= now) buckets.delete(bucketKey);
+      }
+    }
+
+    res.setHeader("RateLimit-Limit", String(max));
+    res.setHeader("RateLimit-Remaining", String(Math.max(0, max - bucket.count)));
+    res.setHeader("RateLimit-Reset", String(Math.ceil(bucket.resetAt / 1000)));
+
+    if (bucket.count > max) {
+      res.setHeader("Retry-After", String(Math.ceil((bucket.resetAt - now) / 1000)));
+      res.status(429).json({ error: message, status: 429 });
+      return;
+    }
+    next();
+  };
+}
+
+const loginRateLimit = createRateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Muitas tentativas de login. Tente novamente mais tarde."
+});
+const registerRateLimit = createRateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: "Muitas tentativas de criação de conta. Tente novamente mais tarde."
+});
+const integrationRateLimit = createRateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: "Muitas operações de arquivo. Tente novamente mais tarde."
+});
+const uploadRateLimit = createRateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: "Limite de uploads atingido. Tente novamente mais tarde."
+});
+
+app.use("/auth", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
+app.use("/api", (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 
 let dbReady = false;
 let dbInitInFlight = null;
@@ -100,10 +190,10 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) =>
-  res.json({
-    ok: true,
+  res.status(dbReady ? 200 : 503).json({
+    ok: dbReady,
     dbReady,
-    dbError: dbReady ? null : dbLastError || null
+    dbError: !isProduction && !dbReady ? dbLastError || null : undefined
   })
 );
 
@@ -111,7 +201,37 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
-async function derivePasswordHash({ password, saltB64, iterations = 100000 }) {
+function validateEmail(email) {
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validatePassword(password, label = "Senha") {
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    throw httpError(400, `${label} deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres`);
+  }
+  if (password.length > PASSWORD_MAX_LENGTH) {
+    throw httpError(400, `${label} deve ter no máximo ${PASSWORD_MAX_LENGTH} caracteres`);
+  }
+}
+
+function sanitizeProfile(input) {
+  const profile = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+  const clean = {};
+  for (const key of ["employee_name", "employee_number", "department"]) {
+    if (profile[key] != null) clean[key] = String(profile[key]).trim().slice(0, 200);
+  }
+  if (profile.start_year != null) {
+    const year = Number(profile.start_year);
+    if (Number.isInteger(year) && year >= 2000 && year <= 2200) clean.start_year = year;
+  }
+  if (profile.start_month != null) {
+    const month = Number(profile.start_month);
+    if (Number.isInteger(month) && month >= 1 && month <= 12) clean.start_month = month;
+  }
+  return clean;
+}
+
+async function derivePasswordHash({ password, saltB64, iterations = PASSWORD_ITERATIONS }) {
   const pwd = String(password || "");
   const salt = Buffer.from(String(saltB64 || ""), "base64");
   const hash = await new Promise((resolve, reject) => {
@@ -121,6 +241,12 @@ async function derivePasswordHash({ password, saltB64, iterations = 100000 }) {
     });
   });
   return Buffer.from(hash).toString("base64");
+}
+
+function secureHashEquals(left, right) {
+  const a = Buffer.from(String(left || ""), "base64");
+  const b = Buffer.from(String(right || ""), "base64");
+  return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 function genToken() {
@@ -143,6 +269,22 @@ function sanitizeUser(row) {
 }
 
 async function createSession(userId) {
+  await query(prisma, `DELETE FROM user_sessions WHERE expires_at <= now()`);
+  await query(
+    prisma,
+    `
+    DELETE FROM user_sessions
+    WHERE user_id = $1
+      AND id NOT IN (
+        SELECT id FROM user_sessions
+        WHERE user_id = $1
+        ORDER BY created_date DESC
+        LIMIT 4
+      )
+    `,
+    [userId]
+  );
+
   const token = genToken();
   const hash = tokenHash(token);
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30); // 30 days
@@ -195,7 +337,7 @@ app.use(
       error:
         "Database not available. Configure DATABASE_URL (Render) / PGSSLMODE=require, or start Postgres locally (docker compose up -d db) and restart the backend.",
       status: 503,
-      details: dbLastError ? `DB init error: ${dbLastError}` : undefined
+      details: !isProduction && dbLastError ? `DB init error: ${dbLastError}` : undefined
     });
   })
 );
@@ -211,47 +353,48 @@ app.use(
 
 app.post(
   "/auth/register",
+  registerRateLimit,
   asyncHandler(async (req, res) => {
+    if (!registrationEnabled) throw httpError(403, "Criação de novas contas desativada");
     const ready = await ensureDbReady();
     if (!ready) {
       res.status(503).json({
         error: "Database not available",
         status: 503,
-        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
+        details: !isProduction && dbLastError ? `DB init error: ${dbLastError}` : undefined
       });
       return;
     }
     const data = req.body || {};
     const email = normalizeEmail(data.email);
     const password = String(data.password || "");
-    if (!email) throw httpError(400, "Email é obrigatório");
-    if (!password || password.length < 6) throw httpError(400, "Senha deve ter pelo menos 6 caracteres");
+    if (!validateEmail(email)) throw httpError(400, "Email inválido");
+    validatePassword(password);
 
-    const existing = await query(prisma, `SELECT id FROM users WHERE email = $1 LIMIT 1`, [email]);
-    if (existing[0]) throw httpError(409, "Já existe uma conta com este email");
+    const user = await prisma.$transaction(async (tx) => {
+      await query(tx, `SELECT pg_advisory_xact_lock(hashtext('atm-first-user-registration'))`);
 
-    const countRows = await query(prisma, `SELECT COUNT(*)::int AS n FROM users`);
-    const isFirstUser = Number(countRows?.[0]?.n || 0) === 0;
+      const existing = await query(tx, `SELECT id FROM users WHERE email = $1 LIMIT 1`, [email]);
+      if (existing[0]) throw httpError(409, "Já existe uma conta com este email");
 
-    const salt = crypto.randomBytes(16).toString("base64");
-    const iterations = 100000;
-    const hash = await derivePasswordHash({ password, saltB64: salt, iterations });
+      const countRows = await query(tx, `SELECT COUNT(*)::int AS n FROM users`);
+      const role = Number(countRows?.[0]?.n || 0) === 0 ? "admin" : "user";
+      const salt = crypto.randomBytes(16).toString("base64");
+      const iterations = PASSWORD_ITERATIONS;
+      const hash = await derivePasswordHash({ password, saltB64: salt, iterations });
 
-    const id = randomUUID();
-    const role = isFirstUser ? "admin" : "user";
-    const profile = data.profile && typeof data.profile === "object" ? data.profile : {};
+      const rows = await query(
+        tx,
+        `
+        INSERT INTO users (id, email, role, password_salt, password_iterations, password_hash, profile)
+        VALUES ($1,$2,$3,$4,$5,$6,$7)
+        RETURNING *;
+        `,
+        [randomUUID(), email, role, salt, iterations, hash, sanitizeProfile(data.profile)]
+      );
+      return sanitizeUser(rows[0]);
+    });
 
-    const rows = await query(
-      prisma,
-      `
-      INSERT INTO users (id, email, role, password_salt, password_iterations, password_hash, profile)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)
-      RETURNING *;
-      `,
-      [id, email, role, salt, iterations, hash, profile]
-    );
-
-    const user = sanitizeUser(rows[0]);
     const session = await createSession(user.id);
 
     res.status(201).json({ token: session.token, user });
@@ -260,33 +403,33 @@ app.post(
 
 app.post(
   "/auth/login",
+  loginRateLimit,
   asyncHandler(async (req, res) => {
     const ready = await ensureDbReady();
     if (!ready) {
       res.status(503).json({
         error: "Database not available",
         status: 503,
-        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
+        details: !isProduction && dbLastError ? `DB init error: ${dbLastError}` : undefined
       });
       return;
     }
     const data = req.body || {};
     const email = normalizeEmail(data.email);
     const password = String(data.password || "");
-    if (!email) throw httpError(400, "Email é obrigatório");
-    if (!password) throw httpError(400, "Senha é obrigatória");
+    if (!validateEmail(email) || !password || password.length > PASSWORD_MAX_LENGTH) {
+      throw httpError(401, "Credenciais inválidas");
+    }
 
     const rows = await query(prisma, `SELECT * FROM users WHERE email = $1 LIMIT 1`, [email]);
-    const userRow = rows[0];
-    if (!userRow) throw httpError(401, "Credenciais inválidas");
-
-    const expected = String(userRow.password_hash || "");
+    const userRow = rows[0] || null;
+    const expected = String(userRow?.password_hash || "");
     const derived = await derivePasswordHash({
       password,
-      saltB64: userRow.password_salt,
-      iterations: Number(userRow.password_iterations || 100000)
+      saltB64: userRow?.password_salt || DUMMY_PASSWORD_SALT,
+      iterations: Number(userRow?.password_iterations || PASSWORD_ITERATIONS)
     });
-    if (derived !== expected) throw httpError(401, "Credenciais inválidas");
+    if (!userRow || !secureHashEquals(derived, expected)) throw httpError(401, "Credenciais inválidas");
 
     const user = sanitizeUser(userRow);
     const session = await createSession(user.id);
@@ -302,7 +445,7 @@ app.get(
       res.status(503).json({
         error: "Database not available",
         status: 503,
-        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
+        details: !isProduction && dbLastError ? `DB init error: ${dbLastError}` : undefined
       });
       return;
     }
@@ -319,7 +462,7 @@ app.put(
       res.status(503).json({
         error: "Database not available",
         status: 503,
-        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
+        details: !isProduction && dbLastError ? `DB init error: ${dbLastError}` : undefined
       });
       return;
     }
@@ -327,7 +470,7 @@ app.put(
 
     const data = req.body || {};
     const email = normalizeEmail(data.email || req.user.email);
-    const profileUpdate = data.profile && typeof data.profile === "object" ? data.profile : null;
+    const profileUpdate = data.profile && typeof data.profile === "object" ? sanitizeProfile(data.profile) : null;
     const profile = profileUpdate ? { ...(req.user.profile || {}), ...profileUpdate } : req.user.profile || {};
     const newPassword = data.new_password ? String(data.new_password || "") : "";
     const currentPassword = data.current_password ? String(data.current_password || "") : "";
@@ -340,6 +483,7 @@ app.put(
     }
 
     if (currentPassword) {
+      if (currentPassword.length > PASSWORD_MAX_LENGTH) throw httpError(401, "Senha atual incorreta");
       const rows = await query(prisma, `SELECT password_hash, password_salt, password_iterations FROM users WHERE id = $1 LIMIT 1`, [req.user.id]);
       const userRow = rows[0];
       if (!userRow) throw httpError(401, "Credenciais inválidas");
@@ -348,12 +492,13 @@ app.put(
         saltB64: userRow.password_salt,
         iterations: Number(userRow.password_iterations || 100000)
       });
-      if (derived !== String(userRow.password_hash || "")) {
+      if (!secureHashEquals(derived, String(userRow.password_hash || ""))) {
         throw httpError(401, "Senha atual incorreta");
       }
     }
 
     if (email !== req.user.email) {
+      if (!validateEmail(email)) throw httpError(400, "Email inválido");
       const existing = await query(prisma, `SELECT id FROM users WHERE email = $1 LIMIT 1`, [email]);
       if (existing[0] && existing[0].id !== req.user.id) {
         throw httpError(409, "Já existe uma conta com este email");
@@ -363,9 +508,9 @@ app.put(
     }
 
     if (newPassword) {
-      if (newPassword.length < 6) throw httpError(400, "Nova senha deve ter pelo menos 6 caracteres");
+      validatePassword(newPassword, "Nova senha");
       const salt = crypto.randomBytes(16).toString("base64");
-      const iterations = 100000;
+      const iterations = PASSWORD_ITERATIONS;
       const hash = await derivePasswordHash({ password: newPassword, saltB64: salt, iterations });
       updateFields.push(`password_salt = $${params.length + 1}`);
       params.push(salt);
@@ -391,6 +536,12 @@ app.put(
     );
 
     const user = sanitizeUser(rows[0]);
+    if (newPassword) {
+      await query(prisma, `DELETE FROM user_sessions WHERE user_id = $1 AND token_hash <> $2`, [
+        req.user.id,
+        req.session.tokenHash
+      ]);
+    }
     res.json(user);
   })
 );
@@ -581,6 +732,31 @@ async function ensureTimesheetOwned({ timesheetId, userId, client = prisma }) {
   ]);
   if (!rows[0]) throw httpError(403, "Timesheet not found (or not owned by current user)");
   return true;
+}
+
+function resolveUploadedFile(fileUrl) {
+  let filename = "";
+  try {
+    const parsed = new URL(String(fileUrl || ""), "http://localhost");
+    filename = path.basename(parsed.pathname || "");
+  } catch {
+    filename = path.basename(String(fileUrl || ""));
+  }
+
+  if (!/^[a-f0-9]{32}$/i.test(filename)) throw httpError(400, "Referência de arquivo inválida");
+
+  const filePath = path.resolve(uploadsDir, filename);
+  const relative = path.relative(path.resolve(uploadsDir), filePath);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw httpError(400, "Referência de arquivo inválida");
+  }
+  return { filename, filePath };
+}
+
+function validateUploadedFileUrl(fileUrl) {
+  const value = String(fileUrl || "").trim();
+  if (value) resolveUploadedFile(value);
+  return value;
 }
 
 app.get(
@@ -887,6 +1063,7 @@ app.post(
     const month = String(data.month || "").trim();
     const year = data.year != null && data.year !== "" ? Number(data.year) : null;
     const replace = Boolean(data.replace);
+    const sourceFileUrl = validateUploadedFileUrl(data.source_file_url);
 
     const created = await prisma.$transaction(async (tx) => {
       if (month && year != null && (employeeNumber || employeeName)) {
@@ -953,7 +1130,7 @@ app.post(
           year,
           data.department || "",
           data.source_filename || "",
-          data.source_file_url || "",
+          sourceFileUrl,
           data.total_compensation_hours != null ? Number(data.total_compensation_hours) : 0,
           data.total_descanso_compensatorio_hours != null
             ? Number(data.total_descanso_compensatorio_hours)
@@ -1006,23 +1183,8 @@ app.get(
       );
     }
 
-    let filename;
-    try {
-      const u = new URL(fileUrl, "http://localhost");
-      filename = path.basename(u.pathname || "");
-    } catch {
-      filename = path.basename(String(fileUrl));
-    }
-
-    if (!filename) {
-      throw httpError(
-        400,
-        "O URL do arquivo original armazenado para este timesheet é inválido. Reinicie o upload do timesheet para corrigir este problema."
-      );
-    }
-
-    const filePath = path.resolve(uploadsDir, filename);
-    if (!filePath.startsWith(uploadsDir) || !fs.existsSync(filePath)) {
+    const { filename, filePath } = resolveUploadedFile(fileUrl);
+    if (!fs.existsSync(filePath)) {
       throw httpError(
         404,
         "O arquivo original não foi encontrado no servidor. Ele pode ter sido excluído do diretório de uploads ou o armazenamento local foi limpo."
@@ -1052,6 +1214,7 @@ app.put(
   asyncHandler(async (req, res) => {
     const id = req.params.id;
     const data = req.body || {};
+    const sourceFileUrl = data.source_file_url == null ? null : validateUploadedFileUrl(data.source_file_url);
     const rows = await query(
       prisma,
       `
@@ -1076,7 +1239,7 @@ app.put(
         data.year != null ? Number(data.year) : null,
         data.department ?? null,
         data.source_filename ?? null,
-        data.source_file_url ?? null,
+        sourceFileUrl,
         data.total_compensation_hours != null ? Number(data.total_compensation_hours) : null,
         data.total_descanso_compensatorio_hours != null
           ? Number(data.total_descanso_compensatorio_hours)
@@ -1267,6 +1430,7 @@ app.delete(
 
 app.post(
   "/integrations/Core/UploadFile",
+  uploadRateLimit,
   upload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) throw httpError(400, "No file uploaded");
@@ -1277,21 +1441,12 @@ app.post(
 
 app.post(
   "/integrations/Core/ExtractDataFromUploadedFile",
+  integrationRateLimit,
   asyncHandler(async (req, res) => {
     const { file_url: fileUrl } = req.body || {};
     if (!fileUrl || typeof fileUrl !== "string") throw httpError(400, "file_url is required");
 
-    let filename = null;
-    try {
-      const u = new URL(fileUrl, "http://localhost");
-      filename = path.basename(u.pathname || "");
-    } catch {
-      filename = path.basename(String(fileUrl));
-    }
-
-    if (!filename) throw httpError(400, "Invalid file_url");
-    const filePath = path.resolve(uploadsDir, filename);
-    if (!filePath.startsWith(uploadsDir)) throw httpError(400, "Invalid file_url");
+    const { filePath } = resolveUploadedFile(fileUrl);
 
     if (!fs.existsSync(filePath)) {
       res.json({ status: "error", details: "Uploaded file not found (maybe the container was rebuilt or storage was cleared)." });
@@ -1319,13 +1474,21 @@ app.post(
         }
       });
     } catch (e) {
-      res.json({ status: "error", details: e?.message || String(e) });
+      res.json({
+        status: "error",
+        details: isProduction ? "Não foi possível processar o arquivo enviado." : e?.message || String(e)
+      });
     }
   })
 );
 
 app.post(
   "/integrations/Core/InvokeLLM",
+  integrationRateLimit,
+  asyncHandler(async (req, res, next) => {
+    await authRequired(req);
+    next();
+  }),
   asyncHandler(async (req, res) => {
     const { prompt } = req.body || {};
     const rows = extractRowsFromPrompt(prompt);
@@ -1360,13 +1523,13 @@ app.post(
 );
 
 app.use((err, req, res, next) => {
-  const status = err.status || 500;
+  const status = err instanceof multer.MulterError ? (err.code === "LIMIT_FILE_SIZE" ? 413 : 400) : err.status || 500;
   // eslint-disable-next-line no-console
   console.error("[api] error", err);
   res.status(status).json({
-    error: err.message || "Internal Server Error",
+    error: status >= 500 && isProduction ? "Internal Server Error" : err.message || "Internal Server Error",
     status,
-    extra: err.extra
+    extra: status < 500 || !isProduction ? err.extra : undefined
   });
 });
 

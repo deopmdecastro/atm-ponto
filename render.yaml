@@ -10,7 +10,7 @@ services:
     env: node
     plan: free
     rootDir: backend
-    buildCommand: npm ci
+    buildCommand: npm ci && npx prisma generate
     startCommand: npm start
     healthCheckPath: /health
     disk:
@@ -20,15 +20,17 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20
+      - key: NODE_ENV
+        value: production
       - key: DATABASE_URL
         fromDatabase:
           name: atm-ponto-db
           property: connectionString
       - key: PGSSLMODE
         value: require
-      # Put your frontend URL(s) here (comma-separated) after you deploy it.
-      # Example: https://atm-ponto-frontend.onrender.com
       - key: CORS_ORIGIN
-        value: "*"
+        value: https://atm-ponto.vercel.app
+      - key: REGISTRATION_ENABLED
+        value: true
       - key: UPLOADS_DIR
         value: /var/data/uploads
