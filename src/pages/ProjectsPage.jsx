@@ -72,7 +72,7 @@ function inferCatalogProjectParts(description) {
   return { client: text, description: text };
 }
 
-function ProjectsTable({ projects, emptyMessage, showActivity }) {
+function ProjectsTable({ projects, emptyMessage, showActivity, status }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="overflow-x-auto">
@@ -80,6 +80,7 @@ function ProjectsTable({ projects, emptyMessage, showActivity }) {
           <thead>
             <tr className="bg-secondary/50">
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Número</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-muted-foreground">Estado</th>
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Cliente / Nome</th>
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Descrição</th>
               {showActivity && (
@@ -95,6 +96,17 @@ function ProjectsTable({ projects, emptyMessage, showActivity }) {
             {projects.map((project) => (
               <tr key={project.key} className="transition-colors hover:bg-secondary/30">
                 <td className="px-4 py-3 font-semibold tabular-nums text-foreground">{project.project_number || "-"}</td>
+                <td className="px-3 py-3 text-center">
+                  <Badge
+                    className={
+                      status === "worked"
+                        ? "border-transparent bg-red-600 text-white hover:bg-red-600"
+                        : "border-transparent bg-slate-200 text-slate-700 hover:bg-slate-200"
+                    }
+                  >
+                    {status === "worked" ? "Trabalhado" : "Catálogo"}
+                  </Badge>
+                </td>
                 <td className="min-w-[180px] px-3 py-3 text-foreground">{project.project_client || "-"}</td>
                 <td className="min-w-[260px] max-w-[460px] break-words px-3 py-3 text-muted-foreground">
                   {project.project_description || "-"}
@@ -242,7 +254,7 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="sticky top-16 z-30 -mx-4 flex flex-col gap-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:flex-row lg:items-end lg:justify-between lg:px-8">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground">Projetos</h2>
           <p className="text-sm text-muted-foreground">
@@ -272,7 +284,12 @@ export default function ProjectsPage() {
               <h3 className="text-lg font-semibold text-foreground">Projetos trabalhados</h3>
               <p className="text-sm text-muted-foreground">{workedProjects.length} projeto(s) com horas registadas</p>
             </div>
-            <ProjectsTable projects={workedProjects} emptyMessage="Nenhum projeto trabalhado corresponde à pesquisa." showActivity />
+            <ProjectsTable
+              projects={workedProjects}
+              emptyMessage="Nenhum projeto trabalhado corresponde à pesquisa."
+              showActivity
+              status="worked"
+            />
           </section>
 
           <section className="space-y-3">
@@ -282,7 +299,12 @@ export default function ProjectsPage() {
                 {filteredProjects.length} projeto(s) encontrados nos catálogos dos timesheets importados
               </p>
             </div>
-            <ProjectsTable projects={filteredProjects} emptyMessage="Nenhum projeto disponível corresponde à pesquisa." showActivity={false} />
+            <ProjectsTable
+              projects={filteredProjects}
+              emptyMessage="Nenhum projeto disponível corresponde à pesquisa."
+              showActivity={false}
+              status="catalog"
+            />
           </section>
         </>
       )}
