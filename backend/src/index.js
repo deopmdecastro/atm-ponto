@@ -647,8 +647,9 @@ function normalizeProjects(value, fallback = []) {
       if (!item || typeof item !== "object") return null;
       const code = String(item.code ?? "").trim();
       const description = String(item.description ?? "").trim();
-      if (!code && !description) return null;
-      return { code, description };
+      const client = String(item.client ?? "").trim();
+      if (!code && !description && !client) return null;
+      return { code, description, client };
     })
     .filter(Boolean);
 }
@@ -658,10 +659,11 @@ function mergeProjects(existing = [], incoming = []) {
   for (const item of [...normalizeProjects(existing, []), ...normalizeProjects(incoming, [])]) {
     const key = String(item.code || item.description || "").trim().toLowerCase();
     if (!key) continue;
-    const current = merged.get(key) || { code: "", description: "" };
+    const current = merged.get(key) || { code: "", description: "", client: "" };
     merged.set(key, {
       code: current.code || item.code,
-      description: current.description || item.description
+      description: current.description || item.description,
+      client: current.client || item.client
     });
   }
   return Array.from(merged.values()).sort((a, b) =>

@@ -144,13 +144,14 @@ export default function ProjectsPage() {
     configProjects.forEach((project) => {
       const code = String(project?.code || "").trim();
       const description = String(project?.description || "").trim();
+      const client = String(project?.client || "").trim();
       const inferred = inferCatalogProjectParts(description);
-      const key = code || description;
+      const key = code || description || client;
       if (!key) return;
       byProject.set(key, {
         key,
         project_number: code,
-        project_client: inferred.client,
+        project_client: client || inferred.client,
         project_description: inferred.description || description,
         record_count: 0,
         worked: false,

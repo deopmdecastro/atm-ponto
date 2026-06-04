@@ -206,8 +206,9 @@ function normalizeProjectItem(item) {
   if (!item || typeof item !== "object") return null;
   const code = String(item.code || item.project_number || "").trim();
   const description = String(item.description || item.project_description || item.project_client || "").trim();
+  const client = String(item.client || item.project_client || "").trim();
   if (!code && !description) return null;
-  return { code, description };
+  return { code, description, client };
 }
 
 function detectDateColumn(matrix) {
@@ -438,6 +439,34 @@ function extractProjectsFromWorkbook({ filePath, xlsx, wb, chosenSheet, matrix }
       if (project) projects.push(project);
     };
 
+    for (const sheetName of wb.SheetNames || []) {
+      const normalizedName = normalizeSheetName(sheetName);
+      if (!normalizedName.includes("projet")) continue;
+
+      const projectSheet = wb.Sheets?.[sheetName];
+      if (!projectSheet) continue;
+      const rows = xlsx.utils.sheet_to_json(projectSheet, { header: 1, defval: "" });
+      const headerIndex = rows.findIndex((row) =>
+        (row || []).some((cell) => normalizeHeaderCell(cell).includes("projeto"))
+      );
+      if (headerIndex < 0) continue;
+
+      const header = rows[headerIndex] || [];
+      const codeCol = findColIndex(header, ["projeto", "project", "numero", "nº", "no"]);
+      const descriptionCol = findColIndex(header, ["descricao", "description"]);
+      const clientCol = findColIndex(header, ["cliente", "client"]);
+      if (codeCol < 0) continue;
+
+      for (let rowIndex = headerIndex + 1; rowIndex < rows.length; rowIndex++) {
+        const row = rows[rowIndex] || [];
+        addProject({
+          code: row[codeCol],
+          description: descriptionCol >= 0 ? row[descriptionCol] : "",
+          client: clientCol >= 0 ? row[clientCol] : ""
+        });
+      }
+    }
+
     const resolveFormula = (formula) => {
       let ref = String(formula || "").trim().replace(/^=/, "");
       if (!ref) return;
@@ -492,8 +521,16 @@ function extractProjectsFromWorkbook({ filePath, xlsx, wb, chosenSheet, matrix }
 
     const deduped = new Map();
     for (const project of projects) {
-      const key = `${project.code}__${project.description}`.toLowerCase();
+      const key = String(project.code || project.description || project.client).toLowerCase();
       if (!deduped.has(key)) deduped.set(key, project);
+      else {
+        const current = deduped.get(key);
+        deduped.set(key, {
+          code: current.code || project.code,
+          description: current.description || project.description,
+          client: current.client || project.client
+        });
+      }
     }
     return Array.from(deduped.values());
   } catch {
