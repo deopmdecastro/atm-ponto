@@ -12,6 +12,7 @@ import HourBankChart from "@/components/dashboard/HourBankChart";
 import HourBankSummary from "@/components/dashboard/HourBankSummary";
 import SummaryCards from "@/components/dashboard/SummaryCards";
 import { useAuth } from "@/lib/AuthContext";
+import { truncateDecimal } from "@/lib/formatHours";
 import { buildHourBankHistory, calculateSummary } from "@/lib/parseTimesheet";
 
 const FILTER_KEY = "atm.dashboard.filterMode.v1";
@@ -197,11 +198,28 @@ export default function Dashboard() {
     0
   );
   const enjoyedTotal = enjoyments.reduce((acc, e) => acc + Number(e?.hours || 0), 0);
-  const compensationUsedHours = Math.max(0, compensatedFromRecords + manualUsedTotal + enjoyedTotal);
+
+  const selectedMonthKey = selectedMeta ? timesheetMonthKey(selectedMeta) : "";
+  const selectedCompensationTotalHours =
+    filterMode === "month" && selectedMeta ? Number(selectedMeta?.total_compensation_hours || 0) : compensationTotalHours;
+  const selectedCompensatedFromRecords =
+    filterMode === "month"
+      ? Number(usedByTimesheetId.get(monthTimesheetId) || 0)
+      : compensatedFromRecords;
+  const selectedManualUsed =
+    filterMode === "month" && selectedMeta
+      ? normalizeTimesheetManualUsed(selectedMeta, selectedCompensatedFromRecords)
+      : manualUsedTotal;
+  const selectedEnjoyedHours =
+    filterMode === "month" ? Number(enjoyedByMonthKey.get(selectedMonthKey) || 0) : enjoyedTotal;
+  const selectedCompensationUsedHours = Math.max(
+    0,
+    selectedCompensatedFromRecords + selectedManualUsed + selectedEnjoyedHours
+  );
 
   const summary = calculateSummary(sortedFilteredRecords, {
-    compensationTotalHours,
-    compensationUsedHours
+    compensationTotalHours: selectedCompensationTotalHours,
+    compensationUsedHours: selectedCompensationUsedHours
   });
 
   const dueTimesheetAlerts = (() => {
@@ -251,13 +269,16 @@ export default function Dashboard() {
     const lastMonth = lastMonthDate.getMonth() + 1;
     const profileStartYear = Number(user?.profile?.start_year || 0);
     const startYear = profileStartYear >= 2000 && profileStartYear <= lastYear ? profileStartYear : lastYear;
+    const profileStartMonth = Number(user?.profile?.start_month || 1);
+    const startMonth = profileStartMonth >= 1 && profileStartMonth <= 12 ? profileStartMonth : 1;
 
     const existingKeys = new Set(timesheets.map(timesheetMonthKey).filter(Boolean));
     const missingKeys = [];
 
     for (let year = startYear; year <= lastYear; year++) {
+      const monthStart = year === startYear ? startMonth : 1;
       const monthLimit = year === lastYear ? lastMonth : 12;
-      for (let month = 1; month <= monthLimit; month++) {
+      for (let month = monthStart; month <= monthLimit; month++) {
         const key = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
         if (!existingKeys.has(key)) {
           missingKeys.push(key);
@@ -277,7 +298,7 @@ export default function Dashboard() {
     const message =
       missingKeys.length <= 4
         ? `Faltam os Timesheets de: ${preview}.` 
-        : `Faltam ${missingKeys.length} meses de Timesheet desde ${monthNames[0]} ${startYear}: ${preview} e mais ${missingKeys.length - 4}.`;
+        : `Faltam ${missingKeys.length} meses de Timesheet desde ${monthNames[startMonth - 1]} ${startYear}: ${preview} e mais ${missingKeys.length - 4}.`;
 
     return [
       {
@@ -289,8 +310,8 @@ export default function Dashboard() {
   }, [timesheets, user]);
 
   const dailyHistory = buildHourBankHistory(sortedFilteredRecords, {
-    compensationTotalHours: compensationTotalHours,
-    compensationUsedHours
+    compensationTotalHours: selectedCompensationTotalHours,
+    compensationUsedHours: selectedCompensationUsedHours
   });
 
   if (loading) {
@@ -363,7 +384,7 @@ export default function Dashboard() {
             const available = Math.max(0, total - used);
             acc.push({
               label: `${ts.month} ${ts.year}`.trim(),
-              saldo: Number(available.toFixed(2)),
+              saldo: truncateDecimal(available),
               _total: total,
               _used: used
             });
@@ -501,7 +522,7 @@ export default function Dashboard() {
         <div>
           <HourBankSummary
             summary={summary}
-            history={sortedAllRecords}
+            history={sortedFilteredRecords}
             filterMode={filterMode}
             onCreateEnjoyment={async ({ enjoy_date, hours, reason }) => {
               await createEnjoyment.mutateAsync({ enjoy_date, hours, reason });

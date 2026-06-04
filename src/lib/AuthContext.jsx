@@ -7,6 +7,28 @@ import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 
 const AuthContext = createContext();
 const useLocalBackend = import.meta.env.VITE_USE_LOCAL_BACKEND === "true";
+const monthNames = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro"
+];
+
+function monthIndex(name) {
+  const normalized = String(name || "").trim().toLowerCase();
+  if (!normalized) return 0;
+  const numeric = Number(normalized);
+  if (numeric >= 1 && numeric <= 12) return numeric;
+  return monthNames.findIndex((month) => month.startsWith(normalized.slice(0, 3))) + 1;
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -170,11 +192,17 @@ export const AuthProvider = ({ children }) => {
     return u;
   };
 
-  const updateProfile = async ({ email, currentPassword, newPassword, startYear }) => {
+  const updateProfile = async ({ email, currentPassword, newPassword, startYear, startMonth }) => {
     if (!useLocalBackend) throw new Error("Atualização de perfil só disponível no backend local");
     const payload = { email, currentPassword, newPassword };
-    if (typeof startYear !== "undefined" && startYear !== null) {
-      payload.profile = { start_year: Number(startYear) || undefined };
+    if (
+      (typeof startYear !== "undefined" && startYear !== null) ||
+      (typeof startMonth !== "undefined" && startMonth !== null)
+    ) {
+      payload.profile = {
+        start_year: Number(startYear) || undefined,
+        start_month: Number(startMonth) || undefined
+      };
     }
     const u = await base44.auth.updateProfile(payload);
     setUser(u);
@@ -220,7 +248,8 @@ export const AuthProvider = ({ children }) => {
         employee_name: extracted.employee_name || "",
         employee_number: extracted.employee_number || "",
         department: extracted.department || extracted.observations || "",
-        start_year: Number(extracted.year) || new Date().getFullYear()
+        start_year: Number(extracted.year) || new Date().getFullYear(),
+        start_month: monthIndex(extracted.month) || 1
       }
     });
     setUser(u);

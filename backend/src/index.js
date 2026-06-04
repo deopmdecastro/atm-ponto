@@ -502,6 +502,25 @@ function normalizeProjects(value, fallback = []) {
     .filter(Boolean);
 }
 
+function mergeProjects(existing = [], incoming = []) {
+  const merged = new Map();
+  for (const item of [...normalizeProjects(existing, []), ...normalizeProjects(incoming, [])]) {
+    const key = String(item.code || item.description || "").trim().toLowerCase();
+    if (!key) continue;
+    const current = merged.get(key) || { code: "", description: "" };
+    merged.set(key, {
+      code: current.code || item.code,
+      description: current.description || item.description
+    });
+  }
+  return Array.from(merged.values()).sort((a, b) =>
+    String(a.code || a.description).localeCompare(String(b.code || b.description), "pt", {
+      numeric: true,
+      sensitivity: "base"
+    })
+  );
+}
+
 app.get(
   "/api/reference/timesheet-config",
   asyncHandler(async (req, res) => {
@@ -533,6 +552,23 @@ app.put(
     };
 
     const saved = await setReference("timesheet_config", { instructions, projects, options });
+    res.json(saved);
+  })
+);
+
+app.post(
+  "/api/reference/projects/merge",
+  asyncHandler(async (req, res) => {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const incoming = normalizeProjects(body.projects, []);
+    const existing = (await getReference("timesheet_config")) || {};
+    const existingOptions = existing?.options && typeof existing.options === "object" ? existing.options : {};
+    const projects = mergeProjects(existing.projects || [], incoming);
+    const saved = await setReference("timesheet_config", {
+      instructions: normalizeInstructions(existing.instructions || [], []),
+      projects,
+      options: existingOptions
+    });
     res.json(saved);
   })
 );
@@ -1263,7 +1299,7 @@ app.post(
     }
 
     try {
-      const { records, sheet, meta } = await extractTimesheetDailyRecords({ filePath, sheetName: "TimeSheet" });
+      const { records, sheet, meta, projects } = await extractTimesheetDailyRecords({ filePath, sheetName: "TimeSheet" });
       if (!Array.isArray(records) || records.length === 0) {
         res.json({
           status: "error",
@@ -1278,7 +1314,8 @@ app.post(
         output: {
           sheet,
           rows: records,
-          meta: meta || {}
+          meta: meta || {},
+          projects: Array.isArray(projects) ? projects : []
         }
       });
     } catch (e) {

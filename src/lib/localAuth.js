@@ -127,7 +127,9 @@ export async function registerLocal({ email, password, profile }) {
     profile: {
       employee_name: String(profile.employee_name || ""),
       employee_number: String(profile.employee_number || ""),
-      department: String(profile.department || "")
+      department: String(profile.department || ""),
+      start_year: Number(profile.start_year) || new Date().getFullYear(),
+      start_month: Number(profile.start_month) || 1
     }
   };
 
@@ -143,4 +145,3 @@ export async function registerLocal({ email, password, profile }) {
 
   return { ...user, password_hash: undefined, password_salt: undefined };
 }
-

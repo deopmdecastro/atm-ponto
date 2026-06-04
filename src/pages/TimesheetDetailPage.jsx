@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import HistoryTable from "../components/dashboard/HistoryTable";
 import { buildHourBankHistory } from "../lib/parseTimesheet";
+import { formatHours } from "../lib/formatHours";
 
 export default function TimesheetDetailPage() {
   const { timesheetId, employeeName, year, month } = useParams();
@@ -81,7 +82,7 @@ export default function TimesheetDetailPage() {
           toast({
             variant: "destructive",
             title: "Sem horas disponíveis",
-            description: `Tentaste gozar ${delta.toFixed(1)}h, mas só tens ${availableNow.toFixed(1)}h disponíveis.`
+            description: `Tentaste gozar ${formatHours(delta)}h, mas só tens ${formatHours(availableNow)}h disponíveis.`
           });
           return;
         }

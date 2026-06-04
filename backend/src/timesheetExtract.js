@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
+import fs from "node:fs";
 import { promisify } from "node:util";
+import { strFromU8, unzipSync } from "fflate";
 
 const execFileAsync = promisify(execFile);
 
@@ -48,18 +50,24 @@ function parseDateCell(value) {
   return null;
 }
 
+function truncate2(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) return 0;
+  return Math.trunc(number * 100) / 100;
+}
+
 function parseHoursCell(value) {
   if (value == null || value === "") return 0;
   if (value instanceof Date) {
     const h = value.getUTCHours();
     const m = value.getUTCMinutes();
     const s = value.getUTCSeconds();
-    return Number((h + m / 60 + s / 3600).toFixed(2));
+    return truncate2(h + m / 60 + s / 3600);
   }
   if (typeof value === "number") {
     if (!Number.isFinite(value)) return 0;
-    if (value > 0 && value < 1) return Number((value * 24).toFixed(2));
-    return Number(value.toFixed(2));
+    if (value > 0 && value < 1) return truncate2(value * 24);
+    return truncate2(value);
   }
   const s = String(value).trim();
   const hm = s.match(/^(\d{1,2}):(\d{2})$/);
@@ -67,10 +75,10 @@ function parseHoursCell(value) {
     const h = Number(hm[1]);
     const m = Number(hm[2]);
     if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
-    return Number((h + m / 60).toFixed(2));
+    return truncate2(h + m / 60);
   }
   const n = Number(String(s).replace(",", "."));
-  if (Number.isFinite(n)) return Number(n.toFixed(2));
+  if (Number.isFinite(n)) return truncate2(n);
   return 0;
 }
 
@@ -137,6 +145,69 @@ function findColIndex(headerRow, keywords) {
     }
   }
   return bestScore > 0 ? best : -1;
+}
+
+function columnIndexToLetters(index) {
+  let n = Number(index) + 1;
+  let out = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(65 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out;
+}
+
+function columnLettersToIndex(value) {
+  const letters = String(value || "").toUpperCase().match(/[A-Z]+/)?.[0] || "";
+  if (!letters) return -1;
+  let n = 0;
+  for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+}
+
+function xmlDecode(value) {
+  return String(value || "")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+function parseXmlAttrs(value) {
+  const attrs = {};
+  String(value || "").replace(/([\w:.-]+)="([^"]*)"/g, (_, key, raw) => {
+    attrs[key] = xmlDecode(raw);
+    return "";
+  });
+  return attrs;
+}
+
+function sheetNameFromFormulaName(value) {
+  const formula = String(value || "").trim().replace(/^=/, "");
+  const bang = formula.lastIndexOf("!");
+  if (bang < 0) return "";
+  return formula
+    .slice(0, bang)
+    .trim()
+    .replace(/^'/, "")
+    .replace(/'$/, "")
+    .replace(/''/g, "'");
+}
+
+function rangeFromFormulaName(value) {
+  const formula = String(value || "").trim().replace(/^=/, "");
+  const bang = formula.lastIndexOf("!");
+  return bang >= 0 ? formula.slice(bang + 1) : formula;
+}
+
+function normalizeProjectItem(item) {
+  if (!item || typeof item !== "object") return null;
+  const code = String(item.code || item.project_number || "").trim();
+  const description = String(item.description || item.project_description || item.project_client || "").trim();
+  if (!code && !description) return null;
+  return { code, description };
 }
 
 function detectDateColumn(matrix) {
@@ -281,6 +352,153 @@ function matrixToDailyRecords(matrix) {
   }
 
   return records;
+}
+
+function detectProjectColumn(matrix) {
+  const dateCol = detectDateColumn(matrix);
+  const startRow = detectStartRow(matrix, dateCol);
+  const headerRowIdx = pickBestHeaderRow(matrix, startRow);
+  const headerRow = matrix[headerRowIdx] || [];
+  return findColIndex(headerRow, ["projeto", "project", "nº", "no"]);
+}
+
+function extractProjectsFromWorkbook({ filePath, xlsx, wb, chosenSheet, matrix }) {
+  try {
+    const zip = unzipSync(fs.readFileSync(filePath));
+    const readZipText = (name) => {
+      const file = zip[name];
+      return file ? strFromU8(file) : "";
+    };
+
+    const workbookXml = readZipText("xl/workbook.xml");
+    const relsXml = readZipText("xl/_rels/workbook.xml.rels");
+    if (!workbookXml || !relsXml) return [];
+
+    const relTargets = new Map();
+    for (const match of relsXml.matchAll(/<Relationship\b([^>]*)\/?>/g)) {
+      const attrs = parseXmlAttrs(match[1]);
+      const id = attrs.Id;
+      const target = attrs.Target || "";
+      if (!id || !target) continue;
+      const normalizedTarget = target.startsWith("/")
+        ? target.replace(/^\/+/, "")
+        : `xl/${target}`.replace(/\/[^/]+\/\.\.\//g, "/");
+      relTargets.set(id, normalizedTarget);
+    }
+
+    const sheets = [];
+    for (const match of workbookXml.matchAll(/<sheet\b([^>]*)\/?>/g)) {
+      const attrs = parseXmlAttrs(match[1]);
+      const name = attrs.name || "";
+      const relId = attrs["r:id"];
+      const path = relTargets.get(relId);
+      if (name && path) sheets.push({ name, path });
+    }
+
+    const sheetInfo =
+      sheets.find((sheet) => sheet.name === chosenSheet) ||
+      sheets.find((sheet) => normalizeSheetName(sheet.name) === normalizeSheetName(chosenSheet)) ||
+      sheets.find((sheet) => normalizeSheetName(sheet.name).includes("timesheet"));
+    if (!sheetInfo) return [];
+
+    const wsXml = readZipText(sheetInfo.path);
+    if (!wsXml) return [];
+
+    const projectCol = detectProjectColumn(matrix);
+    if (projectCol < 0) return [];
+    const projectColLetter = columnIndexToLetters(projectCol);
+
+    const definedNames = new Map();
+    for (const match of workbookXml.matchAll(/<definedName\b([^>]*)>([\s\S]*?)<\/definedName>/g)) {
+      const attrs = parseXmlAttrs(match[1]);
+      const name = attrs.name || "";
+      const value = xmlDecode(match[2] || "").trim();
+      if (name && value) definedNames.set(name, value);
+    }
+
+    const formulas = [];
+    for (const match of wsXml.matchAll(/<dataValidation\b([^>]*)>([\s\S]*?)<\/dataValidation>/g)) {
+      const attrs = parseXmlAttrs(match[1]);
+      if (attrs.type !== "list") continue;
+      const sqref = String(attrs.sqref || "");
+      const appliesToProjectColumn = sqref.split(/\s+/).some((ref) => {
+        const [startRef, endRef = startRef] = ref.split(":");
+        const startCol = columnLettersToIndex(startRef);
+        const endCol = columnLettersToIndex(endRef);
+        return startCol <= projectCol && projectCol <= endCol;
+      });
+      if (!appliesToProjectColumn && !sqref.includes(projectColLetter)) continue;
+      const formula = xmlDecode(match[2].match(/<formula1>([\s\S]*?)<\/formula1>/)?.[1] || "").trim();
+      if (formula) formulas.push(formula);
+    }
+
+    const projects = [];
+    const addProject = (item) => {
+      const project = normalizeProjectItem(item);
+      if (project) projects.push(project);
+    };
+
+    const resolveFormula = (formula) => {
+      let ref = String(formula || "").trim().replace(/^=/, "");
+      if (!ref) return;
+
+      if (ref.startsWith('"') && ref.endsWith('"')) {
+        ref
+          .slice(1, -1)
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean)
+          .forEach((value) => addProject({ code: value, description: "" }));
+        return;
+      }
+
+      if (definedNames.has(ref)) ref = definedNames.get(ref);
+
+      const refSheetName = sheetNameFromFormulaName(ref) || chosenSheet;
+      const rangeRef = rangeFromFormulaName(ref).replace(/\$/g, "");
+      if (!rangeRef || !/[A-Z]+\d+/i.test(rangeRef)) return;
+
+      const refSheet =
+        wb.Sheets?.[refSheetName] ||
+        wb.Sheets?.[sheets.find((sheet) => normalizeSheetName(sheet.name) === normalizeSheetName(refSheetName))?.name];
+      if (!refSheet) return;
+
+      let range;
+      try {
+        range = xlsx.utils.decode_range(rangeRef);
+      } catch {
+        return;
+      }
+
+      const firstCol = range.s.c;
+      for (let row = range.s.r; row <= range.e.r; row++) {
+        const codeCell = refSheet[xlsx.utils.encode_cell({ r: row, c: firstCol })];
+        const descCell = refSheet[xlsx.utils.encode_cell({ r: row, c: firstCol + 1 })];
+        let code = String(codeCell?.w ?? codeCell?.v ?? "").trim();
+        let description = String(descCell?.w ?? descCell?.v ?? "").trim();
+
+        if (!description) {
+          const parts = code.match(/^(.+?)\s+[-–|]\s+(.+)$/);
+          if (parts) {
+            code = parts[1].trim();
+            description = parts[2].trim();
+          }
+        }
+        addProject({ code, description });
+      }
+    };
+
+    formulas.forEach(resolveFormula);
+
+    const deduped = new Map();
+    for (const project of projects) {
+      const key = `${project.code}__${project.description}`.toLowerCase();
+      if (!deduped.has(key)) deduped.set(key, project);
+    }
+    return Array.from(deduped.values());
+  } catch {
+    return [];
+  }
 }
 
 function extractMetaFromTimeSheetMatrix(matrix) {
@@ -457,7 +675,8 @@ async function readWithXlsx(filePath, sheetName) {
   const ws = wb.Sheets[chosenSheet];
   const matrix = xlsx.utils.sheet_to_json(ws, { header: 1, defval: "" });
   const meta = normalizeSheetName(chosenSheet).includes("timesheet") ? extractMetaFromTimeSheetMatrix(matrix) : null;
-  return { sheet: chosenSheet, matrix, meta };
+  const projects = extractProjectsFromWorkbook({ filePath, xlsx, wb, chosenSheet, matrix });
+  return { sheet: chosenSheet, matrix, meta, projects };
 }
 
 async function readWithExcelCom(filePath, preferredSheetName) {
@@ -523,7 +742,8 @@ export async function extractTimesheetDailyRecords({ filePath, sheetName = "Time
     return {
       sheet: matrixPayload.sheet,
       records: matrixToDailyRecords(matrixPayload.matrix),
-      meta: matrixPayload.meta || null
+      meta: matrixPayload.meta || null,
+      projects: matrixPayload.projects || []
     };
   } catch {
     // ignore and try COM
@@ -539,7 +759,8 @@ export async function extractTimesheetDailyRecords({ filePath, sheetName = "Time
   return {
     sheet: matrixPayload.sheet,
     records: matrixToDailyRecords(matrixPayload.matrix),
-    meta: matrixPayload.sheet === "TimeSheet" ? extractMetaFromTimeSheetMatrix(matrixPayload.matrix) : null
+    meta: matrixPayload.sheet === "TimeSheet" ? extractMetaFromTimeSheetMatrix(matrixPayload.matrix) : null,
+    projects: []
   };
 }
 

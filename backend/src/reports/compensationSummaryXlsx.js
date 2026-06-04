@@ -56,6 +56,14 @@ function safeNumber(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+// Trunca para 2 casas decimais SEM arredondar.
+// Ex: 1.239 -> 1.23 (não 1.24)
+function truncate2(value) {
+  const number = safeNumber(value);
+  return Math.trunc(number * 100) / 100;
+}
+
+
 function normalizeTimesheetManualUsed(timesheet, usedFromRecords) {
   const total = safeNumber(timesheet?.total_compensation_hours);
   const manualUsed = safeNumber(timesheet?.total_descanso_compensatorio_hours);
@@ -147,11 +155,13 @@ function patchResumoXml(xml, values) {
     nextXml = replaceCell(nextXml, address, makeStringCell(address, getCellStyle(xml, address, "5"), value));
   }
   for (const [address, value] of Object.entries(numberCells)) {
+
     nextXml = replaceCell(
       nextXml,
       address,
-      makeNumberCell(address, getCellStyle(xml, address, "7"), Number(safeNumber(value).toFixed(2)))
+      makeNumberCell(address, getCellStyle(xml, address, "7"), truncate2(value))
     );
+
   }
   return nextXml;
 }
@@ -168,17 +178,18 @@ function patchPorMesXml(xml, rowsByMonth) {
     const values = [
       row.month,
       row.year,
-      Number(row.normal.toFixed(2)),
-      Number(row.extra.toFixed(2)),
-      Number(row.travel.toFixed(2)),
-      Number(row.absence.toFixed(2)),
-      Number(row.totalComp.toFixed(2)),
-      Number(row.usedFromRecords.toFixed(2)),
-      Number(row.usedManual.toFixed(2)),
-      Number(row.usedEnjoyed.toFixed(2)),
-      Number(row.totalUsed.toFixed(2)),
-      Number(row.available.toFixed(2))
+      truncate2(row.normal),
+      truncate2(row.extra),
+      truncate2(row.travel),
+      truncate2(row.absence),
+      truncate2(row.totalComp),
+      truncate2(row.usedFromRecords),
+      truncate2(row.usedManual),
+      truncate2(row.usedEnjoyed),
+      truncate2(row.totalUsed),
+      truncate2(row.available)
     ];
+
     const cells = values
       .map((value, colIndex) => {
         const address = cellAddress(rowNumber - 1, colIndex);

@@ -9,7 +9,7 @@ import path from 'node:path'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const useLocalBackend = env.VITE_USE_LOCAL_BACKEND === "true";
-  const localTarget = env.VITE_LOCAL_BACKEND_URL || "http://localhost:3002";
+  const localTarget = env.VITE_LOCAL_BACKEND_URL || "http://localhost:3001";
   const legacySDKImportsRaw = env.BASE44_LEGACY_SDK_IMPORTS ?? process.env.BASE44_LEGACY_SDK_IMPORTS ?? "";
   const legacySDKImports = String(legacySDKImportsRaw).trim() === "true";
 

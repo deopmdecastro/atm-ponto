@@ -7,6 +7,7 @@ import { Calendar, Clock, DownloadCloud, Trash2, Upload, User, Wallet } from "lu
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
+import { formatHours } from "@/lib/formatHours";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -153,6 +154,15 @@ export default function HistoryPage() {
 
   async function handleView(ts) {
     if (downloadPending) return;
+    if (!String(ts?.source_file_url || "").trim()) {
+      toast({
+        variant: "destructive",
+        title: "Arquivo original indisponível",
+        description: "Este timesheet não tem um arquivo original guardado. Reimporte o ficheiro para ativar o download."
+      });
+      return;
+    }
+
     if (typeof base44.entities?.Timesheet?.downloadOriginal !== "function") {
       toast({
         variant: "destructive",
@@ -245,7 +255,7 @@ export default function HistoryPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-3xl font-semibold text-foreground">{totalCompensationDays.toFixed(2)}</p>
-                  <p className="text-xs text-muted-foreground">({totalCompensationBankHours.toFixed(1)}h)</p>
+                  <p className="text-xs text-muted-foreground">({formatHours(totalCompensationBankHours)}h)</p>
                 </div>
               </div>
             </div>
@@ -305,13 +315,13 @@ export default function HistoryPage() {
                         </div>
                         <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted-foreground">
                           <span>
-                            <span className="font-medium text-foreground">{totalNormal.toFixed(1)}h</span> normais
+                            <span className="font-medium text-foreground">{formatHours(totalNormal)}h</span> normais
                           </span>
                           <span>
-                            <span className="font-medium text-primary">{totalExtra.toFixed(1)}h</span> extra
+                            <span className="font-medium text-primary">{formatHours(totalExtra)}h</span> extra
                           </span>
                           <span>
-                            <span className="font-medium text-foreground">{totalCompensationBank.toFixed(1)}h</span> compensação
+                            <span className="font-medium text-foreground">{formatHours(totalCompensationBank)}h</span> compensação
                           </span>
                           <span>
                             <span className="font-medium text-foreground">{workDays}</span> dias trabalhados
@@ -394,7 +404,7 @@ export default function HistoryPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-foreground">{fmtDate(e.enjoy_date)}</span>
                         <span className="text-xs bg-secondary text-muted-foreground px-2 py-0.5 rounded-full">
-                          {Number(e.hours || 0).toFixed(1)}h
+                          {formatHours(e.hours)}h
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -430,7 +440,7 @@ export default function HistoryPage() {
                 <AlertDialogTitle>Apagar registo</AlertDialogTitle>
                 <AlertDialogDescription>
                   Tens a certeza que queres apagar este registo de gozo de{" "}
-                  <strong>{Number(deleteEnjoymentTarget?.hours || 0).toFixed(1)}h</strong> em{" "}
+                  <strong>{formatHours(deleteEnjoymentTarget?.hours)}h</strong> em{" "}
                   <strong>{fmtDate(deleteEnjoymentTarget?.enjoy_date)}</strong>?
                 </AlertDialogDescription>
               </AlertDialogHeader>

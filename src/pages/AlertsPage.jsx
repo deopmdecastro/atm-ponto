@@ -73,6 +73,8 @@ export default function AlertsPage() {
     const lastMonth = lastMonthDate.getMonth() + 1;
     const profileStartYear = Number(user?.profile?.start_year || 0);
     const startYear = profileStartYear >= 2000 && profileStartYear <= lastYear ? profileStartYear : lastYear;
+    const profileStartMonth = Number(user?.profile?.start_month || 1);
+    const startMonth = profileStartMonth >= 1 && profileStartMonth <= 12 ? profileStartMonth : 1;
 
     const existingKeys = new Set(
       timesheets
@@ -101,8 +103,9 @@ export default function AlertsPage() {
     ];
 
     for (let year = startYear; year <= lastYear; year++) {
+      const monthStart = year === startYear ? startMonth : 1;
       const monthLimit = year === lastYear ? lastMonth : 12;
-      for (let month = 1; month <= monthLimit; month++) {
+      for (let month = monthStart; month <= monthLimit; month++) {
         const key = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
         if (!existingKeys.has(key)) missingKeys.push(key);
       }
@@ -118,7 +121,7 @@ export default function AlertsPage() {
     const message =
       missingKeys.length <= 4
         ? `Faltam os Timesheets de: ${preview.join(", ")}.`
-        : `Faltam ${missingKeys.length} meses de Timesheet desde Janeiro ${startYear}: ${preview.join(", ")} e mais ${missingKeys.length - 4}.`;
+        : `Faltam ${missingKeys.length} meses de Timesheet desde ${monthNames[startMonth - 1]} ${startYear}: ${preview.join(", ")} e mais ${missingKeys.length - 4}.`;
 
     return [
       {

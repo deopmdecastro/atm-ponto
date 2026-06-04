@@ -34,6 +34,28 @@ function setToken(token) {
   }
 }
 
+async function createHttpError(res) {
+  let payload = null;
+  let text = "";
+  try {
+    text = await res.text();
+    if (text) payload = JSON.parse(text);
+  } catch {
+    // ignore
+  }
+
+  const message =
+    payload?.error ||
+    payload?.message ||
+    (text && !text.trim().startsWith("<") ? text.trim() : "") ||
+    `Request failed: ${res.status}`;
+  const err = new Error(message);
+  err.status = res.status;
+  err.data = payload;
+  err.responseText = text;
+  throw err;
+}
+
 function createFetchClient(baseUrl) {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
   if (baseUrl && !normalizedBaseUrl) {
@@ -57,16 +79,7 @@ function createFetchClient(baseUrl) {
       body: body ? JSON.stringify(body) : undefined
     });
     if (!res.ok) {
-      let payload = null;
-      try {
-        payload = await res.json();
-      } catch {
-        // ignore
-      }
-      const err = new Error(payload?.error || `Request failed: ${res.status}`);
-      err.status = res.status;
-      err.data = payload;
-      throw err;
+      await createHttpError(res);
     }
     if (res.status === 204) return null;
     return res.json();
@@ -83,16 +96,7 @@ function createFetchClient(baseUrl) {
       body: formData
     });
     if (!res.ok) {
-      let payload = null;
-      try {
-        payload = await res.json();
-      } catch {
-        // ignore
-      }
-      const err = new Error(payload?.error || `Request failed: ${res.status}`);
-      err.status = res.status;
-      err.data = payload;
-      throw err;
+      await createHttpError(res);
     }
     return res.json();
   }
@@ -110,16 +114,7 @@ function createFetchClient(baseUrl) {
       headers: token ? { authorization: `Bearer ${token}` } : undefined
     });
     if (!res.ok) {
-      let payload = null;
-      try {
-        payload = await res.json();
-      } catch {
-        // ignore
-      }
-      const err = new Error(payload?.error || `Request failed: ${res.status}`);
-      err.status = res.status;
-      err.data = payload;
-      throw err;
+      await createHttpError(res);
     }
     return res.blob();
   }
@@ -131,16 +126,7 @@ function createFetchClient(baseUrl) {
       headers: token ? { authorization: `Bearer ${token}` } : undefined
     });
     if (!res.ok) {
-      let payload = null;
-      try {
-        payload = await res.json();
-      } catch {
-        // ignore
-      }
-      const err = new Error(payload?.error || `Request failed: ${res.status}`);
-      err.status = res.status;
-      err.data = payload;
-      throw err;
+      await createHttpError(res);
     }
 
     const blob = await res.blob();
@@ -227,6 +213,14 @@ function createFetchClient(baseUrl) {
           }
           throw err;
         }
+      },
+      mergeProjects: async (projects) => {
+        try {
+          return await request("POST", "/api/reference/projects/merge", { projects });
+        } catch (err) {
+          if (err?.status === 404) return null;
+          throw err;
+        }
       }
     },
     users: {
@@ -284,6 +278,7 @@ function ensureReference(client) {
   if (client.reference) return;
   client.reference = {
     getTimesheetConfig: async () => ({ instructions: [], projects: [], options: {} }),
+    mergeProjects: async () => null,
     updateTimesheetConfig: async () => {
       throw new Error("Configuração indisponível neste modo (use o backend local).");
     }

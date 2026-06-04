@@ -1,6 +1,7 @@
  
 
 import { CalendarDays, Clock, TrendingUp, TrendingDown, Briefcase, Plane } from "lucide-react";
+import { formatHours } from "@/lib/formatHours";
 
 const cards = [
   { key: "totalWorkedDays", label: "Dias Trabalhados", icon: CalendarDays, suffix: " dias", color: "text-foreground" },
@@ -28,7 +29,7 @@ export default function SummaryCards({ summary }) {
           </div>
           <p className="text-2xl font-bold tracking-tight text-foreground break-words">
             {typeof summary[card.key] === 'number' 
-              ? (Number.isInteger(summary[card.key]) ? summary[card.key] : summary[card.key].toFixed(1))
+              ? (card.suffix === "h" ? formatHours(summary[card.key]) : summary[card.key])
               : summary[card.key]}
             <span className="text-sm font-normal text-muted-foreground">{card.suffix}</span>
           </p>

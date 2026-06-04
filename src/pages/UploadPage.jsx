@@ -5,6 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { queryClientInstance } from "@/lib/query-client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,6 +96,7 @@ export default function UploadPage() {
     const extracted = useLocalBackend
       ? {
           ...(rawResult.output?.meta || {}),
+          projects: rawResult.output?.projects || [],
           daily_records: rawRows
         }
       : await base44.integrations.Core.InvokeLLM({
@@ -239,6 +241,15 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
     }));
 
     await base44.entities.TimesheetRecord.bulkCreate(toCreate);
+    if (Array.isArray(extracted.projects) && extracted.projects.length > 0) {
+      try {
+        await base44.reference.mergeProjects(extracted.projects);
+        await queryClientInstance.invalidateQueries({ queryKey: ["timesheet-config"] });
+      } catch {
+        // The timesheet import should not fail if the optional project catalog merge is unavailable.
+      }
+    }
+    await queryClientInstance.invalidateQueries({ queryKey: ["projects"] });
     if (timesheet?.id) {
       try {
         localStorage.setItem("atm.selectedTimesheetId", timesheet.id);

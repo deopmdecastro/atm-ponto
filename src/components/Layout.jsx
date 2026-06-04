@@ -1,7 +1,7 @@
  
 
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Upload, Clock, AlertTriangle, Users, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Upload, Clock, AlertTriangle, Users, Settings, LogOut, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
 import atmIcon from "@/img/atm_icon.png";
@@ -12,6 +12,7 @@ const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/upload", icon: Upload, label: "Upload" },
   { to: "/historico", icon: Clock, label: "Histórico" },
+  { to: "/projetos", icon: FolderKanban, label: "Projetos" },
   { to: "/alertas", icon: AlertTriangle, label: "Alertas" },
   { to: "/settings", icon: Settings, label: "Conta" },
   { to: "/colaboradores", icon: Users, label: "Colaboradores" },
@@ -28,12 +29,12 @@ export default function Layout() {
     <div className="min-h-screen bg-background">
       {/* Top bar */}
       <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
-            <img src={atmIcon} alt="ATM Ponto" className="h-9 w-9 object-contain" draggable={false} />
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-foreground">ATM Ponto</h1>
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground leading-none">Controle de Horas</p>
+        <div className="w-full px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 gap-4">
+          <div className="flex items-center gap-3 flex-none min-w-[190px]">
+            <img src={atmIcon} alt="ATM Ponto" className="h-9 w-9 object-contain flex-none" draggable={false} />
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold tracking-tight text-foreground leading-tight whitespace-nowrap">ATM Ponto</h1>
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground leading-none whitespace-nowrap">Controle de Horas</p>
             </div>
           </div>
           {useLocalBackend && (
@@ -51,15 +52,15 @@ export default function Layout() {
               </Button>
             </div>
           )}
-          <div className="hidden sm:flex items-center gap-3">
-            <nav className="flex items-center gap-1">
+          <div className="hidden sm:flex items-center justify-end gap-3 min-w-0 flex-1">
+            <nav className="flex items-center justify-end gap-1 min-w-0">
               {visibleNavItems.map(item => {
                 const active = location.pathname === item.to;
                 return (
                   <Link
                     key={item.to}
                     to={item.to}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                       active
                         ? "bg-primary text-primary-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground hover:bg-secondary"
@@ -72,8 +73,8 @@ export default function Layout() {
               })}
             </nav>
             {useLocalBackend && (
-              <div className="flex items-center gap-3 pl-2 border-l border-border">
-                {user?.email && <span className="hidden lg:inline text-sm text-muted-foreground">{user.email}</span>}
+              <div className="flex items-center gap-3 pl-2 border-l border-border min-w-0 flex-none">
+                {user?.email && <span className="hidden lg:inline max-w-[220px] truncate text-sm text-muted-foreground">{user.email}</span>}
                 <Button
                   variant="outline"
                   size="sm"
@@ -117,6 +118,19 @@ export default function Layout() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 sm:pb-8">
         <Outlet />
       </main>
+      <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24 sm:pb-6">
+        <p className="text-center text-xs text-muted-foreground">
+          Designed by:{" "}
+          <a
+            href="https://pt.linkedin.com/in/deogracia-manuel-de-castro-6a4a8a296"
+            target="_blank"
+            rel="noreferrer"
+            className="font-bold text-primary hover:underline"
+          >
+            Deogracia Castro
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }

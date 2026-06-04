@@ -1,4 +1,5 @@
- 
+import { formatHours, truncateDecimal } from "./formatHours";
+
 
 /**
  * Parse the ATM timesheet Excel data extracted via ExtractDataFromUploadedFile
@@ -90,7 +91,7 @@ export function calculateSummary(records, options = {}) {
     alerts.push({
       type: "error",
       date: "-",
-      message: `Horas gozadas acima do total concedido: ${(Math.abs(rawBank)).toFixed(1)}h`
+      message: `Horas gozadas acima do total concedido: ${formatHours(Math.abs(rawBank))}h`
     });
   }
 
@@ -136,7 +137,7 @@ export function buildHourBankHistory(records, options = {}) {
 
       return {
         ...r,
-        bankBalance: parseFloat(available.toFixed(2)),
+        bankBalance: truncateDecimal(available),
         bankStatus: deltaUsed > 0 ? "Gozado" : "Normal"
       };
     });
@@ -147,7 +148,7 @@ export function buildHourBankHistory(records, options = {}) {
         const last = history[history.length - 1];
         history[history.length - 1] = {
           ...last,
-          bankBalance: parseFloat(Math.max(0, last.bankBalance - extraUsed).toFixed(2))
+          bankBalance: truncateDecimal(Math.max(0, last.bankBalance - extraUsed))
         };
       }
     }
@@ -168,7 +169,7 @@ export function buildHourBankHistory(records, options = {}) {
 
     return {
       ...r,
-      bankBalance: parseFloat(balance.toFixed(2)),
+      bankBalance: truncateDecimal(balance),
       bankStatus: r.extra_hours > 0 ? "Disponível" : r.compensated ? "Gozado" : "Normal"
     };
   });
@@ -178,7 +179,7 @@ export function buildHourBankHistory(records, options = {}) {
     const last = history[history.length - 1];
     history[history.length - 1] = {
       ...last,
-      bankBalance: parseFloat((last.bankBalance - delta).toFixed(2))
+      bankBalance: truncateDecimal(last.bankBalance - delta)
     };
   }
 

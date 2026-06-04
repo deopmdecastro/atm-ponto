@@ -4,13 +4,30 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
 import PasswordInput from "@/components/PasswordInput";
+
+const monthOptions = [
+  { value: "1", label: "Janeiro" },
+  { value: "2", label: "Fevereiro" },
+  { value: "3", label: "Março" },
+  { value: "4", label: "Abril" },
+  { value: "5", label: "Maio" },
+  { value: "6", label: "Junho" },
+  { value: "7", label: "Julho" },
+  { value: "8", label: "Agosto" },
+  { value: "9", label: "Setembro" },
+  { value: "10", label: "Outubro" },
+  { value: "11", label: "Novembro" },
+  { value: "12", label: "Dezembro" }
+];
 
 export default function SettingsPage() {
   const { user, updateProfile } = useAuth();
   const [email, setEmail] = useState(user?.email || "");
   const [startYear, setStartYear] = useState(user?.profile?.start_year ? String(user.profile.start_year) : String(new Date().getFullYear()));
+  const [startMonth, setStartMonth] = useState(user?.profile?.start_month ? String(user.profile.start_month) : "1");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -18,8 +35,8 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
 
   const canSubmit = useMemo(() => {
-    return status !== "loading" && email.trim() && startYear.trim();
-  }, [status, email, startYear]);
+    return status !== "loading" && email.trim() && startYear.trim() && startMonth;
+  }, [status, email, startYear, startMonth]);
 
   async function handleSave(e) {
     e.preventDefault();
@@ -41,7 +58,8 @@ export default function SettingsPage() {
         email,
         currentPassword: currentPassword || undefined,
         newPassword: newPassword || undefined,
-        startYear: Number(startYear) || undefined
+        startYear: Number(startYear) || undefined,
+        startMonth: Number(startMonth) || undefined
       });
       toast({
         title: "Configurações salvas",
@@ -61,7 +79,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-foreground">Conta</h2>
-        <p className="text-sm text-muted-foreground">Atualize email, senha e ano de início do controle do timesheet.</p>
+        <p className="text-sm text-muted-foreground">Atualize email, senha e período de início do controle do timesheet.</p>
       </div>
 
       <Card className="border-border/60 bg-card/80 backdrop-blur">
@@ -77,7 +95,7 @@ export default function SettingsPage() {
               </div>
             )}
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="settings-email">Email</Label>
                 <Input
@@ -88,6 +106,21 @@ export default function SettingsPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="settings-start-month">Mês de início</Label>
+                <Select value={startMonth} onValueChange={setStartMonth}>
+                  <SelectTrigger id="settings-start-month">
+                    <SelectValue placeholder="Selecione o mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {monthOptions.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="settings-start-year">Ano de início</Label>
@@ -139,7 +172,7 @@ export default function SettingsPage() {
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
-                O ano de início define desde quando o sistema verifica meses que faltam ser carregados.
+                O mês e o ano de início definem desde quando o sistema verifica meses que faltam ser carregados.
               </p>
               <Button type="submit" disabled={!canSubmit}>
                 {status === "loading" ? "Salvando..." : "Salvar alterações"}
