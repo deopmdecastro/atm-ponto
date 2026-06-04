@@ -1,43 +1,33 @@
-import { query, prisma } from "../db.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
+import { prisma, query } from "../db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Templates para o relatório. Prioriza o arquivo que está no seu repo.
-// Se um caminho absoluto existir (ambiente do seu PC), ele também é considerado.
 const TEMPLATE_FILENAMES = ["ATM-Resumo-Horas-Template.xlsx", "ATM-Resumo-Horas-Modelo.xlsx"];
-
-const ABSOLUTE_TEMPLATE_FILES = [
-  path.resolve(
-    "C:\\Users\\Deogracia de Castro\\Documents\\Projetos\\atm\\ATM-Resumo-Horas-Template.xlsx"
-  ),
-  path.resolve(
-    "C:\\Users\\Deogracia de Castro\\Documents\\Projetos\\atm\\ATM-Resumo-Horas-Modelo.xlsx"
-  )
-];
-
-const LOCAL_TEMPLATE_FILES = TEMPLATE_FILENAMES.map((fn) => path.join(__dirname, fn));
+const LOCAL_TEMPLATE_FILES = TEMPLATE_FILENAMES.map((fileName) => path.join(__dirname, fileName));
+const ABSOLUTE_TEMPLATE_FILES = TEMPLATE_FILENAMES.map((fileName) =>
+  path.resolve("C:\\Users\\Deogracia de Castro\\Documents\\Projetos\\atm", fileName)
+);
 
 function resolveTemplateFile() {
-  const candidates = [...LOCAL_TEMPLATE_FILES, ...ABSOLUTE_TEMPLATE_FILES];
-  for (const filePath of candidates) {
+  for (const filePath of [...LOCAL_TEMPLATE_FILES, ...ABSOLUTE_TEMPLATE_FILES]) {
     if (fs.existsSync(filePath)) return filePath;
   }
-  return null;
+  return "";
 }
 
 function monthIndex(name) {
-  const m = String(name || "").trim().toLowerCase();
+  const value = String(name || "").trim().toLowerCase();
   const map = {
     jan: 1,
     janeiro: 1,
     fev: 2,
     fevereiro: 2,
     mar: 3,
-    "março": 3,
+    março: 3,
     marco: 3,
     abr: 4,
     abril: 4,
@@ -58,84 +48,26 @@ function monthIndex(name) {
     dez: 12,
     dezembro: 12
   };
-  const key = m.slice(0, 3);
-  return map[m] || map[key] || 0;
+  return map[value] || map[value.slice(0, 3)] || 0;
 }
 
 function safeNumber(value) {
-  const n = Number(value || 0);
-  return Number.isFinite(n) ? n : 0;
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
 }
 
-function normalizeTimesheetManualUsed(ts, usedFromRecords) {
-  const total = safeNumber(ts?.total_compensation_hours);
-  const manualUsed = safeNumber(ts?.total_descanso_compensatorio_hours);
+function normalizeTimesheetManualUsed(timesheet, usedFromRecords) {
+  const total = safeNumber(timesheet?.total_compensation_hours);
+  const manualUsed = safeNumber(timesheet?.total_descanso_compensatorio_hours);
   const recordsUsed = safeNumber(usedFromRecords);
-  const effectiveManualUsed = recordsUsed === 0 && manualUsed === total ? 0 : manualUsed;
-  return Math.max(0, effectiveManualUsed);
+  return Math.max(0, recordsUsed === 0 && manualUsed === total ? 0 : manualUsed);
 }
 
-function hexColor(rgbHex) {
-  const s = String(rgbHex || "").replace(/^#/, "").toUpperCase();
-  if (/^[0-9A-F]{6}$/.test(s)) return s;
-  return "000000";
-}
-
-function applyHeaderStyle(ws, addr, { fillRgb, fontRgb, fontSize = 11 }) {
-  const cell = ws[addr];
-  if (!cell) return;
-  cell.s = {
-    font: { bold: true, color: { rgb: hexColor(fontRgb) }, sz: fontSize },
-    fill: { patternType: "solid", fgColor: { rgb: hexColor(fillRgb) } },
-    alignment: { vertical: "center", horizontal: "center", wrapText: true },
-    border: {
-      top: { style: "thin", color: { rgb: hexColor("FFFFFF") } },
-      bottom: { style: "thin", color: { rgb: hexColor("FFFFFF") } }
-    }
-  };
-}
-
-function applyKeyStyle(ws, addr, { fillRgb, fontRgb }) {
-  const cell = ws[addr];
-  if (!cell) return;
-  cell.s = {
-    font: { bold: true, color: { rgb: hexColor(fontRgb) } },
-    fill: { patternType: "solid", fgColor: { rgb: hexColor(fillRgb) } },
-    alignment: { vertical: "center", horizontal: "left" }
-  };
-}
-
-function applyNumberStyle(ws, addr) {
-  const cell = ws[addr];
-  if (!cell) return;
-  cell.z = "0.00";
-  cell.s = {
-    ...(cell.s || {}),
-    alignment: { vertical: "center", horizontal: "right" }
-  };
-}
-
-function applyBodyStyle(ws, addr, opts = {}) {
-  const cell = ws[addr];
-  if (!cell) return;
-  cell.s = {
-    ...(cell.s || {}),
-    font: { color: { rgb: hexColor(opts.fontRgb || "111111") }, sz: opts.fontSize || 11 },
-    fill: opts.fillRgb
-      ? { patternType: "solid", fgColor: { rgb: hexColor(opts.fillRgb) } }
-      : undefined,
-    alignment: {
-      vertical: "center",
-      horizontal: opts.align || "left",
-      wrapText: opts.wrapText ?? false
-    },
-    border: {
-      top: { style: "thin", color: { rgb: hexColor("E5E7EB") } },
-      bottom: { style: "thin", color: { rgb: hexColor("E5E7EB") } },
-      left: { style: "thin", color: { rgb: hexColor("E5E7EB") } },
-      right: { style: "thin", color: { rgb: hexColor("E5E7EB") } }
-    }
-  };
+function monthKey({ year, month }) {
+  const yearNumber = Number(year || 0);
+  const monthNumber = monthIndex(month);
+  if (!yearNumber || !monthNumber) return "";
+  return `${String(yearNumber).padStart(4, "0")}-${String(monthNumber).padStart(2, "0")}`;
 }
 
 function xmlEscape(value) {
@@ -147,12 +79,12 @@ function xmlEscape(value) {
 }
 
 function columnName(index) {
-  let n = index + 1;
+  let number = index + 1;
   let name = "";
-  while (n > 0) {
-    const rem = (n - 1) % 26;
-    name = String.fromCharCode(65 + rem) + name;
-    n = Math.floor((n - 1) / 26);
+  while (number > 0) {
+    const remainder = (number - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    number = Math.floor((number - 1) / 26);
   }
   return name;
 }
@@ -161,25 +93,23 @@ function cellAddress(rowIndex, colIndex) {
   return `${columnName(colIndex)}${rowIndex + 1}`;
 }
 
-function getCellStyle(xml, addr, fallback = "0") {
-  const match = xml.match(new RegExp(`<c\\b[^>]*\\br="${addr}"[^>]*>`));
-  const styleMatch = match?.[0]?.match(/\bs="([^"]+)"/);
-  return styleMatch?.[1] || fallback;
+function getCellStyle(xml, address, fallback = "0") {
+  const match = xml.match(new RegExp(`<c\\b[^>]*\\br="${address}"[^>]*>`));
+  return match?.[0]?.match(/\bs="([^"]+)"/)?.[1] || fallback;
 }
 
-function makeStringCell(addr, style, value) {
-  const escaped = xmlEscape(value);
+function makeStringCell(address, style, value) {
   const preserve = /^\s|\s$/.test(String(value ?? "")) ? ' xml:space="preserve"' : "";
-  return `<c r="${addr}" s="${style}" t="inlineStr"><is><t${preserve}>${escaped}</t></is></c>`;
+  return `<c r="${address}" s="${style}" t="inlineStr"><is><t${preserve}>${xmlEscape(value)}</t></is></c>`;
 }
 
-function makeNumberCell(addr, style, value) {
-  const n = Number(value || 0);
-  return `<c r="${addr}" s="${style}"><v>${Number.isFinite(n) ? n : 0}</v></c>`;
+function makeNumberCell(address, style, value) {
+  const number = Number(value || 0);
+  return `<c r="${address}" s="${style}"><v>${Number.isFinite(number) ? number : 0}</v></c>`;
 }
 
-function replaceCell(xml, addr, cellXml) {
-  const pattern = new RegExp(`<c\\b[^>]*\\br="${addr}"[^>]*(?:/>|>[\\s\\S]*?<\\/c>)`);
+function replaceCell(xml, address, cellXml) {
+  const pattern = new RegExp(`<c\\b[^>]*\\br="${address}"[^>]*(?:/>|>[\\s\\S]*?<\\/c>)`);
   return xml.replace(pattern, cellXml);
 }
 
@@ -191,7 +121,8 @@ function updateIgnoredErrorsRange(xml, ref) {
   return xml.replace(/<ignoredError sqref="[^"]+"/, `<ignoredError sqref="${ref}"`);
 }
 
-function patchTemplateResumoXml(xml, values) {
+function patchResumoXml(xml, values) {
+  let nextXml = xml;
   const stringCells = {
     B4: values.employeeName,
     B5: values.employeeNumber,
@@ -212,19 +143,22 @@ function patchTemplateResumoXml(xml, values) {
     B22: values.available
   };
 
-  let nextXml = xml;
-  for (const [addr, value] of Object.entries(stringCells)) {
-    nextXml = replaceCell(nextXml, addr, makeStringCell(addr, getCellStyle(xml, addr, "5"), value));
+  for (const [address, value] of Object.entries(stringCells)) {
+    nextXml = replaceCell(nextXml, address, makeStringCell(address, getCellStyle(xml, address, "5"), value));
   }
-  for (const [addr, value] of Object.entries(numberCells)) {
-    nextXml = replaceCell(nextXml, addr, makeNumberCell(addr, getCellStyle(xml, addr, "7"), Number(value.toFixed(2))));
+  for (const [address, value] of Object.entries(numberCells)) {
+    nextXml = replaceCell(
+      nextXml,
+      address,
+      makeNumberCell(address, getCellStyle(xml, address, "7"), Number(safeNumber(value).toFixed(2)))
+    );
   }
   return nextXml;
 }
 
-function patchTemplateMesesXml(xml, rowsByMonth) {
+function patchPorMesXml(xml, rowsByMonth) {
   const headerRow = xml.match(/<row\b[^>]*\br="1"[^>]*>[\s\S]*?<\/row>/)?.[0];
-  if (!headerRow) return xml;
+  if (!headerRow) throw new Error("Template Excel inválido: aba Por Mês sem cabeçalho.");
 
   const stringStyle = getCellStyle(xml, "A2", "10");
   const yearStyle = getCellStyle(xml, "B2", "10");
@@ -247,10 +181,10 @@ function patchTemplateMesesXml(xml, rowsByMonth) {
     ];
     const cells = values
       .map((value, colIndex) => {
-        const addr = cellAddress(rowNumber - 1, colIndex);
-        if (colIndex === 0) return makeStringCell(addr, stringStyle, value);
-        if (colIndex === 1) return makeNumberCell(addr, yearStyle, value);
-        return makeNumberCell(addr, numberStyle, value);
+        const address = cellAddress(rowNumber - 1, colIndex);
+        if (colIndex === 0) return makeStringCell(address, stringStyle, value);
+        if (colIndex === 1) return makeNumberCell(address, yearStyle, value);
+        return makeNumberCell(address, numberStyle, value);
       })
       .join("");
     return `<row r="${rowNumber}" spans="1:12" x14ac:dyDescent="0.2">${cells}</row>`;
@@ -269,65 +203,20 @@ function patchTemplateMesesXml(xml, rowsByMonth) {
 function patchTemplateWorkbook({ templateFile, rowsByMonth, summaryValues }) {
   const archive = unzipSync(fs.readFileSync(templateFile));
   archive["xl/worksheets/sheet1.xml"] = strToU8(
-    patchTemplateResumoXml(strFromU8(archive["xl/worksheets/sheet1.xml"]), summaryValues)
+    patchResumoXml(strFromU8(archive["xl/worksheets/sheet1.xml"]), summaryValues)
   );
   archive["xl/worksheets/sheet2.xml"] = strToU8(
-    patchTemplateMesesXml(strFromU8(archive["xl/worksheets/sheet2.xml"]), rowsByMonth)
+    patchPorMesXml(strFromU8(archive["xl/worksheets/sheet2.xml"]), rowsByMonth)
   );
   return Buffer.from(zipSync(archive, { level: 6 }));
 }
 
-function monthKey({ year, month }) {
-  const y = Number(year || 0);
-  const mi = monthIndex(month);
-  if (!y || !mi) return "";
-  return `${String(y).padStart(4, "0")}-${String(mi).padStart(2, "0")}`;
-}
-
 export async function generateCompensationSummaryXlsx({ userId }) {
-  const mod = await import("xlsx");
-  const xlsx = mod?.default || mod;
-  if (!xlsx?.utils?.aoa_to_sheet || !xlsx?.write) {
-    throw new Error("xlsx module loaded but missing expected exports");
-  }
-
-  function ensureSheet(workbook, sheetName) {
-    let ws = workbook.Sheets[sheetName];
-    if (!ws) {
-      ws = xlsx.utils.aoa_to_sheet([]);
-      xlsx.utils.book_append_sheet(workbook, ws, sheetName);
-    }
-    return ws;
-  }
-
-  function writeAoaSheet(workbook, sheetName, aoa) {
-    const ws = ensureSheet(workbook, sheetName);
-    xlsx.utils.sheet_add_aoa(ws, aoa, { origin: "A1" });
-    return ws;
-  }
-
-  function cloneCellFormat(cell) {
-    const cloned = {};
-    if (cell?.s) cloned.s = JSON.parse(JSON.stringify(cell.s));
-    if (cell?.z) cloned.z = cell.z;
-    return cloned;
-  }
-
-  function setCellValue(ws, addr, value, templateAddr = addr) {
-    const templateCell = ws[templateAddr] || ws[addr];
-    const nextCell = {
-      ...cloneCellFormat(templateCell),
-      v: value == null ? "" : value,
-      t: typeof value === "number" ? "n" : "s"
-    };
-    ws[addr] = nextCell;
-  }
-
-  function expandRef(ws, rows, cols) {
-    const current = ws["!ref"] ? xlsx.utils.decode_range(ws["!ref"]) : { s: { r: 0, c: 0 }, e: { r: 0, c: 0 } };
-    current.e.r = Math.max(current.e.r, rows - 1);
-    current.e.c = Math.max(current.e.c, cols - 1);
-    ws["!ref"] = xlsx.utils.encode_range(current);
+  const templateFile = resolveTemplateFile();
+  if (!templateFile) {
+    throw new Error(
+      `Template Excel não encontrado. Procurado em: ${[...LOCAL_TEMPLATE_FILES, ...ABSOLUTE_TEMPLATE_FILES].join(", ")}`
+    );
   }
 
   const timesheets = await query(
@@ -381,58 +270,60 @@ export async function generateCompensationSummaryXlsx({ userId }) {
   }
 
   const enjoymentsByMonthKey = new Map();
-  for (const e of enjoyments) {
-    const iso = e?.enjoy_date ? String(e.enjoy_date).slice(0, 10) : "";
+  for (const row of enjoyments) {
+    const iso = row?.enjoy_date ? String(row.enjoy_date).slice(0, 10) : "";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
     const key = iso.slice(0, 7);
-    enjoymentsByMonthKey.set(key, (enjoymentsByMonthKey.get(key) || 0) + safeNumber(e.hours));
+    enjoymentsByMonthKey.set(key, (enjoymentsByMonthKey.get(key) || 0) + safeNumber(row.hours));
   }
 
   const rowsByMonth = timesheets
-    .map((ts) => {
-      const tsId = String(ts?.id || "");
-      const agg = aggByTimesheetId.get(tsId) || { normal: 0, extra: 0, travel: 0, absence: 0, usedFromRecords: 0 };
-      const manualUsed = normalizeTimesheetManualUsed(ts, agg.usedFromRecords);
-      const enjoyed = enjoymentsByMonthKey.get(monthKey(ts)) || 0;
-      const totalComp = safeNumber(ts?.total_compensation_hours);
-      const totalUsed = Math.max(0, agg.usedFromRecords + manualUsed + enjoyed);
-      const available = Math.max(0, totalComp - totalUsed);
+    .map((timesheet) => {
+      const agg = aggByTimesheetId.get(String(timesheet?.id || "")) || {
+        normal: 0,
+        extra: 0,
+        travel: 0,
+        absence: 0,
+        usedFromRecords: 0
+      };
+      const usedManual = normalizeTimesheetManualUsed(timesheet, agg.usedFromRecords);
+      const usedEnjoyed = enjoymentsByMonthKey.get(monthKey(timesheet)) || 0;
+      const totalComp = safeNumber(timesheet?.total_compensation_hours);
+      const totalUsed = Math.max(0, agg.usedFromRecords + usedManual + usedEnjoyed);
 
       return {
-        month: String(ts?.month || "").trim(),
-        year: ts?.year != null ? Number(ts.year) : null,
-        employee_name: ts?.employee_name || "",
-        employee_number: ts?.employee_number || "",
-        department: ts?.department || "",
+        month: String(timesheet?.month || "").trim(),
+        year: timesheet?.year != null ? Number(timesheet.year) : null,
+        employee_name: timesheet?.employee_name || "",
+        employee_number: timesheet?.employee_number || "",
+        department: timesheet?.department || "",
         normal: agg.normal,
         extra: agg.extra,
         travel: agg.travel,
         absence: agg.absence,
         totalComp,
         usedFromRecords: agg.usedFromRecords,
-        usedManual: manualUsed,
-        usedEnjoyed: enjoyed,
+        usedManual,
+        usedEnjoyed,
         totalUsed,
-        available
+        available: Math.max(0, totalComp - totalUsed)
       };
     })
     .sort((a, b) => {
-      const ay = Number(a?.year || 0);
-      const by = Number(b?.year || 0);
-      if (ay !== by) return ay - by;
-      return monthIndex(a?.month) - monthIndex(b?.month);
+      if (Number(a.year || 0) !== Number(b.year || 0)) return Number(a.year || 0) - Number(b.year || 0);
+      return monthIndex(a.month) - monthIndex(b.month);
     });
 
   const totals = rowsByMonth.reduce(
-    (acc, r) => {
-      acc.normal += safeNumber(r.normal);
-      acc.extra += safeNumber(r.extra);
-      acc.travel += safeNumber(r.travel);
-      acc.absence += safeNumber(r.absence);
-      acc.totalComp += safeNumber(r.totalComp);
-      acc.usedFromRecords += safeNumber(r.usedFromRecords);
-      acc.usedManual += safeNumber(r.usedManual);
-      acc.usedEnjoyed += safeNumber(r.usedEnjoyed);
+    (acc, row) => {
+      acc.normal += safeNumber(row.normal);
+      acc.extra += safeNumber(row.extra);
+      acc.travel += safeNumber(row.travel);
+      acc.absence += safeNumber(row.absence);
+      acc.totalComp += safeNumber(row.totalComp);
+      acc.usedFromRecords += safeNumber(row.usedFromRecords);
+      acc.usedManual += safeNumber(row.usedManual);
+      acc.usedEnjoyed += safeNumber(row.usedEnjoyed);
       return acc;
     },
     { normal: 0, extra: 0, travel: 0, absence: 0, totalComp: 0, usedFromRecords: 0, usedManual: 0, usedEnjoyed: 0 }
@@ -441,267 +332,32 @@ export async function generateCompensationSummaryXlsx({ userId }) {
   totals.available = Math.max(0, totals.totalComp - totals.totalUsed);
 
   const first = rowsByMonth[0] || null;
-  const employeeName = first?.employee_name || "Colaborador";
-  const employeeNumber = first?.employee_number || "";
-  const department = first?.department || "";
   const periodStart =
     rowsByMonth.length > 0 ? `${rowsByMonth[0].month} ${rowsByMonth[0].year || ""}`.trim() : "";
   const periodEnd =
-    rowsByMonth.length > 0 ? `${rowsByMonth[rowsByMonth.length - 1].month} ${rowsByMonth[rowsByMonth.length - 1].year || ""}`.trim() : "";
-  const period = periodStart && periodEnd ? (periodStart === periodEnd ? periodStart : `${periodStart} - ${periodEnd}`) : "";
-  const generatedAt = new Date().toISOString().replace("T", " ").slice(0, 19);
+    rowsByMonth.length > 0
+      ? `${rowsByMonth[rowsByMonth.length - 1].month} ${rowsByMonth[rowsByMonth.length - 1].year || ""}`.trim()
+      : "";
 
-  // ATM theme (based on CSS vars: --primary: hsl(0 78% 52%), --accent: hsl(0 65% 96%))
-  const ATM_PRIMARY = "D61F3C";
-  const ATM_ACCENT = "FDECEF";
-  const WHITE = "FFFFFF";
-  const DARK = "111111";
-
-  const templateFile = resolveTemplateFile();
-  const templateExists = Boolean(templateFile);
-  if (templateExists) {
-    console.log(`reports/compensationSummaryXlsx: usando template Excel em ${templateFile}`);
-  } else {
-    console.warn(
-      `reports/compensationSummaryXlsx: template não encontrado. ` +
-        `Procurado em: ${[...LOCAL_TEMPLATE_FILES, ...ABSOLUTE_TEMPLATE_FILES].join(", ")}. ` +
-        `Gerando relatório a partir do zero.`
-    );
-  }
-
-  if (templateExists) {
-    return patchTemplateWorkbook({
-      templateFile,
-      rowsByMonth,
-      summaryValues: {
-        employeeName,
-        employeeNumber,
-        department,
-        period,
-        generatedAt,
-        normal: totals.normal,
-        extra: totals.extra,
-        travel: totals.travel,
-        absence: totals.absence,
-        totalComp: totals.totalComp,
-        usedFromRecords: totals.usedFromRecords,
-        usedManual: totals.usedManual,
-        usedEnjoyed: totals.usedEnjoyed,
-        totalUsed: totals.totalUsed,
-        available: totals.available
-      }
-    });
-  }
-
-  const wb = templateExists
-    ? xlsx.readFile(templateFile, { cellStyles: true })
-    : xlsx.utils.book_new();
-
-  const resumoAoa = [
-    ["ATM Ponto", ""],
-    ["Relatório de Compensação de Horas", ""],
-    [""],
-    ["Colaborador", employeeName],
-    ["Nº", employeeNumber],
-    ["Departamento", department],
-    ["Período", period],
-    ["Gerado em", generatedAt],
-    [""],
-    ["Totais (todos os meses)", ""],
-    ["Horas normais", totals.normal],
-    ["Horas extra", totals.extra],
-    ["Horas viagem", totals.travel],
-    ["Horas ausência", totals.absence],
-    [""],
-    ["Banco de horas (compensação)", ""],
-    ["Compensadas (total)", totals.totalComp],
-    ["Gozadas (registos)", totals.usedFromRecords],
-    ["Gozadas (manuais)", totals.usedManual],
-    ["Gozadas (lançadas)", totals.usedEnjoyed],
-    ["Gozadas (total)", totals.totalUsed],
-    ["Disponíveis", totals.available]
-  ];
-
-  const wsResumo = templateExists ? ensureSheet(wb, "Resumo") : writeAoaSheet(wb, "Resumo", resumoAoa);
-  if (templateExists) {
-    setCellValue(wsResumo, "B4", employeeName);
-    setCellValue(wsResumo, "B5", employeeNumber);
-    setCellValue(wsResumo, "B6", department);
-    setCellValue(wsResumo, "B7", period);
-    setCellValue(wsResumo, "B8", generatedAt);
-    setCellValue(wsResumo, "B11", Number(totals.normal.toFixed(2)));
-    setCellValue(wsResumo, "B12", Number(totals.extra.toFixed(2)));
-    setCellValue(wsResumo, "B13", Number(totals.travel.toFixed(2)));
-    setCellValue(wsResumo, "B14", Number(totals.absence.toFixed(2)));
-    setCellValue(wsResumo, "B17", Number(totals.totalComp.toFixed(2)));
-    setCellValue(wsResumo, "B18", Number(totals.usedFromRecords.toFixed(2)));
-    setCellValue(wsResumo, "B19", Number(totals.usedManual.toFixed(2)));
-    setCellValue(wsResumo, "B20", Number(totals.usedEnjoyed.toFixed(2)));
-    setCellValue(wsResumo, "B21", Number(totals.totalUsed.toFixed(2)));
-    setCellValue(wsResumo, "B22", Number(totals.available.toFixed(2)));
-  }
-  if (!templateExists) {
-    wsResumo["!cols"] = [{ wch: 30 }, { wch: 40 }];
-
-    // Merge title and subtitle
-    wsResumo["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } }
-    ];
-    applyHeaderStyle(wsResumo, "A1", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 20 });
-    applyHeaderStyle(wsResumo, "B1", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 20 });
-    applyHeaderStyle(wsResumo, "A2", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
-    applyHeaderStyle(wsResumo, "B2", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
-    wsResumo["!rows"] = [{ hpt: 32 }, { hpt: 20 }];
-
-    // Section headers (merge across both columns)
-    wsResumo["!merges"].push({ s: { r: 8, c: 0 }, e: { r: 8, c: 1 } });
-    wsResumo["!merges"].push({ s: { r: 14, c: 0 }, e: { r: 14, c: 1 } });
-    applyHeaderStyle(wsResumo, "A9", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 13 });
-    applyHeaderStyle(wsResumo, "B9", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 13 });
-    applyHeaderStyle(wsResumo, "A15", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 13 });
-    applyHeaderStyle(wsResumo, "B15", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 13 });
-  }
-  if (!templateExists) {
-    // Key column style
-    for (let r = 3; r < resumoAoa.length; r++) {
-      const addr = `A${r + 1}`;
-      if (resumoAoa[r]?.[0]) applyBodyStyle(wsResumo, addr, { fillRgb: ATM_ACCENT, fontRgb: DARK, align: "left" });
+  return patchTemplateWorkbook({
+    templateFile,
+    rowsByMonth,
+    summaryValues: {
+      employeeName: first?.employee_name || "Colaborador",
+      employeeNumber: first?.employee_number || "",
+      department: first?.department || "",
+      period: periodStart && periodEnd ? (periodStart === periodEnd ? periodStart : `${periodStart} - ${periodEnd}`) : "",
+      generatedAt: new Date().toISOString().replace("T", " ").slice(0, 19),
+      normal: totals.normal,
+      extra: totals.extra,
+      travel: totals.travel,
+      absence: totals.absence,
+      totalComp: totals.totalComp,
+      usedFromRecords: totals.usedFromRecords,
+      usedManual: totals.usedManual,
+      usedEnjoyed: totals.usedEnjoyed,
+      totalUsed: totals.totalUsed,
+      available: totals.available
     }
-
-    // Value column style
-    for (let r = 3; r < resumoAoa.length; r++) {
-      const addr = `B${r + 1}`;
-      if (resumoAoa[r]?.[1] != null) applyBodyStyle(wsResumo, addr, { fillRgb: WHITE, fontRgb: DARK, align: "right" });
-    }
-
-    // Number formatting
-    for (const rowIndex of [9, 10, 11, 12, 15, 16, 17, 18, 19, 20]) {
-      applyNumberStyle(wsResumo, `B${rowIndex + 1}`);
-    }
-
-    // Add borders to summary section values
-    for (let r = 3; r < resumoAoa.length; r++) {
-      applyBodyStyle(wsResumo, `A${r + 1}`, { fillRgb: ATM_ACCENT, fontRgb: DARK, align: "left" });
-      if (resumoAoa[r]?.[1] != null) applyBodyStyle(wsResumo, `B${r + 1}`, { fillRgb: WHITE, fontRgb: DARK, align: "right" });
-    }
-  }
-
-  const header = [
-    "Mês",
-    "Ano",
-    "Normais (h)",
-    "Extra (h)",
-    "Viagem (h)",
-    "Ausência (h)",
-    "Compensadas (total)",
-    "Gozadas (registos)",
-    "Gozadas (manuais)",
-    "Gozadas (lançadas)",
-    "Gozadas (total)",
-    "Disponíveis"
-  ];
-
-  const mesesAoa = [
-    header,
-    ...rowsByMonth.map((r) => [
-      r.month,
-      r.year,
-      Number(r.normal.toFixed(2)),
-      Number(r.extra.toFixed(2)),
-      Number(r.travel.toFixed(2)),
-      Number(r.absence.toFixed(2)),
-      Number(r.totalComp.toFixed(2)),
-      Number(r.usedFromRecords.toFixed(2)),
-      Number(r.usedManual.toFixed(2)),
-      Number(r.usedEnjoyed.toFixed(2)),
-      Number(r.totalUsed.toFixed(2)),
-      Number(r.available.toFixed(2))
-    ])
-  ];
-
-  const wsMeses = templateExists ? ensureSheet(wb, "Por Mês") : writeAoaSheet(wb, "Por Mês", mesesAoa);
-  if (templateExists) {
-    const previousRange = xlsx.utils.decode_range(wsMeses["!ref"] || "A1:L1");
-    const maxRowsToClear = Math.max(rowsByMonth.length, previousRange.e.r);
-    for (let r = 1; r <= maxRowsToClear; r++) {
-      for (let c = 0; c < header.length; c++) {
-        const addr = xlsx.utils.encode_cell({ r, c });
-        const templateAddr = xlsx.utils.encode_cell({ r: 1, c });
-        setCellValue(wsMeses, addr, "", templateAddr);
-      }
-    }
-
-    rowsByMonth.forEach((row, rowIndex) => {
-      const values = [
-        row.month,
-        row.year,
-        Number(row.normal.toFixed(2)),
-        Number(row.extra.toFixed(2)),
-        Number(row.travel.toFixed(2)),
-        Number(row.absence.toFixed(2)),
-        Number(row.totalComp.toFixed(2)),
-        Number(row.usedFromRecords.toFixed(2)),
-        Number(row.usedManual.toFixed(2)),
-        Number(row.usedEnjoyed.toFixed(2)),
-        Number(row.totalUsed.toFixed(2)),
-        Number(row.available.toFixed(2))
-      ];
-      for (let c = 0; c < values.length; c++) {
-        const addr = xlsx.utils.encode_cell({ r: rowIndex + 1, c });
-        const templateAddr = xlsx.utils.encode_cell({ r: 1, c });
-        setCellValue(wsMeses, addr, values[c], templateAddr);
-      }
-    });
-
-    expandRef(wsMeses, Math.max(2, rowsByMonth.length + 1), header.length);
-  }
-  if (!templateExists) {
-    wsMeses["!cols"] = [
-      { wch: 14 },
-      { wch: 6 },
-      { wch: 12 },
-      { wch: 10 },
-      { wch: 11 },
-      { wch: 11 },
-      { wch: 18 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 14 },
-      { wch: 12 }
-    ];
-
-    // Style header row (row 1)
-    wsMeses["!rows"] = [{ hpt: 26 }];
-    for (let c = 0; c < header.length; c++) {
-      const addr = xlsx.utils.encode_cell({ r: 0, c });
-      applyHeaderStyle(wsMeses, addr, { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
-    }
-
-    // Add subtle alternating row fill for readability and borders
-    for (let r = 1; r < mesesAoa.length; r++) {
-      const fillRgb = r % 2 === 0 ? "FBE7EC" : "FFFFFF";
-      for (let c = 0; c < header.length; c++) {
-        const addr = xlsx.utils.encode_cell({ r, c });
-        applyBodyStyle(wsMeses, addr, {
-          fillRgb,
-          fontRgb: DARK,
-          align: c < 2 ? "left" : "right"
-        });
-        if (c >= 2) applyNumberStyle(wsMeses, addr);
-      }
-    }
-
-    // Number format columns C..L
-    for (let r = 1; r < mesesAoa.length; r++) {
-      for (let c = 2; c < header.length; c++) {
-        const addr = xlsx.utils.encode_cell({ r, c });
-        applyNumberStyle(wsMeses, addr);
-      }
-    }
-  }
-
-  const buf = xlsx.write(wb, { type: "buffer", bookType: "xlsx", cellStyles: true });
-  return Buffer.from(buf);
+  });
 }

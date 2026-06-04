@@ -1141,13 +1141,14 @@ app.get(
   "/api/reports/compensation-summary.xlsx",
   asyncHandler(async (req, res) => {
     const buffer = await generateCompensationSummaryXlsx({ userId: req.user.id });
-    res.setHeader(
-      "content-type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-    res.setHeader("content-disposition", `attachment; filename="ATM-Resumo-Horas.xlsx"`);
-    res.send(buffer);
-  })
+      res.setHeader(
+        "content-type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("x-atm-report-template", "ATM-Resumo-Horas-Template.xlsx");
+      res.setHeader("content-disposition", `attachment; filename="ATM-Resumo-Horas.xlsx"`);
+      res.send(buffer);
+    })
 );
 
 app.put(
