@@ -129,6 +129,21 @@ function updateIgnoredErrorsRange(xml, ref) {
   return xml.replace(/<ignoredError sqref="[^"]+"/, `<ignoredError sqref="${ref}"`);
 }
 
+function formatDate(value, includeTime = false) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("pt-PT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    ...(includeTime ? { hour: "2-digit", minute: "2-digit", hour12: false } : {})
+  }).formatToParts(date);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const formattedDate = `${byType.day}/${byType.month}/${byType.year}`;
+  return includeTime ? `${formattedDate} ${byType.hour}:${byType.minute}` : formattedDate;
+}
+
 function patchResumoXml(xml, values) {
   let nextXml = xml;
   const stringCells = {
@@ -144,11 +159,8 @@ function patchResumoXml(xml, values) {
     B13: values.travel,
     B14: values.absence,
     B17: values.totalComp,
-    B18: values.usedFromRecords,
-    B19: values.usedManual,
-    B20: values.usedEnjoyed,
-    B21: values.totalUsed,
-    B22: values.available
+    B18: values.totalUsed,
+    B19: values.available
   };
 
   for (const [address, value] of Object.entries(stringCells)) {
@@ -163,6 +175,24 @@ function patchResumoXml(xml, values) {
     );
 
   }
+  const summaryRows = [
+    `<row r="18" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+      "A18",
+      getCellStyle(xml, "A21", "4"),
+      "Gozadas (total)"
+    )}${makeNumberCell("B18", getCellStyle(xml, "B21", "7"), truncate2(values.totalUsed))}</row>`,
+    `<row r="19" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+      "A19",
+      getCellStyle(xml, "A22", "4"),
+      "Disponíveis"
+    )}${makeNumberCell("B19", getCellStyle(xml, "B22", "8"), truncate2(values.available))}</row>`
+  ].join("");
+  nextXml = nextXml.replace(
+    /<row\b[^>]*\br="18"[^>]*>[\s\S]*?<\/row>[\s\S]*?<row\b[^>]*\br="22"[^>]*>[\s\S]*?<\/row>/,
+    summaryRows
+  );
+  nextXml = updateSheetRange(nextXml, "A1:B19");
+  nextXml = updateIgnoredErrorsRange(nextXml, "A1:B19");
   return nextXml;
 }
 
@@ -173,6 +203,20 @@ function patchPorMesXml(xml, rowsByMonth) {
   const stringStyle = getCellStyle(xml, "A2", "10");
   const yearStyle = getCellStyle(xml, "B2", "10");
   const numberStyle = getCellStyle(xml, "C2", "11");
+  const headerStyle = getCellStyle(xml, "A1", "9");
+  const simplifiedHeaderRow = `<row r="1" spans="1:9" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${[
+    "Mês",
+    "Ano",
+    "Horas normais",
+    "Horas extra",
+    "Horas viagem",
+    "Horas ausência",
+    "Compensadas (total)",
+    "Gozadas (total)",
+    "Disponíveis"
+  ]
+    .map((value, index) => makeStringCell(`${columnName(index)}1`, headerStyle, value))
+    .join("")}</row>`;
   const dataRows = rowsByMonth.map((row, index) => {
     const rowNumber = index + 2;
     const values = [
@@ -183,9 +227,6 @@ function patchPorMesXml(xml, rowsByMonth) {
       truncate2(row.travel),
       truncate2(row.absence),
       truncate2(row.totalComp),
-      truncate2(row.usedFromRecords),
-      truncate2(row.usedManual),
-      truncate2(row.usedEnjoyed),
       truncate2(row.totalUsed),
       truncate2(row.available)
     ];
@@ -198,20 +239,99 @@ function patchPorMesXml(xml, rowsByMonth) {
         return makeNumberCell(address, numberStyle, value);
       })
       .join("");
-    return `<row r="${rowNumber}" spans="1:12" x14ac:dyDescent="0.2">${cells}</row>`;
+    return `<row r="${rowNumber}" spans="1:9" x14ac:dyDescent="0.2">${cells}</row>`;
   });
 
   const lastRow = Math.max(1, rowsByMonth.length + 1);
   let nextXml = xml.replace(
     /<sheetData>[\s\S]*?<\/sheetData>/,
-    `<sheetData>${headerRow}${dataRows.join("")}</sheetData>`
+    `<sheetData>${simplifiedHeaderRow}${dataRows.join("")}</sheetData>`
   );
-  nextXml = updateSheetRange(nextXml, `A1:L${lastRow}`);
-  nextXml = updateIgnoredErrorsRange(nextXml, `A1:L${lastRow}`);
+  nextXml = updateSheetRange(nextXml, `A1:I${lastRow}`);
+  nextXml = updateIgnoredErrorsRange(nextXml, `A1:I${lastRow}`);
   return nextXml;
 }
 
-function patchTemplateWorkbook({ templateFile, rowsByMonth, summaryValues }) {
+function makeHorasGozadasXml(enjoyments) {
+  const rows = enjoyments.map((row, index) => {
+    const rowNumber = index + 4;
+    return `<row r="${rowNumber}" spans="1:4" x14ac:dyDescent="0.2">${makeStringCell(
+      `A${rowNumber}`,
+      "10",
+      formatDate(row.created_date, true)
+    )}${makeStringCell(`B${rowNumber}`, "10", formatDate(row.enjoy_date))}${makeNumberCell(
+      `C${rowNumber}`,
+      "11",
+      truncate2(row.hours)
+    )}${makeStringCell(`D${rowNumber}`, "10", row.reason || "")}</row>`;
+  });
+  const totalRowNumber = enjoyments.length === 0 ? 5 : enjoyments.length + 4;
+  const totalHours = enjoyments.reduce((total, row) => total + safeNumber(row.hours), 0);
+  const emptyRow =
+    enjoyments.length === 0
+      ? `<row r="4" spans="1:4" x14ac:dyDescent="0.2">${makeStringCell("A4", "10", "Sem horas gozadas registadas.")}</row>`
+      : "";
+  const totalRow = `<row r="${totalRowNumber}" spans="1:4" ht="20" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+    `A${totalRowNumber}`,
+    "9",
+    "Total"
+  )}${makeStringCell(`B${totalRowNumber}`, "9", "")}${makeNumberCell(
+    `C${totalRowNumber}`,
+    "9",
+    truncate2(totalHours)
+  )}${makeStringCell(`D${totalRowNumber}`, "9", "")}</row>`;
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x14ac" xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac">
+<dimension ref="A1:D${totalRowNumber}"/>
+<sheetViews><sheetView workbookViewId="0"><selection activeCell="A4" sqref="A4:D4"/></sheetView></sheetViews>
+<sheetFormatPr defaultRowHeight="15" x14ac:dyDescent="0.2"/>
+<cols><col min="1" max="1" width="22" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="3" width="12" customWidth="1"/><col min="4" max="4" width="55" customWidth="1"/></cols>
+<sheetData>
+<row r="1" spans="1:4" ht="32.1" customHeight="1" x14ac:dyDescent="0.45">${makeStringCell("A1", "12", "ATM Ponto")}</row>
+<row r="2" spans="1:4" ht="20.1" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell("A2", "13", "Horas Gozadas")}</row>
+<row r="3" spans="1:4" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${["Criado em", "Data gozada", "Horas", "Motivo"]
+    .map((value, index) => makeStringCell(`${columnName(index)}3`, "9", value))
+    .join("")}</row>
+${rows.join("")}${emptyRow}${totalRow}
+</sheetData>
+<mergeCells count="2"><mergeCell ref="A1:D1"/><mergeCell ref="A2:D2"/></mergeCells>
+<pageMargins left="0" right="0" top="0" bottom="0" header="0" footer="0"/>
+<ignoredErrors><ignoredError sqref="A1:D${totalRowNumber}" numberStoredAsText="1"/></ignoredErrors>
+</worksheet>`;
+}
+
+function addHorasGozadasSheet(archive, enjoyments) {
+  archive["xl/worksheets/sheet3.xml"] = strToU8(makeHorasGozadasXml(enjoyments));
+
+  const workbookXml = strFromU8(archive["xl/workbook.xml"]).replace(
+    "</sheets>",
+    '<sheet name="Horas Gozadas" sheetId="3" r:id="rId6"/></sheets>'
+  );
+  archive["xl/workbook.xml"] = strToU8(workbookXml);
+
+  const relationshipsXml = strFromU8(archive["xl/_rels/workbook.xml.rels"]).replace(
+    "</Relationships>",
+    '<Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/></Relationships>'
+  );
+  archive["xl/_rels/workbook.xml.rels"] = strToU8(relationshipsXml);
+
+  const contentTypesXml = strFromU8(archive["[Content_Types].xml"]).replace(
+    "</Types>",
+    '<Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'
+  );
+  archive["[Content_Types].xml"] = strToU8(contentTypesXml);
+
+  const appPropertiesXml = strFromU8(archive["docProps/app.xml"])
+    .replace("<vt:i4>2</vt:i4>", "<vt:i4>3</vt:i4>")
+    .replace(
+      '<TitlesOfParts><vt:vector size="2" baseType="lpstr"><vt:lpstr>Resumo</vt:lpstr><vt:lpstr>Por Mês</vt:lpstr></vt:vector></TitlesOfParts>',
+      '<TitlesOfParts><vt:vector size="3" baseType="lpstr"><vt:lpstr>Resumo</vt:lpstr><vt:lpstr>Por Mês</vt:lpstr><vt:lpstr>Horas Gozadas</vt:lpstr></vt:vector></TitlesOfParts>'
+    );
+  archive["docProps/app.xml"] = strToU8(appPropertiesXml);
+}
+
+function patchTemplateWorkbook({ templateFile, rowsByMonth, summaryValues, enjoyments }) {
   const archive = unzipSync(fs.readFileSync(templateFile));
   archive["xl/worksheets/sheet1.xml"] = strToU8(
     patchResumoXml(strFromU8(archive["xl/worksheets/sheet1.xml"]), summaryValues)
@@ -219,6 +339,7 @@ function patchTemplateWorkbook({ templateFile, rowsByMonth, summaryValues }) {
   archive["xl/worksheets/sheet2.xml"] = strToU8(
     patchPorMesXml(strFromU8(archive["xl/worksheets/sheet2.xml"]), rowsByMonth)
   );
+  addHorasGozadasSheet(archive, enjoyments);
   return Buffer.from(zipSync(archive, { level: 6 }));
 }
 
@@ -261,7 +382,7 @@ export async function generateCompensationSummaryXlsx({ userId }) {
   const enjoyments = await query(
     prisma,
     `
-    SELECT enjoy_date, hours
+    SELECT created_date, enjoy_date, hours, reason
     FROM compensation_enjoyments
     WHERE user_id = $1
     ORDER BY enjoy_date ASC
@@ -353,6 +474,7 @@ export async function generateCompensationSummaryXlsx({ userId }) {
   return patchTemplateWorkbook({
     templateFile,
     rowsByMonth,
+    enjoyments,
     summaryValues: {
       employeeName: first?.employee_name || "Colaborador",
       employeeNumber: first?.employee_number || "",
