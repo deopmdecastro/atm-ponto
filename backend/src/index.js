@@ -724,6 +724,37 @@ app.post(
   })
 );
 
+app.post(
+  "/api/reference/projects/sync",
+  asyncHandler(async (req, res) => {
+    const timesheets = await query(
+      prisma,
+      `SELECT DISTINCT source_file_url FROM timesheets WHERE user_id = $1 AND COALESCE(source_file_url, '') <> ''`,
+      [req.user.id]
+    );
+    const extractedProjects = [];
+
+    for (const timesheet of timesheets) {
+      try {
+        const { filePath } = resolveUploadedFile(timesheet.source_file_url);
+        if (!fs.existsSync(filePath)) continue;
+        const result = await extractTimesheetDailyRecords({ filePath, sheetName: "TimeSheet" });
+        if (Array.isArray(result.projects)) extractedProjects.push(...result.projects);
+      } catch (error) {
+        console.warn("[projects] catalog sync skipped file", error?.message || String(error));
+      }
+    }
+
+    const existing = (await getReference("timesheet_config")) || {};
+    const saved = await setReference("timesheet_config", {
+      instructions: normalizeInstructions(existing.instructions || [], []),
+      projects: mergeProjects(existing.projects || [], extractedProjects),
+      options: existing?.options && typeof existing.options === "object" ? existing.options : {}
+    });
+    res.json(saved);
+  })
+);
+
 async function ensureTimesheetOwned({ timesheetId, userId, client = prisma }) {
   if (!timesheetId) return true;
   const rows = await query(client, `SELECT id FROM timesheets WHERE id = $1 AND user_id = $2 LIMIT 1`, [

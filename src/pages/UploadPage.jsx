@@ -241,15 +241,17 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
     }));
 
     await base44.entities.TimesheetRecord.bulkCreate(toCreate);
+
+    setProgress("A atualizar o catálogo de projetos...");
     if (Array.isArray(extracted.projects) && extracted.projects.length > 0) {
-      try {
-        await base44.reference.mergeProjects(extracted.projects);
-        await queryClientInstance.invalidateQueries({ queryKey: ["timesheet-config"] });
-      } catch {
-        // The timesheet import should not fail if the optional project catalog merge is unavailable.
-      }
+      await base44.reference.mergeProjects(extracted.projects);
+    } else {
+      await base44.reference.syncProjects();
     }
-    await queryClientInstance.invalidateQueries({ queryKey: ["projects"] });
+    await Promise.all([
+      queryClientInstance.invalidateQueries({ queryKey: ["timesheet-config"] }),
+      queryClientInstance.invalidateQueries({ queryKey: ["projects"] })
+    ]);
     if (timesheet?.id) {
       try {
         localStorage.setItem("atm.selectedTimesheetId", timesheet.id);

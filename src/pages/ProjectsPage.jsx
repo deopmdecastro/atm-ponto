@@ -42,10 +42,11 @@ function formatPeriod(key) {
 }
 
 function getProjectKey(record) {
-  const number = String(record?.project_number || "").trim();
-  const client = String(record?.project_client || "").trim();
-  const description = String(record?.project_description || "").trim();
-  return number || client || description;
+  return (
+    String(record?.project_number || "").trim() ||
+    String(record?.project_client || "").trim() ||
+    String(record?.project_description || "").trim()
+  );
 }
 
 function inferCatalogProjectParts(description) {
@@ -71,6 +72,54 @@ function inferCatalogProjectParts(description) {
   return { client: text, description: text };
 }
 
+function ProjectsTable({ projects, emptyMessage, showActivity }) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-secondary/50">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Número</th>
+              <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Cliente / Nome</th>
+              <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Descrição</th>
+              {showActivity && (
+                <>
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-muted-foreground">Meses</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold uppercase text-muted-foreground">Registos</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Último mês</th>
+                </>
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {projects.map((project) => (
+              <tr key={project.key} className="transition-colors hover:bg-secondary/30">
+                <td className="px-4 py-3 font-semibold tabular-nums text-foreground">{project.project_number || "-"}</td>
+                <td className="min-w-[180px] px-3 py-3 text-foreground">{project.project_client || "-"}</td>
+                <td className="min-w-[260px] max-w-[460px] break-words px-3 py-3 text-muted-foreground">
+                  {project.project_description || "-"}
+                </td>
+                {showActivity && (
+                  <>
+                    <td className="px-3 py-3 text-center">
+                      <Badge variant="secondary">{project.period_count}</Badge>
+                    </td>
+                    <td className="px-3 py-3 text-right font-medium tabular-nums">{project.record_count}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">
+                      {formatPeriod(project.last_period) || "-"}
+                    </td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {projects.length === 0 && <div className="px-6 py-10 text-center text-sm text-muted-foreground">{emptyMessage}</div>}
+    </div>
+  );
+}
+
 export default function ProjectsPage() {
   const [search, setSearch] = useState("");
 
@@ -81,7 +130,10 @@ export default function ProjectsPage() {
 
   const configQuery = useQuery({
     queryKey: ["timesheet-config"],
-    queryFn: () => base44.reference.getTimesheetConfig()
+    queryFn: async () => {
+      const synced = await base44.reference.syncProjects();
+      return synced || base44.reference.getTimesheetConfig();
+    }
   });
 
   const projects = useMemo(() => {
@@ -110,7 +162,6 @@ export default function ProjectsPage() {
     records.forEach((record) => {
       const key = getProjectKey(record);
       if (!key) return;
-
       const projectNumber = String(record?.project_number || "").trim();
       const projectClient = String(record?.project_client || "").trim();
       const projectDescription = String(record?.project_description || "").trim();
@@ -130,13 +181,11 @@ export default function ProjectsPage() {
       current.project_description = current.project_description || projectDescription;
       current.record_count += 1;
       current.worked = true;
-
       const period = periodKey(record);
       if (period) {
         current.periods.add(period);
         if (!current.last_period || period > current.last_period) current.last_period = period;
       }
-
       byProject.set(key, current);
     });
 
@@ -146,136 +195,95 @@ export default function ProjectsPage() {
         period_count: project.periods.size,
         period_list: Array.from(project.periods).sort()
       }))
-      .sort((a, b) => {
-        if (a.worked !== b.worked) return a.worked ? -1 : 1;
-        const numberSort = String(a.project_number || "").localeCompare(String(b.project_number || ""), "pt", {
-          numeric: true,
-          sensitivity: "base"
-        });
-        if (numberSort !== 0) return numberSort;
-        return String(a.project_client || a.project_description || "").localeCompare(
-          String(b.project_client || b.project_description || ""),
+      .sort((a, b) =>
+        String(a.project_number || a.project_client || a.project_description).localeCompare(
+          String(b.project_number || b.project_client || b.project_description),
           "pt",
-          { sensitivity: "base" }
-        );
-      });
+          { numeric: true, sensitivity: "base" }
+        )
+      );
   }, [configQuery.data, recordsQuery.data]);
 
   const filteredProjects = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return projects;
-
-    return projects.filter((project) => {
-      const searchable = [
+    return projects.filter((project) =>
+      [
         project.project_number,
         project.project_client,
         project.project_description,
-        project.worked ? "trabalhado" : "catalogo catálogo",
         formatPeriod(project.last_period),
         ...project.period_list.map(formatPeriod)
       ]
         .join(" ")
-        .toLowerCase();
-      return searchable.includes(term);
-    });
+        .toLowerCase()
+        .includes(term)
+    );
   }, [projects, search]);
+
+  const workedProjects = filteredProjects.filter((project) => project.worked);
 
   if (recordsQuery.isLoading || configQuery.isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
       </div>
     );
   }
 
   if (recordsQuery.isError || configQuery.isError) {
     return (
-      <div className="border border-red-200 bg-red-50 rounded-xl p-4 text-sm text-red-700">
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
         {recordsQuery.error?.message || configQuery.error?.message || "Não foi possível carregar os projetos."}
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground">Projetos</h2>
           <p className="text-sm text-muted-foreground">
-            {filteredProjects.length} de {projects.length} projeto(s) encontrados no catálogo
+            {workedProjects.length} trabalhado(s) e {filteredProjects.length} disponível(is)
           </p>
         </div>
         <div className="relative w-full lg:w-80">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Pesquisar projeto"
-            className="pl-9"
-          />
+          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar projeto" className="pl-9" />
         </div>
       </div>
 
       {projects.length === 0 ? (
-        <div className="flex flex-col items-center justify-center min-h-[40vh] text-center gap-4">
-          <div className="h-16 w-16 rounded-2xl bg-secondary flex items-center justify-center">
+        <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-secondary">
             <FolderKanban className="h-8 w-8 text-muted-foreground" />
           </div>
           <div>
             <p className="font-semibold text-foreground">Sem projetos</p>
-            <p className="text-sm text-muted-foreground mt-1">Importe um timesheet com lista de projetos no selet para preencher esta lista.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Importe um timesheet para preencher o catálogo.</p>
           </div>
         </div>
       ) : (
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-secondary/50">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Número</th>
-                  <th className="text-center px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estado</th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente / Nome</th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Descrição</th>
-                  <th className="text-center px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Meses</th>
-                  <th className="text-right px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Registos</th>
-                  <th className="text-left px-3 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Último mês</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredProjects.map((project) => (
-                  <tr key={project.key} className={`hover:bg-secondary/30 transition-colors ${project.worked ? "bg-primary/5" : ""}`}>
-                    <td className="px-4 py-3 font-semibold text-foreground tabular-nums">
-                      {project.project_number || "-"}
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      {project.worked ? <Badge>Trabalhado</Badge> : <Badge variant="outline">Catálogo</Badge>}
-                    </td>
-                    <td className="px-3 py-3 text-foreground min-w-[180px]">
-                      {project.project_client || "-"}
-                    </td>
-                    <td className="px-3 py-3 text-muted-foreground min-w-[260px] max-w-[460px] break-words">
-                      {project.project_description || "-"}
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <Badge variant="secondary">{project.period_count}</Badge>
-                    </td>
-                    <td className="px-3 py-3 text-right tabular-nums font-medium">
-                      {project.record_count}
-                    </td>
-                    <td className="px-3 py-3 text-muted-foreground whitespace-nowrap">
-                      {formatPeriod(project.last_period) || "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {filteredProjects.length === 0 && (
-            <div className="px-6 py-10 text-center text-sm text-muted-foreground">
-              Nenhum projeto corresponde à pesquisa.
+        <>
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">Projetos trabalhados</h3>
+              <p className="text-sm text-muted-foreground">{workedProjects.length} projeto(s) com horas registadas</p>
             </div>
-          )}
-        </div>
+            <ProjectsTable projects={workedProjects} emptyMessage="Nenhum projeto trabalhado corresponde à pesquisa." showActivity />
+          </section>
+
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">Todos os projetos disponíveis</h3>
+              <p className="text-sm text-muted-foreground">
+                {filteredProjects.length} projeto(s) encontrados nos catálogos dos timesheets importados
+              </p>
+            </div>
+            <ProjectsTable projects={filteredProjects} emptyMessage="Nenhum projeto disponível corresponde à pesquisa." showActivity={false} />
+          </section>
+        </>
       )}
     </div>
   );

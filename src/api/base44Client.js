@@ -221,6 +221,14 @@ function createFetchClient(baseUrl) {
           if (err?.status === 404) return null;
           throw err;
         }
+      },
+      syncProjects: async () => {
+        try {
+          return await request("POST", "/api/reference/projects/sync");
+        } catch (err) {
+          if (err?.status === 404) return null;
+          throw err;
+        }
       }
     },
     users: {
@@ -279,6 +287,7 @@ function ensureReference(client) {
   client.reference = {
     getTimesheetConfig: async () => ({ instructions: [], projects: [], options: {} }),
     mergeProjects: async () => null,
+    syncProjects: async () => null,
     updateTimesheetConfig: async () => {
       throw new Error("Configuração indisponível neste modo (use o backend local).");
     }

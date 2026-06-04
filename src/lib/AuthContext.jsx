@@ -255,6 +255,10 @@ export const AuthProvider = ({ children }) => {
     setUser(u);
     setIsAuthenticated(true);
 
+    if (Array.isArray(rawResult.output?.projects) && rawResult.output.projects.length > 0) {
+      await base44.reference.mergeProjects(rawResult.output.projects);
+    }
+
     if (typeof onProgress === "function") onProgress(`A guardar ${dailyRecords.length} registos...`);
 
     const timesheet = await base44.entities.Timesheet.create({
