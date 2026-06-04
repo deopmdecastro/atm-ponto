@@ -1,230 +1,200 @@
- 
-
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { Plus, Pencil, Trash2, Users, Mail, Building, Hash } from "lucide-react";
+import { Building, Hash, KeyRound, Mail, Shield, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import PasswordInput from "@/components/PasswordInput";
 
-const EMPTY = { full_name: "", employee_number: "", email: "", department: "", function: "", company: "", active: true };
+function profileValue(user, key, fallback = "-") {
+  const value = String(user?.profile?.[key] || "").trim();
+  return value || fallback;
+}
 
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState(null);
-  const [form, setForm] = useState(EMPTY);
+  const [error, setError] = useState("");
+  const [resetTarget, setResetTarget] = useState(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [inviting, setInviting] = useState(false);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    loadData();
+  }, []);
 
   async function loadData() {
     setLoading(true);
-    const data = await base44.entities.Employee.list("-created_date", 200);
-    setEmployees(data);
-    setLoading(false);
-  }
-
-  function openCreate() {
-    setEditTarget(null);
-    setForm(EMPTY);
-    setDialogOpen(true);
-  }
-
-  function openEdit(emp) {
-    setEditTarget(emp);
-    setForm({ ...emp });
-    setDialogOpen(true);
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    if (editTarget) {
-      await base44.entities.Employee.update(editTarget.id, form);
-    } else {
-      await base44.entities.Employee.create(form);
-      // Invite user to the app
-      if (form.email) {
-        setInviting(true);
-        await base44.users.inviteUser(form.email, "user");
-        setInviting(false);
-      }
+    setError("");
+    try {
+      const data = await base44.users.listRegistered(500);
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
     }
-    setSaving(false);
-    setDialogOpen(false);
-    await loadData();
   }
 
-  async function handleDelete(emp) {
-    await base44.entities.Employee.delete(emp.id);
-    setDeleteTarget(null);
-    await loadData();
+  function openPasswordReset(user) {
+    setResetTarget(user);
+    setNewPassword("");
+    setConfirmPassword("");
+    setError("");
+  }
+
+  async function handlePasswordReset() {
+    if (newPassword.length < 10) {
+      setError("A nova senha deve ter pelo menos 10 caracteres.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("As senhas não coincidem.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    try {
+      await base44.users.resetPassword(resetTarget.id, newPassword);
+      setResetTarget(null);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Colaboradores</h2>
-          <p className="text-sm text-muted-foreground">{employees.length} colaborador(es) registado(s)</p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" /> Novo Colaborador
-        </Button>
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">Colaboradores</h2>
+        <p className="text-sm text-muted-foreground">{users.length} conta(s) criada(s) na plataforma</p>
       </div>
 
-      {employees.length === 0 ? (
-        <div className="flex flex-col items-center justify-center min-h-[40vh] text-center gap-4">
-          <div className="h-16 w-16 rounded-2xl bg-secondary flex items-center justify-center">
+      {error && !resetTarget && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
+
+      {users.length === 0 ? (
+        <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-secondary">
             <Users className="h-8 w-8 text-muted-foreground" />
           </div>
           <div>
-            <p className="font-semibold text-foreground">Sem colaboradores</p>
-            <p className="text-sm text-muted-foreground mt-1">Adicione colaboradores para gerir as suas horas</p>
+            <p className="font-semibold text-foreground">Sem contas criadas</p>
+            <p className="mt-1 text-sm text-muted-foreground">Os colaboradores aparecerão depois de criarem uma conta.</p>
           </div>
-          <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Adicionar Colaborador</Button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {employees.map(emp => (
-            <div key={emp.id} className="bg-card border border-border rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <span className="text-primary font-bold text-lg">
-                    {emp.full_name?.charAt(0)?.toUpperCase() || "?"}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-foreground">{emp.full_name}</span>
-                    {emp.active === false && (
-                      <span className="text-xs bg-secondary text-muted-foreground px-2 py-0.5 rounded-full">Inativo</span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                    {emp.email && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Mail className="h-3 w-3" /> {emp.email}
+        <div className="overflow-hidden rounded-lg border border-border bg-card">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-secondary/50">
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Nome</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Equipe</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Número</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold uppercase text-muted-foreground">Email</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold uppercase text-muted-foreground">Perfil</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-muted-foreground">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {users.map((user) => (
+                  <tr key={user.id} className="transition-colors hover:bg-secondary/30">
+                    <td className="px-4 py-3 font-semibold text-foreground">{profileValue(user, "employee_name", user.email)}</td>
+                    <td className="px-3 py-3 text-muted-foreground">
+                      <span className="flex items-center gap-2">
+                        <Building className="h-4 w-4 flex-none" />
+                        {profileValue(user, "department")}
                       </span>
-                    )}
-                    {emp.employee_number && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Hash className="h-3 w-3" /> {emp.employee_number}
+                    </td>
+                    <td className="px-3 py-3 text-muted-foreground">
+                      <span className="flex items-center gap-2">
+                        <Hash className="h-4 w-4 flex-none" />
+                        {profileValue(user, "employee_number")}
                       </span>
-                    )}
-                    {emp.department && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Building className="h-3 w-3" /> {emp.department}
+                    </td>
+                    <td className="px-3 py-3 text-muted-foreground">
+                      <span className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 flex-none" />
+                        {user.email}
                       </span>
-                    )}
-                    {emp.function && (
-                      <span className="text-xs text-muted-foreground">{emp.function}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Button variant="outline" size="sm" onClick={() => openEdit(emp)}>
-                  <Pencil className="h-4 w-4 mr-1" /> Editar
-                </Button>
-                <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => setDeleteTarget(emp)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-1 text-xs font-medium text-foreground">
+                        <Shield className="h-3 w-3" />
+                        {user.role === "admin" ? "Admin" : "Utilizador"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button variant="outline" size="sm" className="gap-2" onClick={() => openPasswordReset(user)}>
+                        <KeyRound className="h-4 w-4" />
+                        Repor senha
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Create/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={!!resetTarget} onOpenChange={(open) => !open && setResetTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editTarget ? "Editar Colaborador" : "Novo Colaborador"}</DialogTitle>
+            <DialogTitle>Repor senha</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Nome Completo *</Label>
-              <Input className="mt-1" value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Ex: João Silva" />
+            <p className="text-sm text-muted-foreground">
+              Defina uma nova senha para <strong className="text-foreground">{resetTarget?.email}</strong>. Todas as sessões atuais serão terminadas.
+            </p>
+            {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+            <div className="space-y-2">
+              <Label htmlFor="admin-new-password">Nova senha</Label>
+              <PasswordInput
+                id="admin-new-password"
+                autoComplete="new-password"
+                minLength={10}
+                maxLength={256}
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                placeholder="Mínimo de 10 caracteres"
+              />
             </div>
-            <div>
-              <Label>Email *</Label>
-              <Input className="mt-1" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="joao.silva@empresa.com" />
-              {!editTarget && <p className="text-xs text-muted-foreground mt-1">Será enviado convite de acesso para este email.</p>}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Nº Pessoal</Label>
-                <Input className="mt-1" value={form.employee_number} onChange={e => setForm(f => ({ ...f, employee_number: e.target.value }))} placeholder="Ex: 63001234" />
-              </div>
-              <div>
-                <Label>Empresa</Label>
-                <Input className="mt-1" value={form.company} onChange={e => setForm(f => ({ ...f, company: e.target.value }))} placeholder="Ex: ATM" />
-              </div>
-            </div>
-            <div>
-              <Label>Direção / Departamento</Label>
-              <Input className="mt-1" value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} placeholder="Ex: Serviços" />
-            </div>
-            <div>
-              <Label>Função</Label>
-              <Input className="mt-1" value={form.function} onChange={e => setForm(f => ({ ...f, function: e.target.value }))} placeholder="Ex: Técnico AVAC" />
+            <div className="space-y-2">
+              <Label htmlFor="admin-confirm-password">Confirmar nova senha</Label>
+              <PasswordInput
+                id="admin-confirm-password"
+                autoComplete="new-password"
+                minLength={10}
+                maxLength={256}
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="Repita a nova senha"
+              />
             </div>
           </div>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving || !form.full_name || !form.email}>
-              {saving || inviting ? (inviting ? "A enviar convite..." : "A guardar...") : (editTarget ? "Guardar" : "Criar e Convidar")}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetTarget(null)}>Cancelar</Button>
+            <Button onClick={handlePasswordReset} disabled={saving || !newPassword || !confirmPassword}>
+              {saving ? "A repor..." : "Repor senha"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Delete Dialog */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remover Colaborador</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tens a certeza que queres remover <strong>{deleteTarget?.full_name}</strong>? Esta ação não apaga os seus timesheets.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => handleDelete(deleteTarget)}>
-              Remover
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

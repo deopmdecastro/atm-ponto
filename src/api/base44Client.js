@@ -137,13 +137,6 @@ function createFetchClient(baseUrl) {
   }
 
   const entities = {
-    Employee: {
-      list: (order = "-created_date", limit = 200) =>
-        request("GET", `/api/employees?order=${encodeURIComponent(order)}&limit=${encodeURIComponent(limit)}`),
-      create: (data) => request("POST", "/api/employees", data),
-      update: (id, data) => request("PUT", `/api/employees/${encodeURIComponent(id)}`, data),
-      delete: (id) => request("DELETE", `/api/employees/${encodeURIComponent(id)}`)
-    },
     Timesheet: {
       list: (limit = 50) => request("GET", `/api/timesheets?limit=${encodeURIComponent(limit)}`),
       create: (data) => request("POST", "/api/timesheets", data),
@@ -232,7 +225,11 @@ function createFetchClient(baseUrl) {
       }
     },
     users: {
-      inviteUser: async () => ({ ok: true })
+      listRegistered: (limit = 200) => request("GET", `/api/admin/users?limit=${encodeURIComponent(limit)}`),
+      resetPassword: (id, newPassword) =>
+        request("POST", `/api/admin/users/${encodeURIComponent(id)}/reset-password`, {
+          new_password: newPassword
+        })
     },
     reports: {
       downloadCompensationSummaryXlsx: () => download("/api/reports/compensation-summary.xlsx")

@@ -185,7 +185,7 @@ if (typeof setInterval === "function") {
 
 app.get("/", (req, res) => {
   res.type("text/plain").send(
-    "ATM API is running.\n\nTry:\n- GET /health\n- GET /api/employees\n- GET /api/timesheet-records\n"
+    "ATM API is running.\n\nTry:\n- GET /health\n- GET /api/timesheet-records\n"
   );
 });
 
@@ -578,6 +578,15 @@ function requireAdmin(req) {
   if (req.user?.role !== "admin") throw httpError(403, "Admin access required");
 }
 
+function sanitizeAdminUser(row) {
+  const user = sanitizeUser(row);
+  return {
+    ...user,
+    session_count: Number(row?.session_count || 0),
+    last_access: row?.last_access || null
+  };
+}
+
 async function getReference(key) {
   const rows = await query(prisma, `SELECT value FROM reference_store WHERE key = $1 LIMIT 1`, [key]);
   return rows?.[0]?.value ?? null;
@@ -793,89 +802,50 @@ function validateUploadedFileUrl(fileUrl) {
 }
 
 app.get(
-  "/api/employees",
+  "/api/admin/users",
   asyncHandler(async (req, res) => {
     requireAdmin(req);
     const limit = Math.min(Number(req.query.limit || 200) || 200, 1000);
-    const { column, dir } = parseOrder(req.query.order, "created_date");
-    const rows = await query(prisma, `SELECT * FROM employees ORDER BY ${column} ${dir} LIMIT $1`, [limit]);
-    res.json(rows);
+    const rows = await query(
+      prisma,
+      `
+      SELECT
+        u.*,
+        COUNT(s.id)::int AS session_count,
+        MAX(s.last_used) AS last_access
+      FROM users u
+      LEFT JOIN user_sessions s ON s.user_id = u.id AND s.expires_at > now()
+      GROUP BY u.id
+      ORDER BY u.created_date DESC
+      LIMIT $1
+      `,
+      [limit]
+    );
+    res.json(rows.map(sanitizeAdminUser));
   })
 );
 
 app.post(
-  "/api/employees",
+  "/api/admin/users/:id/reset-password",
   asyncHandler(async (req, res) => {
     requireAdmin(req);
-    const data = req.body || {};
-    if (!data.full_name || !data.email) throw httpError(400, "full_name and email are required");
-    const id = randomUUID();
-    const rows = await query(
-      prisma,
-      `
-      INSERT INTO employees
-        (id, full_name, employee_number, email, department, function, company, active)
-      VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8)
-      RETURNING *;
-      `,
-      [
-        id,
-        data.full_name,
-        data.employee_number || "",
-        data.email,
-        data.department || "",
-        data.function || "",
-        data.company || "",
-        data.active !== false
-      ]
-    );
-    res.status(201).json(rows[0]);
-  })
-);
+    const password = String(req.body?.new_password || "");
+    validatePassword(password, "Nova senha");
 
-app.put(
-  "/api/employees/:id",
-  asyncHandler(async (req, res) => {
-    const id = req.params.id;
-    requireAdmin(req);
-    const data = req.body || {};
+    const salt = crypto.randomBytes(16).toString("base64");
+    const hash = await derivePasswordHash({ password, saltB64: salt, iterations: PASSWORD_ITERATIONS });
     const rows = await query(
       prisma,
       `
-      UPDATE employees SET
-        full_name = COALESCE($2, full_name),
-        employee_number = COALESCE($3, employee_number),
-        email = COALESCE($4, email),
-        department = COALESCE($5, department),
-        function = COALESCE($6, function),
-        company = COALESCE($7, company),
-        active = COALESCE($8, active)
+      UPDATE users
+      SET password_salt = $2, password_iterations = $3, password_hash = $4
       WHERE id = $1
-      RETURNING *;
+      RETURNING id
       `,
-      [
-        id,
-        data.full_name ?? null,
-        data.employee_number ?? null,
-        data.email ?? null,
-        data.department ?? null,
-        data.function ?? null,
-        data.company ?? null,
-        typeof data.active === "boolean" ? data.active : null
-      ]
+      [req.params.id, salt, PASSWORD_ITERATIONS, hash]
     );
-    if (!rows[0]) throw httpError(404, "employee not found");
-    res.json(rows[0]);
-  })
-);
-
-app.delete(
-  "/api/employees/:id",
-  asyncHandler(async (req, res) => {
-    requireAdmin(req);
-    const rows = await query(prisma, `DELETE FROM employees WHERE id = $1 RETURNING 1`, [req.params.id]);
-    if (!rows.length) throw httpError(404, "employee not found");
+    if (!rows[0]) throw httpError(404, "Utilizador não encontrado");
+    await query(prisma, `DELETE FROM user_sessions WHERE user_id = $1`, [req.params.id]);
     res.json({ ok: true });
   })
 );
