@@ -7,6 +7,10 @@ services:
     environment:
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
+      VITE_USE_LOCAL_BACKEND: "true"
+      # When running Vite inside Docker, "localhost" points at the web container itself.
+      # Use the compose service name so the dev-server proxy can reach the API container.
+      VITE_LOCAL_BACKEND_URL: "http://api:3001"
       VITE_BASE44_APP_ID: "${VITE_BASE44_APP_ID}"
       VITE_BASE44_APP_BASE_URL: "${VITE_BASE44_APP_BASE_URL}"
       VITE_BASE44_FUNCTIONS_VERSION: "${VITE_BASE44_FUNCTIONS_VERSION}"

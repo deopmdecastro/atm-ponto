@@ -130,6 +130,7 @@ function createFetchClient(baseUrl) {
       list: (limit = 50) => request("GET", `/api/timesheets?limit=${encodeURIComponent(limit)}`),
       create: (data) => request("POST", "/api/timesheets", data),
       get: (id) => request("GET", `/api/timesheets/${encodeURIComponent(id)}`),
+      downloadOriginal: (id) => download(`/api/timesheets/${encodeURIComponent(id)}/download-original`),
       update: (id, data) => request("PUT", `/api/timesheets/${encodeURIComponent(id)}`, data),
       delete: (id) => request("DELETE", `/api/timesheets/${encodeURIComponent(id)}`)
     },
@@ -167,6 +168,35 @@ function createFetchClient(baseUrl) {
 
   return {
     entities,
+    reference: {
+      getTimesheetConfig: async () => {
+        try {
+          return await request("GET", "/api/reference/timesheet-config");
+        } catch (err) {
+          if (err?.status === 401 || err?.status === 404) {
+            // Local backend is either not running, requires auth, or is an older build without this endpoint.
+            // Return a safe default so the UI can still render.
+            return { instructions: [], projects: [], options: {} };
+          }
+          throw err;
+        }
+      },
+      updateTimesheetConfig: async (data) => {
+        try {
+          return await request("PUT", "/api/reference/timesheet-config", data);
+        } catch (err) {
+          if (err?.status === 404) {
+            throw new Error(
+              "Endpoint /api/reference/timesheet-config não existe no backend local. Atualize/reinicie o backend local."
+            );
+          }
+          if (err?.status === 401 || err?.status === 403) {
+            throw new Error("Sem permissões para atualizar a configuração. Faça login como admin no backend local.");
+          }
+          throw err;
+        }
+      }
+    },
     users: {
       inviteUser: async () => ({ ok: true })
     },
@@ -209,8 +239,20 @@ function createFetchClient(baseUrl) {
   };
 }
 
+function ensureReference(client) {
+  if (client.reference) return;
+  client.reference = {
+    getTimesheetConfig: async () => ({ instructions: [], projects: [], options: {} }),
+    updateTimesheetConfig: async () => {
+      throw new Error("Configuração indisponível neste modo (use o backend local).");
+    }
+  };
+}
+
 const useLocalBackend = import.meta.env.VITE_USE_LOCAL_BACKEND === "true";
-const localBackendUrl = normalizeBaseUrl(import.meta.env.VITE_LOCAL_BACKEND_URL) || "http://localhost:3001";
+// In dev, prefer same-origin requests and let Vite's proxy forward to the backend.
+// This avoids hard-coding ports and sidesteps CORS issues.
+const localBackendUrl = import.meta.env.DEV ? "" : normalizeBaseUrl(import.meta.env.VITE_LOCAL_BACKEND_URL);
 
 export const base44 = useLocalBackend
   ? createFetchClient(localBackendUrl)
@@ -222,6 +264,8 @@ export const base44 = useLocalBackend
       requiresAuth: false,
       appBaseUrl: appParams.appBaseUrl
     });
+
+ensureReference(base44);
 
 // Reports only exist on the local backend implementation. Provide a safe no-op for Base44-hosted mode.
 if (!base44.reports) {

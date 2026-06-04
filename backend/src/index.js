@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { initDb, pool } from "./db.js";
+import { initDb, prisma, query } from "./db.js";
 import { asyncHandler, httpError } from "./http.js";
 import multer from "multer";
 import { extractRowsFromPrompt, extractTimesheetDailyRecords } from "./timesheetExtract.js";
@@ -147,21 +147,23 @@ async function createSession(userId) {
   const hash = tokenHash(token);
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30); // 30 days
   const id = randomUUID();
-  await pool.query(
-    `INSERT INTO user_sessions (id, user_id, token_hash, expires_at) VALUES ($1,$2,$3,$4)`,
-    [id, userId, hash, expiresAt.toISOString()]
-  );
+  await query(prisma, `INSERT INTO user_sessions (id, user_id, token_hash, expires_at) VALUES ($1,$2,$3,$4)`, [
+    id,
+    userId,
+    hash,
+    expiresAt.toISOString()
+  ]);
   return { token, tokenHash: hash, sessionId: id, expiresAt: expiresAt.toISOString() };
 }
 
-async function authRequired(req, res, next) {
-  if (req.method === "OPTIONS") return next();
+async function authRequired(req) {
   const header = String(req.headers.authorization || "");
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
-  if (!token) return next(httpError(401, "Missing Authorization header"));
+  if (!token) throw httpError(401, "Missing Authorization header");
 
   const hash = tokenHash(token);
-  const { rows } = await pool.query(
+  const rows = await query(
+    prisma,
     `
     SELECT s.id AS session_id, s.token_hash, u.*
     FROM user_sessions s
@@ -173,15 +175,15 @@ async function authRequired(req, res, next) {
   );
 
   const row = rows[0];
-  if (!row) return next(httpError(401, "Invalid or expired token"));
+  if (!row) throw httpError(401, "Invalid or expired token");
 
   req.user = sanitizeUser(row);
   req.session = { id: row.session_id, tokenHash: row.token_hash };
 
   // Best-effort last_used update
-  pool.query(`UPDATE user_sessions SET last_used = now() WHERE id = $1`, [row.session_id]).catch(() => {});
+  query(prisma, `UPDATE user_sessions SET last_used = now() WHERE id = $1`, [row.session_id]).catch(() => {});
 
-  return next();
+  return req.user;
 }
 
 app.use(
@@ -201,7 +203,9 @@ app.use(
 app.use(
   "/api",
   asyncHandler(async (req, res, next) => {
-    await authRequired(req, res, next);
+    if (req.method === "OPTIONS") return next();
+    await authRequired(req);
+    return next();
   })
 );
 
@@ -223,10 +227,10 @@ app.post(
     if (!email) throw httpError(400, "Email é obrigatório");
     if (!password || password.length < 6) throw httpError(400, "Senha deve ter pelo menos 6 caracteres");
 
-    const { rows: existing } = await pool.query(`SELECT id FROM users WHERE email = $1 LIMIT 1`, [email]);
+    const existing = await query(prisma, `SELECT id FROM users WHERE email = $1 LIMIT 1`, [email]);
     if (existing[0]) throw httpError(409, "Já existe uma conta com este email");
 
-    const { rows: countRows } = await pool.query(`SELECT COUNT(*)::int AS n FROM users`);
+    const countRows = await query(prisma, `SELECT COUNT(*)::int AS n FROM users`);
     const isFirstUser = Number(countRows?.[0]?.n || 0) === 0;
 
     const salt = crypto.randomBytes(16).toString("base64");
@@ -237,7 +241,8 @@ app.post(
     const role = isFirstUser ? "admin" : "user";
     const profile = data.profile && typeof data.profile === "object" ? data.profile : {};
 
-    const { rows } = await pool.query(
+    const rows = await query(
+      prisma,
       `
       INSERT INTO users (id, email, role, password_salt, password_iterations, password_hash, profile)
       VALUES ($1,$2,$3,$4,$5,$6,$7)
@@ -271,7 +276,7 @@ app.post(
     if (!email) throw httpError(400, "Email é obrigatório");
     if (!password) throw httpError(400, "Senha é obrigatória");
 
-    const { rows } = await pool.query(`SELECT * FROM users WHERE email = $1 LIMIT 1`, [email]);
+    const rows = await query(prisma, `SELECT * FROM users WHERE email = $1 LIMIT 1`, [email]);
     const userRow = rows[0];
     if (!userRow) throw httpError(401, "Credenciais inválidas");
 
@@ -301,7 +306,8 @@ app.get(
       });
       return;
     }
-    return authRequired(req, res, () => res.json(req.user));
+    await authRequired(req);
+    res.json(req.user);
   })
 );
 
@@ -313,11 +319,10 @@ app.post(
       res.status(503).json({ error: "Database not available", status: 503 });
       return;
     }
-    return authRequired(req, res, async () => {
-      const hash = req.session?.tokenHash;
-      if (hash) await pool.query(`DELETE FROM user_sessions WHERE token_hash = $1`, [hash]);
-      res.json({ ok: true });
-    });
+    await authRequired(req);
+    const hash = req.session?.tokenHash;
+    if (hash) await query(prisma, `DELETE FROM user_sessions WHERE token_hash = $1`, [hash]);
+    res.json({ ok: true });
   })
 );
 
@@ -338,9 +343,119 @@ function requireAdmin(req) {
   if (req.user?.role !== "admin") throw httpError(403, "Admin access required");
 }
 
-async function ensureTimesheetOwned({ timesheetId, userId, client = pool }) {
+async function getReference(key) {
+  const rows = await query(prisma, `SELECT value FROM reference_store WHERE key = $1 LIMIT 1`, [key]);
+  return rows?.[0]?.value ?? null;
+}
+
+async function setReference(key, value) {
+  const json = value && typeof value === "object" ? value : {};
+  const rows = await query(
+    prisma,
+    `
+    INSERT INTO reference_store (key, value)
+    VALUES ($1, $2::jsonb)
+    ON CONFLICT (key)
+    DO UPDATE SET
+      value = EXCLUDED.value,
+      updated_date = now()
+    RETURNING value;
+    `,
+    [key, JSON.stringify(json)]
+  );
+  return rows?.[0]?.value ?? null;
+}
+
+function normalizeStringArray(value, fallback = []) {
+  if (!Array.isArray(value)) return fallback;
+  return value
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
+}
+
+function normalizeHolidays(value, fallback = []) {
+  if (!Array.isArray(value)) return fallback;
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const date = String(item.date ?? "").trim();
+      const label = String(item.label ?? "").trim();
+      if (!date) return null;
+      return { date, label: label || "Feriado" };
+    })
+    .filter(Boolean);
+}
+
+function normalizeInstructions(value, fallback = []) {
+  if (!Array.isArray(value)) return fallback;
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const line = Number(item.line);
+      const column = String(item.column ?? "").trim();
+      const howToFill = String(item.howToFill ?? "").trim();
+      const notes = String(item.notes ?? "").trim();
+      return {
+        line: Number.isFinite(line) ? line : null,
+        column,
+        howToFill,
+        notes
+      };
+    })
+    .filter((item) => item && (item.line != null || item.column || item.howToFill || item.notes));
+}
+
+function normalizeProjects(value, fallback = []) {
+  if (!Array.isArray(value)) return fallback;
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const code = String(item.code ?? "").trim();
+      const description = String(item.description ?? "").trim();
+      if (!code && !description) return null;
+      return { code, description };
+    })
+    .filter(Boolean);
+}
+
+app.get(
+  "/api/reference/timesheet-config",
+  asyncHandler(async (req, res) => {
+    const existing = await getReference("timesheet_config");
+    res.json(existing || { instructions: [], projects: [], options: {} });
+  })
+);
+
+app.put(
+  "/api/reference/timesheet-config",
+  asyncHandler(async (req, res) => {
+    requireAdmin(req);
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+
+    const existing = (await getReference("timesheet_config")) || {};
+    const existingOptions = existing?.options && typeof existing.options === "object" ? existing.options : {};
+
+    const instructions = normalizeInstructions(body.instructions, existing.instructions || []);
+    const projects = normalizeProjects(body.projects, existing.projects || []);
+    const optionsBody = body?.options && typeof body.options === "object" ? body.options : {};
+    const options = {
+      dayTypes: normalizeStringArray(optionsBody.dayTypes, normalizeStringArray(existingOptions.dayTypes, [])),
+      overtimeReasons: normalizeStringArray(
+        optionsBody.overtimeReasons,
+        normalizeStringArray(existingOptions.overtimeReasons, [])
+      ),
+      absenceTypes: normalizeStringArray(optionsBody.absenceTypes, normalizeStringArray(existingOptions.absenceTypes, [])),
+      holidays: normalizeHolidays(optionsBody.holidays, normalizeHolidays(existingOptions.holidays, []))
+    };
+
+    const saved = await setReference("timesheet_config", { instructions, projects, options });
+    res.json(saved);
+  })
+);
+
+async function ensureTimesheetOwned({ timesheetId, userId, client = prisma }) {
   if (!timesheetId) return true;
-  const { rows } = await client.query(`SELECT id FROM timesheets WHERE id = $1 AND user_id = $2 LIMIT 1`, [
+  const rows = await query(client, `SELECT id FROM timesheets WHERE id = $1 AND user_id = $2 LIMIT 1`, [
     timesheetId,
     userId
   ]);
@@ -354,10 +469,7 @@ app.get(
     requireAdmin(req);
     const limit = Math.min(Number(req.query.limit || 200) || 200, 1000);
     const { column, dir } = parseOrder(req.query.order, "created_date");
-    const { rows } = await pool.query(
-      `SELECT * FROM employees ORDER BY ${column} ${dir} LIMIT $1`,
-      [limit]
-    );
+    const rows = await query(prisma, `SELECT * FROM employees ORDER BY ${column} ${dir} LIMIT $1`, [limit]);
     res.json(rows);
   })
 );
@@ -369,7 +481,8 @@ app.post(
     const data = req.body || {};
     if (!data.full_name || !data.email) throw httpError(400, "full_name and email are required");
     const id = randomUUID();
-    const { rows } = await pool.query(
+    const rows = await query(
+      prisma,
       `
       INSERT INTO employees
         (id, full_name, employee_number, email, department, function, company, active)
@@ -398,7 +511,8 @@ app.put(
     const id = req.params.id;
     requireAdmin(req);
     const data = req.body || {};
-    const { rows } = await pool.query(
+    const rows = await query(
+      prisma,
       `
       UPDATE employees SET
         full_name = COALESCE($2, full_name),
@@ -431,8 +545,8 @@ app.delete(
   "/api/employees/:id",
   asyncHandler(async (req, res) => {
     requireAdmin(req);
-    const { rowCount } = await pool.query(`DELETE FROM employees WHERE id = $1`, [req.params.id]);
-    if (!rowCount) throw httpError(404, "employee not found");
+    const rows = await query(prisma, `DELETE FROM employees WHERE id = $1 RETURNING 1`, [req.params.id]);
+    if (!rows.length) throw httpError(404, "employee not found");
     res.json({ ok: true });
   })
 );
@@ -470,10 +584,7 @@ app.get(
     }
 
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-    const { rows } = await pool.query(
-      `SELECT * FROM timesheet_records ${where} ORDER BY ${column} ${dir} LIMIT $1`,
-      params
-    );
+    const rows = await query(prisma, `SELECT * FROM timesheet_records ${where} ORDER BY ${column} ${dir} LIMIT $1`, params);
     res.json(
       rows.map((r) => ({
         ...r,
@@ -490,7 +601,8 @@ app.post(
     if (!data.employee_name || !data.date) throw httpError(400, "employee_name and date are required");
     await ensureTimesheetOwned({ timesheetId: data.timesheet_id || null, userId: req.user.id });
     const id = randomUUID();
-    const { rows } = await pool.query(
+    const rows = await query(
+      prisma,
       `
       INSERT INTO timesheet_records
         (id, user_id, timesheet_id, employee_name, employee_number, month, year, date, normal_hours, extra_hours, travel_hours, absence_hours,
@@ -539,11 +651,7 @@ app.post(
     const items = Array.isArray(req.body) ? req.body : req.body?.items;
     if (!Array.isArray(items)) throw httpError(400, "Expected an array (or {items: []})");
 
-    const created = [];
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-
+    const created = await prisma.$transaction(async (tx) => {
       const uniqueTimesheetIds = [
         ...new Set(
           items
@@ -553,13 +661,15 @@ app.post(
         )
       ];
       for (const tsId of uniqueTimesheetIds) {
-        await ensureTimesheetOwned({ timesheetId: tsId, userId: req.user.id, client });
+        await ensureTimesheetOwned({ timesheetId: tsId, userId: req.user.id, client: tx });
       }
 
+      const results = [];
       for (const item of items) {
         if (!item?.employee_name || !item?.date) throw httpError(400, "Each item needs employee_name and date");
         const id = randomUUID();
-        const { rows } = await client.query(
+        const rows = await query(
+          tx,
           `
           INSERT INTO timesheet_records
             (id, user_id, timesheet_id, employee_name, employee_number, month, year, date, normal_hours, extra_hours, travel_hours, absence_hours,
@@ -597,15 +707,11 @@ app.post(
             item.observations || ""
           ]
         );
-        created.push(rows[0]);
+        results.push(rows[0]);
       }
-      await client.query("COMMIT");
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
-    }
+      return results;
+    });
+
     res.status(201).json(
       created.map((r) => ({
         ...r,
@@ -619,7 +725,8 @@ app.get(
   "/api/timesheets",
   asyncHandler(async (req, res) => {
     const limit = Math.min(Number(req.query.limit || 50) || 50, 500);
-    const { rows } = await pool.query(
+    const rows = await query(
+      prisma,
       `
       SELECT
         t.*,
@@ -660,12 +767,10 @@ app.post(
     const year = data.year != null && data.year !== "" ? Number(data.year) : null;
     const replace = Boolean(data.replace);
 
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-
+    const created = await prisma.$transaction(async (tx) => {
       if (month && year != null && (employeeNumber || employeeName)) {
-        const { rows: existing } = await client.query(
+        const existing = await query(
+          tx,
           `
           SELECT id
           FROM timesheets
@@ -688,21 +793,17 @@ app.post(
 
         const existingIds = existing.map((r) => r.id).filter(Boolean);
         if (existingIds.length > 0 && !replace) {
-          await client.query("ROLLBACK");
-          res.status(409).json({
-            error: "Timesheet already exists",
-            existing_timesheet_ids: existingIds
-          });
-          return;
+          return { conflict: existingIds };
         }
 
         if (existingIds.length > 0 && replace) {
-          await client.query(`DELETE FROM timesheets WHERE id = ANY($1::uuid[])`, [existingIds]);
+          await query(tx, `DELETE FROM timesheets WHERE id = ANY($1::uuid[])`, [existingIds]);
         }
       }
 
       const id = randomUUID();
-      const { rows } = await client.query(
+      const rows = await query(
+        tx,
         `
         INSERT INTO timesheets
           (
@@ -714,11 +815,12 @@ app.post(
             year,
             department,
             source_filename,
+            source_file_url,
             total_compensation_hours,
             total_descanso_compensatorio_hours
           )
         VALUES
-          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
         RETURNING *;
         `,
         [
@@ -730,28 +832,32 @@ app.post(
           year,
           data.department || "",
           data.source_filename || "",
+          data.source_file_url || "",
           data.total_compensation_hours != null ? Number(data.total_compensation_hours) : 0,
           data.total_descanso_compensatorio_hours != null
             ? Number(data.total_descanso_compensatorio_hours)
             : 0
         ]
       );
+      return rows[0];
+    });
 
-      await client.query("COMMIT");
-      res.status(201).json(rows[0]);
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
+    if (created && created.conflict) {
+      res.status(409).json({
+        error: "Timesheet already exists",
+        existing_timesheet_ids: created.conflict
+      });
+      return;
     }
+
+    res.status(201).json(created);
   })
 );
 
 app.get(
   "/api/timesheets/:id",
   asyncHandler(async (req, res) => {
-    const { rows } = await pool.query(`SELECT * FROM timesheets WHERE id = $1 AND user_id = $2`, [
+    const rows = await query(prisma, `SELECT * FROM timesheets WHERE id = $1 AND user_id = $2`, [
       req.params.id,
       req.user.id
     ]);
@@ -760,12 +866,60 @@ app.get(
   })
 );
 
+app.get(
+  "/api/timesheets/:id/download-original",
+  asyncHandler(async (req, res) => {
+    const rows = await query(
+      prisma,
+      `SELECT source_file_url, source_filename FROM timesheets WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+    const timesheet = rows[0];
+    if (!timesheet) throw httpError(404, "Timesheet não encontrado.");
+
+    const fileUrl = String(timesheet.source_file_url || "").trim();
+    if (!fileUrl) {
+      throw httpError(
+        404,
+        "O arquivo original não está disponível para este timesheet. Isso pode acontecer se ele foi importado antes do suporte ao salvamento do arquivo original ou se o arquivo foi removido do armazenamento do servidor."
+      );
+    }
+
+    let filename;
+    try {
+      const u = new URL(fileUrl, "http://localhost");
+      filename = path.basename(u.pathname || "");
+    } catch {
+      filename = path.basename(String(fileUrl));
+    }
+
+    if (!filename) {
+      throw httpError(
+        400,
+        "O URL do arquivo original armazenado para este timesheet é inválido. Reinicie o upload do timesheet para corrigir este problema."
+      );
+    }
+
+    const filePath = path.resolve(uploadsDir, filename);
+    if (!filePath.startsWith(uploadsDir) || !fs.existsSync(filePath)) {
+      throw httpError(
+        404,
+        "O arquivo original não foi encontrado no servidor. Ele pode ter sido excluído do diretório de uploads ou o armazenamento local foi limpo."
+      );
+    }
+
+    const downloadName = String(timesheet.source_filename || filename || `timesheet-${req.params.id}.xlsx`).trim();
+    res.download(filePath, downloadName);
+  })
+);
+
 app.put(
   "/api/timesheets/:id",
   asyncHandler(async (req, res) => {
     const id = req.params.id;
     const data = req.body || {};
-    const { rows } = await pool.query(
+    const rows = await query(
+      prisma,
       `
       UPDATE timesheets SET
         employee_name = COALESCE($2, employee_name),
@@ -774,9 +928,10 @@ app.put(
         year = COALESCE($5, year),
         department = COALESCE($6, department),
         source_filename = COALESCE($7, source_filename),
-        total_compensation_hours = COALESCE($8, total_compensation_hours),
-        total_descanso_compensatorio_hours = COALESCE($9, total_descanso_compensatorio_hours)
-      WHERE id = $1 AND user_id = $10
+        source_file_url = COALESCE($8, source_file_url),
+        total_compensation_hours = COALESCE($9, total_compensation_hours),
+        total_descanso_compensatorio_hours = COALESCE($10, total_descanso_compensatorio_hours)
+      WHERE id = $1 AND user_id = $11
       RETURNING *;
       `,
       [
@@ -787,6 +942,7 @@ app.put(
         data.year != null ? Number(data.year) : null,
         data.department ?? null,
         data.source_filename ?? null,
+        data.source_file_url ?? null,
         data.total_compensation_hours != null ? Number(data.total_compensation_hours) : null,
         data.total_descanso_compensatorio_hours != null
           ? Number(data.total_descanso_compensatorio_hours)
@@ -802,11 +958,11 @@ app.put(
 app.delete(
   "/api/timesheets/:id",
   asyncHandler(async (req, res) => {
-    const { rowCount } = await pool.query(`DELETE FROM timesheets WHERE id = $1 AND user_id = $2`, [
+    const rows = await query(prisma, `DELETE FROM timesheets WHERE id = $1 AND user_id = $2 RETURNING 1`, [
       req.params.id,
       req.user.id
     ]);
-    if (!rowCount) throw httpError(404, "timesheet not found");
+    if (!rows.length) throw httpError(404, "timesheet not found");
     res.json({ ok: true });
   })
 );
@@ -832,10 +988,7 @@ app.get(
     }
 
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-    const { rows } = await pool.query(
-      `SELECT * FROM compensation_enjoyments ${where} ORDER BY ${column} ${dir} LIMIT $1`,
-      params
-    );
+    const rows = await query(prisma, `SELECT * FROM compensation_enjoyments ${where} ORDER BY ${column} ${dir} LIMIT $1`, params);
     res.json(
       rows.map((r) => ({
         ...r,
@@ -857,7 +1010,8 @@ app.post(
     if (!Number.isFinite(hours) || hours <= 0) throw httpError(400, "hours must be a positive number");
 
     const id = randomUUID();
-    const { rows } = await pool.query(
+    const rows = await query(
+      prisma,
       `
       INSERT INTO compensation_enjoyments (id, user_id, enjoy_date, hours, reason)
       VALUES ($1,$2,$3,$4,$5)
@@ -876,11 +1030,11 @@ app.post(
 app.delete(
   "/api/compensation-enjoyments/:id",
   asyncHandler(async (req, res) => {
-    const { rowCount } = await pool.query(`DELETE FROM compensation_enjoyments WHERE id = $1 AND user_id = $2`, [
+    const rows = await query(prisma, `DELETE FROM compensation_enjoyments WHERE id = $1 AND user_id = $2 RETURNING 1`, [
       req.params.id,
       req.user.id
     ]);
-    if (!rowCount) throw httpError(404, "compensation enjoyment not found");
+    if (!rows.length) throw httpError(404, "compensation enjoyment not found");
     res.json({ ok: true });
   })
 );
@@ -906,7 +1060,8 @@ app.put(
     if (data.timesheet_id != null) {
       await ensureTimesheetOwned({ timesheetId: data.timesheet_id, userId: req.user.id });
     }
-    const { rows } = await pool.query(
+    const rows = await query(
+      prisma,
       `
       UPDATE timesheet_records SET
         employee_name = COALESCE($2, employee_name),
@@ -966,11 +1121,11 @@ app.put(
 app.delete(
   "/api/timesheet-records/:id",
   asyncHandler(async (req, res) => {
-    const { rowCount } = await pool.query(`DELETE FROM timesheet_records WHERE id = $1 AND user_id = $2`, [
+    const rows = await query(prisma, `DELETE FROM timesheet_records WHERE id = $1 AND user_id = $2 RETURNING 1`, [
       req.params.id,
       req.user.id
     ]);
-    if (!rowCount) throw httpError(404, "timesheet record not found");
+    if (!rows.length) throw httpError(404, "timesheet record not found");
     res.json({ ok: true });
   })
 );

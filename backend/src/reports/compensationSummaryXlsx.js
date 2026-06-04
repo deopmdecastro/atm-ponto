@@ -1,4 +1,4 @@
-import { pool } from "../db.js";
+import { query, prisma } from "../db.js";
 
 function monthIndex(name) {
   const m = String(name || "").trim().toLowerCase();
@@ -96,7 +96,8 @@ export async function generateCompensationSummaryXlsx({ userId }) {
     throw new Error("xlsx module loaded but missing expected exports");
   }
 
-  const { rows: timesheets } = await pool.query(
+  const timesheets = await query(
+    prisma,
     `
     SELECT *
     FROM timesheets
@@ -106,7 +107,8 @@ export async function generateCompensationSummaryXlsx({ userId }) {
     [userId]
   );
 
-  const { rows: recordAgg } = await pool.query(
+  const recordAgg = await query(
+    prisma,
     `
     SELECT
       timesheet_id,
@@ -122,7 +124,8 @@ export async function generateCompensationSummaryXlsx({ userId }) {
     [userId]
   );
 
-  const { rows: enjoyments } = await pool.query(
+  const enjoyments = await query(
+    prisma,
     `
     SELECT enjoy_date, hours
     FROM compensation_enjoyments

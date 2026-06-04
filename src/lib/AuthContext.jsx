@@ -223,6 +223,7 @@ export const AuthProvider = ({ children }) => {
       year: extracted.year || new Date().getFullYear(),
       department: extracted.department || extracted.observations || "",
       source_filename: file?.name || "",
+      source_file_url: file_url || "",
       total_compensation_hours: extracted.total_compensation_hours ?? 0,
       total_descanso_compensatorio_hours: extracted.total_descanso_compensatorio_hours ?? 0
     });

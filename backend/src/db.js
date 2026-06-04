@@ -1,24 +1,36 @@
-import pg from "pg";
+import { PrismaClient } from "@prisma/client";
 
-const { Pool } = pg;
+const prisma = new PrismaClient();
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  `postgresql://${process.env.POSTGRES_USER || "atm"}:${process.env.POSTGRES_PASSWORD || "atm"}@${process.env.POSTGRES_HOST || "localhost"}:${process.env.POSTGRES_PORT || "5432"}/${process.env.POSTGRES_DB || "atm"}`;
+function escapePostgresValue(value) {
+  if (value === null || value === undefined) return "NULL";
+  if (Array.isArray(value)) {
+    return `ARRAY[${value.map(escapePostgresValue).join(", ")}]`;
+  }
+  if (typeof value === "number" || typeof value === "bigint") return String(value);
+  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+  if (value instanceof Date) return `'${value.toISOString().replace(/'/g, "''")}'`;
+  if (typeof value === "object") return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
 
-const pgSslMode = String(process.env.PGSSLMODE || "").trim().toLowerCase();
-const sslRequired =
-  pgSslMode === "require" ||
-  String(process.env.DATABASE_SSL || "").trim().toLowerCase() === "true" ||
-  (Boolean(process.env.RENDER) && pgSslMode !== "disable");
+export function formatQuery(sql, params = []) {
+  return sql.replace(/\$(\d+)/g, (_, index) => {
+    const paramIndex = Number(index) - 1;
+    if (paramIndex < 0 || paramIndex >= params.length) return _;
+    return escapePostgresValue(params[paramIndex]);
+  });
+}
 
-export const pool = new Pool({
-  connectionString,
-  ...(sslRequired ? { ssl: { rejectUnauthorized: false } } : {})
-});
+export async function query(client, sql, params = []) {
+  const formattedSql = formatQuery(sql, params);
+  return client.$queryRawUnsafe(formattedSql);
+}
 
 export async function initDb() {
-  await pool.query(`
+  await prisma.$connect();
+
+  await query(prisma, `
     CREATE TABLE IF NOT EXISTS users (
       id uuid PRIMARY KEY,
       created_date timestamptz NOT NULL DEFAULT now(),
@@ -31,7 +43,7 @@ export async function initDb() {
     );
   `);
 
-  await pool.query(`
+  await query(prisma, `
     CREATE TABLE IF NOT EXISTS user_sessions (
       id uuid PRIMARY KEY,
       created_date timestamptz NOT NULL DEFAULT now(),
@@ -42,7 +54,7 @@ export async function initDb() {
     );
   `);
 
-  await pool.query(`
+  await query(prisma, `
     CREATE TABLE IF NOT EXISTS timesheets (
       id uuid PRIMARY KEY,
       created_date timestamptz NOT NULL DEFAULT now(),
@@ -53,12 +65,13 @@ export async function initDb() {
       year integer,
       department text,
       source_filename text,
+      source_file_url text,
       total_compensation_hours double precision NOT NULL DEFAULT 0,
       total_descanso_compensatorio_hours double precision NOT NULL DEFAULT 0
     );
   `);
 
-  await pool.query(`
+  await query(prisma, `
     CREATE TABLE IF NOT EXISTS employees (
       id uuid PRIMARY KEY,
       created_date timestamptz NOT NULL DEFAULT now(),
@@ -72,7 +85,7 @@ export async function initDb() {
     );
   `);
 
-  await pool.query(`
+  await query(prisma, `
     CREATE TABLE IF NOT EXISTS timesheet_records (
       id uuid PRIMARY KEY,
       created_date timestamptz NOT NULL DEFAULT now(),
@@ -101,7 +114,7 @@ export async function initDb() {
     );
   `);
 
-  await pool.query(`
+  await query(prisma, `
     CREATE TABLE IF NOT EXISTS compensation_enjoyments (
       id uuid PRIMARY KEY,
       created_date timestamptz NOT NULL DEFAULT now(),
@@ -112,18 +125,23 @@ export async function initDb() {
     );
   `);
 
-  // Backfill/migrations for older databases
-  await pool.query(`ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS timesheet_id uuid;`);
-  await pool.query(`ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS user_id uuid;`);
-  await pool.query(`ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS user_id uuid;`);
-  await pool.query(
-    `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS total_compensation_hours double precision NOT NULL DEFAULT 0;`
-  );
-  await pool.query(
-    `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS total_descanso_compensatorio_hours double precision NOT NULL DEFAULT 0;`
-  );
+  await query(prisma, `
+    CREATE TABLE IF NOT EXISTS reference_store (
+      key text PRIMARY KEY,
+      created_date timestamptz NOT NULL DEFAULT now(),
+      updated_date timestamptz NOT NULL DEFAULT now(),
+      value jsonb NOT NULL DEFAULT '{}'::jsonb
+    );
+  `);
 
-  await pool.query(`
+  // Backfill/migrations for older databases
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS timesheet_id uuid;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS user_id uuid;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS user_id uuid;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS total_compensation_hours double precision NOT NULL DEFAULT 0;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS total_descanso_compensatorio_hours double precision NOT NULL DEFAULT 0;`);
+
+  await query(prisma, `
     DO $$
     BEGIN
       IF NOT EXISTS (
@@ -136,7 +154,7 @@ export async function initDb() {
     END $$;
   `);
 
-  await pool.query(`
+  await query(prisma, `
     DO $$
     BEGIN
       IF NOT EXISTS (
@@ -149,7 +167,7 @@ export async function initDb() {
     END $$;
   `);
 
-  await pool.query(`
+  await query(prisma, `
     DO $$
     BEGIN
       IF NOT EXISTS (
@@ -163,7 +181,7 @@ export async function initDb() {
   `);
 
   // Best-effort backfill of user_id from employee_number -> users.profile.employee_number
-  await pool.query(`
+  await query(prisma, `
     UPDATE timesheets t
     SET user_id = u.id
     FROM users u
@@ -173,7 +191,7 @@ export async function initDb() {
           regexp_replace(btrim(COALESCE(t.employee_number, '')), '\\s+', '', 'g');
   `);
 
-  await pool.query(`
+  await query(prisma, `
     WITH counts AS (SELECT COUNT(*)::int AS n FROM users),
     one_user AS (SELECT id FROM users ORDER BY created_date ASC LIMIT 1)
     UPDATE timesheets
@@ -181,7 +199,7 @@ export async function initDb() {
     WHERE user_id IS NULL AND (SELECT n FROM counts) = 1;
   `);
 
-  await pool.query(`
+  await query(prisma, `
     UPDATE timesheet_records r
     SET user_id = t.user_id
     FROM timesheets t
@@ -190,7 +208,7 @@ export async function initDb() {
       AND t.user_id IS NOT NULL;
   `);
 
-  await pool.query(`
+  await query(prisma, `
     UPDATE timesheet_records r
     SET user_id = u.id
     FROM users u
@@ -200,7 +218,7 @@ export async function initDb() {
           regexp_replace(btrim(COALESCE(r.employee_number, '')), '\\s+', '', 'g');
   `);
 
-  await pool.query(`
+  await query(prisma, `
     WITH counts AS (SELECT COUNT(*)::int AS n FROM users),
     one_user AS (SELECT id FROM users ORDER BY created_date ASC LIMIT 1)
     UPDATE timesheet_records
@@ -208,13 +226,45 @@ export async function initDb() {
     WHERE user_id IS NULL AND (SELECT n FROM counts) = 1;
   `);
 
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_timesheet_records_timesheet_id ON timesheet_records(timesheet_id);`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_timesheet_records_user_id ON timesheet_records(user_id);`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_timesheets_user_id ON timesheets(user_id);`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_compensation_enjoyments_user_id ON compensation_enjoyments(user_id);`);
-  await pool.query(
-    `CREATE INDEX IF NOT EXISTS idx_compensation_enjoyments_enjoy_date ON compensation_enjoyments(enjoy_date DESC);`
+  await query(prisma, `CREATE INDEX IF NOT EXISTS idx_timesheet_records_timesheet_id ON timesheet_records(timesheet_id);`);
+  await query(prisma, `CREATE INDEX IF NOT EXISTS idx_timesheet_records_user_id ON timesheet_records(user_id);`);
+  await query(prisma, `CREATE INDEX IF NOT EXISTS idx_timesheets_user_id ON timesheets(user_id);`);
+  await query(prisma, `CREATE INDEX IF NOT EXISTS idx_compensation_enjoyments_user_id ON compensation_enjoyments(user_id);`);
+  await query(prisma, `CREATE INDEX IF NOT EXISTS idx_compensation_enjoyments_enjoy_date ON compensation_enjoyments(enjoy_date DESC);`);
+  await query(prisma, `CREATE INDEX IF NOT EXISTS idx_timesheets_created_date ON timesheets(created_date DESC);`);
+  await query(prisma, `CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);`);
+
+  // Seed default reference data (if missing).
+  await query(
+    prisma,
+    `
+    INSERT INTO reference_store (key, value)
+    VALUES (
+      'timesheet_config',
+      $1::jsonb
+    )
+    ON CONFLICT (key) DO NOTHING;
+    `,
+    [
+      JSON.stringify({
+        instructions: [
+          {
+            line: 13,
+            column: "1",
+            howToFill: "Dia do mês (preenchido automaticamente; ajuste apenas se necessário acrescentar linhas).",
+            notes: ""
+          }
+        ],
+        projects: [],
+        options: {
+          dayTypes: ["Dia Útil", "Desc.Comp", "Desc. Obrig", "Feriado"],
+          overtimeReasons: ["Motivo Simples"],
+          absenceTypes: ["Ausência"],
+          holidays: []
+        }
+      })
+    ]
   );
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_timesheets_created_date ON timesheets(created_date DESC);`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);`);
 }
+
+export { prisma };

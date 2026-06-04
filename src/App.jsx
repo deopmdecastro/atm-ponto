@@ -16,6 +16,7 @@ const HistoryPage = lazy(() => import("./pages/HistoryPage"));
 const AlertsPage = lazy(() => import("./pages/AlertsPage"));
 const EmployeesPage = lazy(() => import("./pages/EmployeesPage"));
 const TimesheetDetailPage = lazy(() => import("./pages/TimesheetDetailPage"));
+const TimesheetViewPage = lazy(() => import("./pages/TimesheetViewPage"));
 const AuthPage = lazy(() => import("./pages/AuthPage"));
 
 const useLocalBackend = import.meta.env.VITE_USE_LOCAL_BACKEND === "true";
@@ -71,6 +72,7 @@ const AuthenticatedApp = () => {
           <Route path="/alertas" element={<AlertsPage />} />
           <Route path="/colaboradores" element={isAdmin ? <EmployeesPage /> : <Navigate to="/" replace />} />
           <Route path="/historico/:timesheetId" element={<TimesheetDetailPage />} />
+          <Route path="/historico/:timesheetId/visualizar" element={<TimesheetViewPage />} />
           <Route path="/historico/:employeeName/:year/:month" element={<TimesheetDetailPage />} />
           <Route path="*" element={<PageNotFound />} />
         </Route>

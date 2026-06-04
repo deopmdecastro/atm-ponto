@@ -2,10 +2,11 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
-import { Link, useNavigate } from "react-router-dom";
-import { Calendar, Clock, Eye, Trash2, Upload, User, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Calendar, Clock, DownloadCloud, Trash2, Upload, User, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/components/ui/use-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,11 +25,11 @@ function fmtDate(iso) {
 }
 
 export default function HistoryPage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState("timesheets"); // timesheets | compensation
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteEnjoymentTarget, setDeleteEnjoymentTarget] = useState(null);
+  const [downloadPending, setDownloadPending] = useState(false);
 
   const timesheetsQuery = useQuery({
     queryKey: ["timesheets"],
@@ -116,12 +117,41 @@ export default function HistoryPage() {
     }
   });
 
-  function handleView(ts) {
-    if (typeof base44.entities?.Timesheet?.get === "function") {
-      navigate(`/historico/${encodeURIComponent(ts.id)}`);
-    } else {
-      localStorage.setItem("atm.selectedTimesheetId", "all");
-      navigate(`/`);
+  async function handleView(ts) {
+    if (downloadPending) return;
+    if (typeof base44.entities?.Timesheet?.downloadOriginal !== "function") {
+      toast({
+        variant: "destructive",
+        title: "Download indisponível",
+        description: "O backend local precisa estar ativo para baixar o arquivo original."
+      });
+      return;
+    }
+
+    setDownloadPending(true);
+    try {
+      const blob = await base44.entities.Timesheet.downloadOriginal(ts.id);
+      const filename =
+        String(ts.source_filename || "").trim() ||
+        `timesheet-${String(ts.month || "").replace(/\s+/g, "-")}-${String(ts.year || "")}.xlsx`;
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Falha ao baixar timesheet",
+        description: error?.message || "Não foi possível baixar o arquivo original."
+      });
+      console.error(error);
+    } finally {
+      setDownloadPending(false);
     }
   }
 
@@ -236,8 +266,8 @@ export default function HistoryPage() {
                     </div>
 
                     <div className="flex items-center gap-2 sm:flex-shrink-0">
-                      <Button variant="outline" size="sm" onClick={() => handleView(ts)}>
-                        <Eye className="h-4 w-4 mr-1" /> Ver
+                      <Button variant="outline" size="sm" onClick={() => handleView(ts)} disabled={downloadPending}>
+                        <DownloadCloud className="h-4 w-4 mr-1" /> Baixar
                       </Button>
                       <Button
                         variant="outline"

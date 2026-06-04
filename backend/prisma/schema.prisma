@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                  String        @id @default(uuid()) @db.Uuid
+  created_date        DateTime      @default(now()) @db.Timestamptz
+  email               String        @unique @db.Text
+  role                String        @db.Text
+  password_salt       String        @db.Text
+  password_iterations Int           @default(100000)
+  password_hash       String        @db.Text
+  profile             Json          @db.JsonB
+  sessions            UserSession[]
+  timesheets          Timesheet[]
+  timesheetRecords    TimesheetRecord[]
+  enjoyments          CompensationEnjoyment[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id         String   @id @default(uuid()) @db.Uuid
+  created_date DateTime @default(now()) @db.Timestamptz
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  token_hash String   @unique @db.Text
+  expires_at DateTime @db.Timestamptz
+  last_used  DateTime? @db.Timestamptz
+
+  @@map("user_sessions")
+}
+
+model Timesheet {
+  id                                  String            @id @default(uuid()) @db.Uuid
+  created_date                        DateTime          @default(now()) @db.Timestamptz
+  user                                User?             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id                             String?           @db.Uuid
+  employee_name                       String?           @db.Text
+  employee_number                     String?           @db.Text
+  month                               String?           @db.Text
+  year                                Int?
+  department                          String?           @db.Text
+  source_filename                     String?           @db.Text
+  source_file_url                     String?           @db.Text
+  total_compensation_hours            Float             @default(0) @db.DoublePrecision
+  total_descanso_compensatorio_hours  Float             @default(0) @db.DoublePrecision
+  records                             TimesheetRecord[]
+
+  @@map("timesheets")
+}
+
+model Employee {
+  id           String   @id @default(uuid()) @db.Uuid
+  created_date DateTime @default(now()) @db.Timestamptz
+  full_name    String   @db.Text
+  employee_number String? @db.Text
+  email        String   @db.Text
+  department   String?  @db.Text
+  function     String?  @db.Text
+  company      String?  @db.Text
+  active       Boolean  @default(true)
+
+  @@map("employees")
+}
+
+model TimesheetRecord {
+  id                  String   @id @default(uuid()) @db.Uuid
+  created_date        DateTime @default(now()) @db.Timestamptz
+  user                User?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id             String?  @db.Uuid
+  timesheet           Timesheet? @relation(fields: [timesheet_id], references: [id], onDelete: Cascade)
+  timesheet_id        String?  @db.Uuid
+  employee_name       String   @db.Text
+  employee_number     String?  @db.Text
+  month               String?  @db.Text
+  year                Int?
+  date                DateTime @db.Date
+  normal_hours        Float?   @db.DoublePrecision
+  extra_hours         Float?   @db.DoublePrecision
+  travel_hours        Float?   @db.DoublePrecision
+  absence_hours       Float?   @db.DoublePrecision
+  day_type            String?  @db.Text
+  absence_type        String?  @db.Text
+  project_number      String?  @db.Text
+  project_client      String?  @db.Text
+  project_description String?  @db.Text
+  compensated         Boolean  @default(false)
+  period_start        String?  @db.Text
+  period_end          String?  @db.Text
+  pause_hours         Float?   @db.DoublePrecision
+  status              String?  @db.Text
+  observations        String?  @db.Text
+
+  @@map("timesheet_records")
+}
+
+model CompensationEnjoyment {
+  id           String   @id @default(uuid()) @db.Uuid
+  created_date DateTime @default(now()) @db.Timestamptz
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id      String   @db.Uuid
+  enjoy_date   DateTime @db.Date
+  hours        Float    @db.DoublePrecision
+  reason       String?  @db.Text
+
+  @@map("compensation_enjoyments")
+}
+
+model ReferenceStore {
+  key          String @id @db.Text
+  created_date DateTime @default(now()) @db.Timestamptz
+  updated_date DateTime @default(now()) @db.Timestamptz
+  value        Json    @db.JsonB
+
+  @@map("reference_store")
+}
