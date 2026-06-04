@@ -14,6 +14,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
 const HistoryPage = lazy(() => import("./pages/HistoryPage"));
 const AlertsPage = lazy(() => import("./pages/AlertsPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const EmployeesPage = lazy(() => import("./pages/EmployeesPage"));
 const TimesheetDetailPage = lazy(() => import("./pages/TimesheetDetailPage"));
 const TimesheetViewPage = lazy(() => import("./pages/TimesheetViewPage"));
@@ -70,6 +71,7 @@ const AuthenticatedApp = () => {
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/historico" element={<HistoryPage />} />
           <Route path="/alertas" element={<AlertsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/colaboradores" element={isAdmin ? <EmployeesPage /> : <Navigate to="/" replace />} />
           <Route path="/historico/:timesheetId" element={<TimesheetDetailPage />} />
           <Route path="/historico/:timesheetId/visualizar" element={<TimesheetViewPage />} />

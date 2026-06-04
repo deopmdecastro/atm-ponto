@@ -1,6 +1,49 @@
-import { PrismaClient } from "@prisma/client";
+﻿import { Pool } from "pg";
 
-const prisma = new PrismaClient();
+let pool = null;
+
+function getPool() {
+  if (pool) return pool;
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error("DATABASE_URL is not set. Load environment variables before importing db.js or ensure DATABASE_URL is configured.");
+  }
+  pool = new Pool({ connectionString: url });
+  return pool;
+}
+
+const prisma = {
+  async $connect() {
+    const client = await getPool().connect();
+    client.release();
+  },
+
+  async $transaction(work) {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const tx = {
+        query: async (sql, params = []) => {
+          const result = await client.query(sql, params);
+          return result.rows;
+        }
+      };
+      const value = await work(tx);
+      await client.query("COMMIT");
+      return value;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  query: async (sql, params = []) => {
+    const result = await getPool().query(sql, params);
+    return result.rows;
+  }
+};
 
 function escapePostgresValue(value) {
   if (value === null || value === undefined) return "NULL";
@@ -24,7 +67,16 @@ export function formatQuery(sql, params = []) {
 
 export async function query(client, sql, params = []) {
   const formattedSql = formatQuery(sql, params);
-  return client.$queryRawUnsafe(formattedSql);
+  let result;
+  if (!client || typeof client.query !== "function") {
+    result = await prisma.query(formattedSql);
+  } else {
+    result = await client.query(formattedSql);
+  }
+  if (result && typeof result.rows !== "undefined") {
+    return result.rows;
+  }
+  return result;
 }
 
 export async function initDb() {
@@ -138,8 +190,10 @@ export async function initDb() {
   await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS timesheet_id uuid;`);
   await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS user_id uuid;`);
   await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS user_id uuid;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS source_filename text;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS source_file_url text;`);
   await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS total_compensation_hours double precision NOT NULL DEFAULT 0;`);
-  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS total_descanso_compensatorio_hours double precision NOT NULL DEFAULT 0;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS total_descanso_compensatorio_hours double precision NOT NULL DEFAULT 0;`);
 
   await query(prisma, `
     DO $$

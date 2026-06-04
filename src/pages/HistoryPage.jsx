@@ -24,6 +24,32 @@ function fmtDate(iso) {
   return `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
 }
 
+function getShortEmployeeName(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 2) return name || "Desconhecido";
+  return `${parts[0]} ${parts[parts.length - 1]}`;
+}
+
+function getSafeFilenameSegment(value, fallback) {
+  const segment = String(value || fallback || "")
+    .trim()
+    .replace(/[\\/\?%*:|"<>]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return segment || String(fallback || "");
+}
+
+function getDownloadFilename(ts) {
+  const employeePart = getSafeFilenameSegment(ts.employee_name, "Nome_Sobrenome");
+  const monthPart = getSafeFilenameSegment(ts.month, "mes");
+  const yearPart = getSafeFilenameSegment(ts.year, String(new Date().getFullYear()));
+  const original = String(ts.source_filename || ts.source_file_url || "");
+  const extMatch = /\.([a-z0-9]+)(?:[?#].*)?$/i.exec(original);
+  const extension = extMatch ? `.${extMatch[1]}` : ".xlsx";
+  return `${employeePart}_ATM_TimeSheet_${monthPart}_${yearPart}${extension}`;
+}
+
 export default function HistoryPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState("timesheets"); // timesheets | compensation
@@ -79,6 +105,14 @@ export default function HistoryPage() {
   const timesheets = Array.isArray(timesheetsQuery.data) ? timesheetsQuery.data : [];
   const enjoyments = Array.isArray(enjoymentsQuery.data) ? enjoymentsQuery.data : [];
 
+  const totalCompensationBankHours = useMemo(() => {
+    return timesheets.reduce((acc, ts) => acc + Number(ts.total_compensation_hours || 0), 0);
+  }, [timesheets]);
+
+  const totalCompensationDays = useMemo(() => {
+    return totalCompensationBankHours / 8;
+  }, [totalCompensationBankHours]);
+
   const timesheetCountLabel = useMemo(() => {
     const n = timesheets.length;
     return `${n} folhas de ponto importadas`;
@@ -130,10 +164,8 @@ export default function HistoryPage() {
 
     setDownloadPending(true);
     try {
-      const blob = await base44.entities.Timesheet.downloadOriginal(ts.id);
-      const filename =
-        String(ts.source_filename || "").trim() ||
-        `timesheet-${String(ts.month || "").replace(/\s+/g, "-")}-${String(ts.year || "")}.xlsx`;
+      const { blob, filename: headerFilename } = await base44.entities.Timesheet.downloadOriginal(ts.id);
+      const filename = headerFilename || getDownloadFilename(ts);
 
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -204,6 +236,21 @@ export default function HistoryPage() {
 
       {tab === "timesheets" ? (
         <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="bg-card rounded-xl border border-border p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Dias de compensação</p>
+                  <p className="text-xs text-muted-foreground mt-1">8h de compensação = 1 dia</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-semibold text-foreground">{totalCompensationDays.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">({totalCompensationBankHours.toFixed(1)}h)</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {timesheets.length === 0 ? (
             <div className="flex flex-col items-center justify-center min-h-[50vh] text-center gap-4">
               <div className="h-16 w-16 rounded-2xl bg-secondary flex items-center justify-center">
@@ -225,8 +272,10 @@ export default function HistoryPage() {
               {timesheets.map((ts) => {
                 const totalNormal = Number(ts.total_normal_hours || 0);
                 const totalExtra = Number(ts.total_extra_hours || 0);
+                const totalCompensationBank = Number(ts.total_compensation_hours || 0);
                 const workDays = Number(ts.worked_days || 0);
                 const days = Number(ts.record_count || 0);
+                const shortName = getShortEmployeeName(ts.employee_name);
 
                 return (
                   <div
@@ -248,15 +297,21 @@ export default function HistoryPage() {
                         </div>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                           <User className="h-3 w-3" />
-                          <span className="truncate">{ts.employee_name || "Desconhecido"}</span>
+                          <span className="truncate">
+                            <span className="inline sm:hidden">{shortName}</span>
+                            <span className="hidden sm:inline">{ts.employee_name || "Desconhecido"}</span>
+                          </span>
                           {ts.employee_number && <span>• Nº {ts.employee_number}</span>}
                         </div>
-                        <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted-foreground">
                           <span>
                             <span className="font-medium text-foreground">{totalNormal.toFixed(1)}h</span> normais
                           </span>
                           <span>
                             <span className="font-medium text-primary">{totalExtra.toFixed(1)}h</span> extra
+                          </span>
+                          <span>
+                            <span className="font-medium text-foreground">{totalCompensationBank.toFixed(1)}h</span> compensação
                           </span>
                           <span>
                             <span className="font-medium text-foreground">{workDays}</span> dias trabalhados

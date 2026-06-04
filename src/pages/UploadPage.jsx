@@ -293,8 +293,10 @@ Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
             <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
               <FileSpreadsheet className="h-8 w-8 text-primary" />
             </div>
-            <div>
-              <p className="font-semibold text-foreground">{file.name}</p>
+            <div className="max-w-full">
+              <p className="font-semibold text-foreground max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
+                {file.name}
+              </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {(file.size / 1024).toFixed(1)} KB • Pronto para importar
               </p>

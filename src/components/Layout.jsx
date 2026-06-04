@@ -1,7 +1,7 @@
  
 
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Upload, Clock, AlertTriangle, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, Upload, Clock, AlertTriangle, Users, Settings, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
 import atmIcon from "@/img/atm_icon.png";
@@ -13,6 +13,7 @@ const navItems = [
   { to: "/upload", icon: Upload, label: "Upload" },
   { to: "/historico", icon: Clock, label: "Histórico" },
   { to: "/alertas", icon: AlertTriangle, label: "Alertas" },
+  { to: "/settings", icon: Settings, label: "Conta" },
   { to: "/colaboradores", icon: Users, label: "Colaboradores" },
 ];
 

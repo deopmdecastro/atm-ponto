@@ -80,6 +80,33 @@ function applyNumberStyle(ws, addr) {
   const cell = ws[addr];
   if (!cell) return;
   cell.z = "0.00";
+  cell.s = {
+    ...(cell.s || {}),
+    alignment: { vertical: "center", horizontal: "right" }
+  };
+}
+
+function applyBodyStyle(ws, addr, opts = {}) {
+  const cell = ws[addr];
+  if (!cell) return;
+  cell.s = {
+    ...(cell.s || {}),
+    font: { color: { rgb: hexColor(opts.fontRgb || DARK) }, sz: opts.fontSize || 11 },
+    fill: opts.fillRgb
+      ? { patternType: "solid", fgColor: { rgb: hexColor(opts.fillRgb) } }
+      : undefined,
+    alignment: {
+      vertical: "center",
+      horizontal: opts.align || "left",
+      wrapText: opts.wrapText ?? false
+    },
+    border: {
+      top: { style: "thin", color: { rgb: hexColor("E5E7EB") } },
+      bottom: { style: "thin", color: { rgb: hexColor("E5E7EB") } },
+      left: { style: "thin", color: { rgb: hexColor("E5E7EB") } },
+      right: { style: "thin", color: { rgb: hexColor("E5E7EB") } }
+    }
+  };
 }
 
 function monthKey({ year, month }) {
@@ -226,7 +253,8 @@ export async function generateCompensationSummaryXlsx({ userId }) {
   const wb = xlsx.utils.book_new();
 
   const resumoAoa = [
-    ["ATM - Resumo de Horas"],
+    ["ATM Ponto", ""],
+    ["Relatório de Compensação de Horas", ""],
     [""],
     ["Colaborador", employeeName],
     ["Nº", employeeNumber],
@@ -250,31 +278,48 @@ export async function generateCompensationSummaryXlsx({ userId }) {
   ];
 
   const wsResumo = xlsx.utils.aoa_to_sheet(resumoAoa);
-  wsResumo["!cols"] = [{ wch: 28 }, { wch: 45 }];
+  wsResumo["!cols"] = [{ wch: 30 }, { wch: 40 }];
 
-  // Merge title
-  wsResumo["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
-  applyHeaderStyle(wsResumo, "A1", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 18 });
-  applyHeaderStyle(wsResumo, "B1", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 18 });
-  wsResumo["!rows"] = [{ hpt: 30 }];
+  // Merge title and subtitle
+  wsResumo["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } }
+  ];
+  applyHeaderStyle(wsResumo, "A1", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 20 });
+  applyHeaderStyle(wsResumo, "B1", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 20 });
+  applyHeaderStyle(wsResumo, "A2", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
+  applyHeaderStyle(wsResumo, "B2", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
+  wsResumo["!rows"] = [{ hpt: 32 }, { hpt: 20 }];
 
   // Section headers (merge across both columns)
   wsResumo["!merges"].push({ s: { r: 8, c: 0 }, e: { r: 8, c: 1 } });
   wsResumo["!merges"].push({ s: { r: 14, c: 0 }, e: { r: 14, c: 1 } });
-  applyHeaderStyle(wsResumo, "A9", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
-  applyHeaderStyle(wsResumo, "B9", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
-  applyHeaderStyle(wsResumo, "A15", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
-  applyHeaderStyle(wsResumo, "B15", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
+  applyHeaderStyle(wsResumo, "A9", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 13 });
+  applyHeaderStyle(wsResumo, "B9", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 13 });
+  applyHeaderStyle(wsResumo, "A15", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 13 });
+  applyHeaderStyle(wsResumo, "B15", { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 13 });
 
   // Key column style
-  for (let r = 2; r < resumoAoa.length; r++) {
+  for (let r = 3; r < resumoAoa.length; r++) {
     const addr = `A${r + 1}`;
-    if (resumoAoa[r]?.[0]) applyKeyStyle(wsResumo, addr, { fillRgb: ATM_ACCENT, fontRgb: DARK });
+    if (resumoAoa[r]?.[0]) applyBodyStyle(wsResumo, addr, { fillRgb: ATM_ACCENT, fontRgb: DARK, align: "left" });
+  }
+
+  // Value column style
+  for (let r = 3; r < resumoAoa.length; r++) {
+    const addr = `B${r + 1}`;
+    if (resumoAoa[r]?.[1] != null) applyBodyStyle(wsResumo, addr, { fillRgb: WHITE, fontRgb: DARK, align: "right" });
   }
 
   // Number formatting
   for (const rowIndex of [9, 10, 11, 12, 15, 16, 17, 18, 19, 20]) {
     applyNumberStyle(wsResumo, `B${rowIndex + 1}`);
+  }
+
+  // Add borders to summary section values
+  for (let r = 3; r < resumoAoa.length; r++) {
+    applyBodyStyle(wsResumo, `A${r + 1}`, { fillRgb: ATM_ACCENT, fontRgb: DARK, align: "left" });
+    if (resumoAoa[r]?.[1] != null) applyBodyStyle(wsResumo, `B${r + 1}`, { fillRgb: WHITE, fontRgb: DARK, align: "right" });
   }
 
   xlsx.utils.book_append_sheet(wb, wsResumo, "Resumo");
@@ -335,18 +380,17 @@ export async function generateCompensationSummaryXlsx({ userId }) {
     applyHeaderStyle(wsMeses, addr, { fillRgb: ATM_PRIMARY, fontRgb: WHITE, fontSize: 12 });
   }
 
-  // Add subtle alternating row fill for readability
+  // Add subtle alternating row fill for readability and borders
   for (let r = 1; r < mesesAoa.length; r++) {
     const fillRgb = r % 2 === 0 ? "FBE7EC" : "FFFFFF";
     for (let c = 0; c < header.length; c++) {
       const addr = xlsx.utils.encode_cell({ r, c });
-      const cell = wsMeses[addr];
-      if (!cell) continue;
-      cell.s = {
-        ...(cell.s || {}),
-        fill: { patternType: "solid", fgColor: { rgb: hexColor(fillRgb) } },
-        alignment: { vertical: "center", horizontal: c < 2 ? "left" : "right" }
-      };
+      applyBodyStyle(wsMeses, addr, {
+        fillRgb,
+        fontRgb: DARK,
+        align: c < 2 ? "left" : "right"
+      });
+      if (c >= 2) applyNumberStyle(wsMeses, addr);
     }
   }
 

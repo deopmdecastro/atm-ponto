@@ -11,10 +11,26 @@ import EmployeeInfo from "@/components/dashboard/EmployeeInfo";
 import HourBankChart from "@/components/dashboard/HourBankChart";
 import HourBankSummary from "@/components/dashboard/HourBankSummary";
 import SummaryCards from "@/components/dashboard/SummaryCards";
+import { useAuth } from "@/lib/AuthContext";
 import { buildHourBankHistory, calculateSummary } from "@/lib/parseTimesheet";
 
 const FILTER_KEY = "atm.dashboard.filterMode.v1";
 const MONTH_KEY = "atm.dashboard.monthTimesheetId.v1";
+
+const monthNames = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro"
+];
 
 function monthIndex(name) {
   const m = String(name || "").trim().toLowerCase();
@@ -72,6 +88,7 @@ function timesheetMonthKey(ts) {
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [filterMode, setFilterMode] = useState("all");
   const [monthTimesheetId, setMonthTimesheetId] = useState("");
   const [downloading, setDownloading] = useState(false);
@@ -157,6 +174,125 @@ export default function Dashboard() {
   }, [allRecords, filterMode, monthTimesheetId]);
 
   const loading = timesheetsQuery.isLoading || allRecordsQuery.isLoading || enjoymentsQuery.isLoading;
+  const sortedAllRecords = [...allRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const sortedFilteredRecords = [...filteredRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  const usedByTimesheetId = new Map();
+  for (const r of sortedAllRecords) {
+    const tsId = r?.timesheet_id;
+    if (!tsId) continue;
+    if (!r?.compensated) continue;
+    const delta = Number(r.normal_hours || 0);
+    if (!Number.isFinite(delta) || delta <= 0) continue;
+    usedByTimesheetId.set(tsId, (usedByTimesheetId.get(tsId) || 0) + delta);
+  }
+
+  const compensationTotalHours = timesheets.reduce((acc, ts) => acc + Number(ts?.total_compensation_hours || 0), 0);
+  const compensatedFromRecords = sortedAllRecords.reduce(
+    (acc, r) => acc + (r?.compensated ? Number(r?.normal_hours || 0) : 0),
+    0
+  );
+  const manualUsedTotal = timesheets.reduce(
+    (acc, ts) => acc + normalizeTimesheetManualUsed(ts, usedByTimesheetId.get(ts?.id) || 0),
+    0
+  );
+  const enjoyedTotal = enjoyments.reduce((acc, e) => acc + Number(e?.hours || 0), 0);
+  const compensationUsedHours = Math.max(0, compensatedFromRecords + manualUsedTotal + enjoyedTotal);
+
+  const summary = calculateSummary(sortedFilteredRecords, {
+    compensationTotalHours,
+    compensationUsedHours
+  });
+
+  const dueTimesheetAlerts = (() => {
+    const now = new Date();
+    const day = now.getDate();
+    if (day < 1 || day > 5) return [];
+
+    const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const expectedYear = previousMonthDate.getFullYear();
+    const expectedMonth = previousMonthDate.getMonth() + 1;
+
+    const hasPreviousMonthTimesheet = timesheets.some((ts) => {
+      const tsYear = Number(ts?.year || 0);
+      const tsMonth = monthIndex(ts?.month);
+      return tsYear === expectedYear && tsMonth === expectedMonth;
+    });
+
+    if (hasPreviousMonthTimesheet) return [];
+
+    const previousMonthName = monthNames[expectedMonth - 1] || "mês anterior";
+    let message = "";
+    let type = "warning";
+
+    if (day === 1) {
+      message = `Hoje é dia 1: importa o Time Sheet de ${previousMonthName} ${expectedYear} até dia 5.`;
+    } else if (day === 5) {
+      type = "error";
+      message = `Hoje é dia 5: último dia para importar o Time Sheet de ${previousMonthName} ${expectedYear}.`;
+    } else {
+      const daysLeft = 5 - day;
+      message = `Faltam ${daysLeft} dia(s) para importar o Time Sheet de ${previousMonthName} ${expectedYear}.`;
+    }
+
+    return [
+      {
+        type,
+        date: "-",
+        message
+      }
+    ];
+  })();
+
+  const missingMonthAlerts = useMemo(() => {
+    const now = new Date();
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastYear = lastMonthDate.getFullYear();
+    const lastMonth = lastMonthDate.getMonth() + 1;
+    const profileStartYear = Number(user?.profile?.start_year || 0);
+    const startYear = profileStartYear >= 2000 && profileStartYear <= lastYear ? profileStartYear : lastYear;
+
+    const existingKeys = new Set(timesheets.map(timesheetMonthKey).filter(Boolean));
+    const missingKeys = [];
+
+    for (let year = startYear; year <= lastYear; year++) {
+      const monthLimit = year === lastYear ? lastMonth : 12;
+      for (let month = 1; month <= monthLimit; month++) {
+        const key = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+        if (!existingKeys.has(key)) {
+          missingKeys.push(key);
+        }
+      }
+    }
+
+    if (missingKeys.length === 0) return [];
+
+    const formatKey = (key) => {
+      const [year, month] = String(key).split("-");
+      const monthName = monthNames[Number(month) - 1] || month;
+      return `${monthName} ${year}`;
+    };
+
+    const preview = missingKeys.slice(0, 4).map(formatKey).join(", ");
+    const message =
+      missingKeys.length <= 4
+        ? `Faltam os Timesheets de: ${preview}.` 
+        : `Faltam ${missingKeys.length} meses de Timesheet desde ${monthNames[0]} ${startYear}: ${preview} e mais ${missingKeys.length - 4}.`;
+
+    return [
+      {
+        type: "warning",
+        date: "-",
+        message
+      }
+    ];
+  }, [timesheets, user]);
+
+  const dailyHistory = buildHourBankHistory(sortedFilteredRecords, {
+    compensationTotalHours: compensationTotalHours,
+    compensationUsedHours
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -197,41 +333,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const sortedAllRecords = [...allRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
-  const sortedFilteredRecords = [...filteredRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  const usedByTimesheetId = new Map();
-  for (const r of sortedAllRecords) {
-    const tsId = r?.timesheet_id;
-    if (!tsId) continue;
-    if (!r?.compensated) continue;
-    const delta = Number(r.normal_hours || 0);
-    if (!Number.isFinite(delta) || delta <= 0) continue;
-    usedByTimesheetId.set(tsId, (usedByTimesheetId.get(tsId) || 0) + delta);
-  }
-
-  const compensationTotalHours = timesheets.reduce((acc, ts) => acc + Number(ts?.total_compensation_hours || 0), 0);
-  const compensatedFromRecords = sortedAllRecords.reduce(
-    (acc, r) => acc + (r?.compensated ? Number(r?.normal_hours || 0) : 0),
-    0
-  );
-  const manualUsedTotal = timesheets.reduce(
-    (acc, ts) => acc + normalizeTimesheetManualUsed(ts, usedByTimesheetId.get(ts?.id) || 0),
-    0
-  );
-  const enjoyedTotal = enjoyments.reduce((acc, e) => acc + Number(e?.hours || 0), 0);
-  const compensationUsedHours = Math.max(0, compensatedFromRecords + manualUsedTotal + enjoyedTotal);
-
-  const summary = calculateSummary(sortedFilteredRecords, {
-    compensationTotalHours,
-    compensationUsedHours
-  });
-
-  const dailyHistory = buildHourBankHistory(sortedFilteredRecords, {
-    compensationTotalHours: compensationTotalHours,
-    compensationUsedHours
-  });
 
   function toDayLabel(iso) {
     const s = String(iso || "");
@@ -409,7 +510,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {summary.alerts.length > 0 && <AlertsList alerts={summary.alerts} />}
+      {summary.alerts.length > 0 || dueTimesheetAlerts.length > 0 || missingMonthAlerts.length > 0 ? (
+        <AlertsList alerts={[...summary.alerts, ...dueTimesheetAlerts, ...missingMonthAlerts]} />
+      ) : null}
     </div>
   );
 }

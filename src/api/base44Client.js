@@ -97,6 +97,12 @@ function createFetchClient(baseUrl) {
     return res.json();
   }
 
+  function parseFilenameFromContentDisposition(header) {
+    if (!header) return "";
+    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
+    return match ? decodeURIComponent(match[1].replace(/\+/, " ")) : "";
+  }
+
   async function download(path) {
     const token = getToken();
     const res = await fetch(buildUrl(path), {
@@ -118,6 +124,32 @@ function createFetchClient(baseUrl) {
     return res.blob();
   }
 
+  async function downloadWithFilename(path) {
+    const token = getToken();
+    const res = await fetch(buildUrl(path), {
+      method: "GET",
+      headers: token ? { authorization: `Bearer ${token}` } : undefined
+    });
+    if (!res.ok) {
+      let payload = null;
+      try {
+        payload = await res.json();
+      } catch {
+        // ignore
+      }
+      const err = new Error(payload?.error || `Request failed: ${res.status}`);
+      err.status = res.status;
+      err.data = payload;
+      throw err;
+    }
+
+    const blob = await res.blob();
+    return {
+      blob,
+      filename: parseFilenameFromContentDisposition(res.headers.get("content-disposition"))
+    };
+  }
+
   const entities = {
     Employee: {
       list: (order = "-created_date", limit = 200) =>
@@ -130,7 +162,7 @@ function createFetchClient(baseUrl) {
       list: (limit = 50) => request("GET", `/api/timesheets?limit=${encodeURIComponent(limit)}`),
       create: (data) => request("POST", "/api/timesheets", data),
       get: (id) => request("GET", `/api/timesheets/${encodeURIComponent(id)}`),
-      downloadOriginal: (id) => download(`/api/timesheets/${encodeURIComponent(id)}/download-original`),
+      downloadOriginal: (id) => downloadWithFilename(`/api/timesheets/${encodeURIComponent(id)}/download-original`),
       update: (id, data) => request("PUT", `/api/timesheets/${encodeURIComponent(id)}`, data),
       delete: (id) => request("DELETE", `/api/timesheets/${encodeURIComponent(id)}`)
     },
@@ -215,6 +247,15 @@ function createFetchClient(baseUrl) {
         return payload?.user || null;
       },
       me: async () => request("GET", "/auth/me"),
+      updateProfile: async ({ email, currentPassword, newPassword, profile }) => {
+        const payload = await request("PUT", "/auth/me", {
+          email,
+          current_password: currentPassword,
+          new_password: newPassword,
+          profile
+        });
+        return payload || null;
+      },
       logout: async () => {
         try {
           await request("POST", "/auth/logout");

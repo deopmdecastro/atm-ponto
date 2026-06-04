@@ -311,6 +311,90 @@ app.get(
   })
 );
 
+app.put(
+  "/auth/me",
+  asyncHandler(async (req, res, next) => {
+    const ready = await ensureDbReady();
+    if (!ready) {
+      res.status(503).json({
+        error: "Database not available",
+        status: 503,
+        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
+      });
+      return;
+    }
+    await authRequired(req);
+
+    const data = req.body || {};
+    const email = normalizeEmail(data.email || req.user.email);
+    const profileUpdate = data.profile && typeof data.profile === "object" ? data.profile : null;
+    const profile = profileUpdate ? { ...(req.user.profile || {}), ...profileUpdate } : req.user.profile || {};
+    const newPassword = data.new_password ? String(data.new_password || "") : "";
+    const currentPassword = data.current_password ? String(data.current_password || "") : "";
+
+    const updateFields = [];
+    const params = [];
+
+    if ((email !== req.user.email || newPassword) && !currentPassword) {
+      throw httpError(400, "Senha atual é necessária para alterar email ou senha");
+    }
+
+    if (currentPassword) {
+      const rows = await query(prisma, `SELECT password_hash, password_salt, password_iterations FROM users WHERE id = $1 LIMIT 1`, [req.user.id]);
+      const userRow = rows[0];
+      if (!userRow) throw httpError(401, "Credenciais inválidas");
+      const derived = await derivePasswordHash({
+        password: currentPassword,
+        saltB64: userRow.password_salt,
+        iterations: Number(userRow.password_iterations || 100000)
+      });
+      if (derived !== String(userRow.password_hash || "")) {
+        throw httpError(401, "Senha atual incorreta");
+      }
+    }
+
+    if (email !== req.user.email) {
+      const existing = await query(prisma, `SELECT id FROM users WHERE email = $1 LIMIT 1`, [email]);
+      if (existing[0] && existing[0].id !== req.user.id) {
+        throw httpError(409, "Já existe uma conta com este email");
+      }
+      updateFields.push(`email = $${params.length + 1}`);
+      params.push(email);
+    }
+
+    if (newPassword) {
+      if (newPassword.length < 6) throw httpError(400, "Nova senha deve ter pelo menos 6 caracteres");
+      const salt = crypto.randomBytes(16).toString("base64");
+      const iterations = 100000;
+      const hash = await derivePasswordHash({ password: newPassword, saltB64: salt, iterations });
+      updateFields.push(`password_salt = $${params.length + 1}`);
+      params.push(salt);
+      updateFields.push(`password_iterations = $${params.length + 1}`);
+      params.push(iterations);
+      updateFields.push(`password_hash = $${params.length + 1}`);
+      params.push(hash);
+    }
+
+    if (profileUpdate) {
+      updateFields.push(`profile = $${params.length + 1}`);
+      params.push(profile);
+    }
+
+    if (updateFields.length === 0) {
+      return res.json(req.user);
+    }
+
+    const rows = await query(
+      prisma,
+      `UPDATE users SET ${updateFields.join(", ")} WHERE id = $${params.length + 1} RETURNING *`,
+      [...params, req.user.id]
+    );
+
+    const user = sanitizeUser(rows[0]);
+    res.json(user);
+  })
+);
+
 app.post(
   "/auth/logout",
   asyncHandler(async (req, res, next) => {
@@ -736,6 +820,7 @@ app.get(
         COALESCE(SUM(r.travel_hours), 0)::float AS total_travel_hours,
         COALESCE(SUM(r.absence_hours), 0)::float AS total_absence_hours,
         COALESCE(SUM(CASE WHEN r.normal_hours > 0 THEN 1 ELSE 0 END), 0)::int AS worked_days,
+        COALESCE(SUM(CASE WHEN r.compensated THEN r.normal_hours ELSE 0 END), 0)::float AS total_compensated_hours,
         MIN(r.date) AS period_start,
         MAX(r.date) AS period_end
       FROM timesheets t
@@ -871,7 +956,7 @@ app.get(
   asyncHandler(async (req, res) => {
     const rows = await query(
       prisma,
-      `SELECT source_file_url, source_filename FROM timesheets WHERE id = $1 AND user_id = $2`,
+      `SELECT source_file_url, source_filename, employee_name, month, year FROM timesheets WHERE id = $1 AND user_id = $2`,
       [req.params.id, req.user.id]
     );
     const timesheet = rows[0];
@@ -908,7 +993,20 @@ app.get(
       );
     }
 
-    const downloadName = String(timesheet.source_filename || filename || `timesheet-${req.params.id}.xlsx`).trim();
+    const safeName = (value, fallback) =>
+      String(value || fallback || "")
+        .trim()
+        .replace(/[\/\\?%*:|"<>]/g, "")
+        .replace(/\s+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_+|_+$/g, "") || fallback;
+
+    const employeePart = safeName(timesheet.employee_name, "Nome_Sobrenome");
+    const monthPart = safeName(timesheet.month, "mes");
+    const yearPart = safeName(timesheet.year, String(new Date().getFullYear()));
+    const extension = path.extname(filename) || ".xlsx";
+    const downloadName = `${employeePart}_ATM_TimeSheet_${monthPart}_${yearPart}${extension}`;
+
     res.download(filePath, downloadName);
   })
 );
@@ -1225,6 +1323,8 @@ app.post(
 
 app.use((err, req, res, next) => {
   const status = err.status || 500;
+  // eslint-disable-next-line no-console
+  console.error("[api] error", err);
   res.status(status).json({
     error: err.message || "Internal Server Error",
     status,

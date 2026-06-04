@@ -170,6 +170,17 @@ export const AuthProvider = ({ children }) => {
     return u;
   };
 
+  const updateProfile = async ({ email, currentPassword, newPassword, startYear }) => {
+    if (!useLocalBackend) throw new Error("Atualização de perfil só disponível no backend local");
+    const payload = { email, currentPassword, newPassword };
+    if (typeof startYear !== "undefined" && startYear !== null) {
+      payload.profile = { start_year: Number(startYear) || undefined };
+    }
+    const u = await base44.auth.updateProfile(payload);
+    setUser(u);
+    return u;
+  };
+
   const register = async ({ email, password, file, onProgress }) => {
     if (!useLocalBackend) throw new Error("Registo local não disponível neste modo");
     if (!file) throw new Error("É necessário anexar um timesheet (Excel)");
@@ -208,7 +219,8 @@ export const AuthProvider = ({ children }) => {
       profile: {
         employee_name: extracted.employee_name || "",
         employee_number: extracted.employee_number || "",
-        department: extracted.department || extracted.observations || ""
+        department: extracted.department || extracted.observations || "",
+        start_year: Number(extracted.year) || new Date().getFullYear()
       }
     });
     setUser(u);
@@ -263,22 +275,25 @@ export const AuthProvider = ({ children }) => {
     return { user: u, timesheet };
   };
 
-  return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
-      isLoadingAuth,
-      isLoadingPublicSettings,
-      authError,
-      appPublicSettings,
-      logout,
-      navigateToLogin,
-      checkAppState,
-      login,
-      register
-    }}>
-      {children}
-    </AuthContext.Provider>
+  return React.createElement(
+    AuthContext.Provider,
+    {
+      value: {
+        user,
+        isAuthenticated,
+        isLoadingAuth,
+        isLoadingPublicSettings,
+        authError,
+        appPublicSettings,
+        logout,
+        navigateToLogin,
+        checkAppState,
+        login,
+        register,
+        updateProfile
+      }
+    },
+    children
   );
 };
 
