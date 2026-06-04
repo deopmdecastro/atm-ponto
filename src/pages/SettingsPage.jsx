@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function SettingsPage() {
   const { user, updateProfile } = useAuth();
@@ -104,9 +105,8 @@ export default function SettingsPage() {
 
             <div className="space-y-2">
               <Label htmlFor="settings-current-password">Senha atual</Label>
-              <Input
+              <PasswordInput
                 id="settings-current-password"
-                type="password"
                 autoComplete="current-password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
@@ -117,9 +117,8 @@ export default function SettingsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="settings-new-password">Nova senha</Label>
-                <Input
+                <PasswordInput
                   id="settings-new-password"
-                  type="password"
                   autoComplete="new-password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -128,9 +127,8 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="settings-confirm-password">Confirmar nova senha</Label>
-                <Input
+                <PasswordInput
                   id="settings-confirm-password"
-                  type="password"
                   autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

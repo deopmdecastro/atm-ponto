@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function AuthPage() {
   const { isAuthenticated, login, register } = useAuth();
@@ -138,9 +139,8 @@ export default function AuthPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password">Senha</Label>
-                    <Input
+                    <PasswordInput
                       id="password"
-                      type="password"
                       autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -169,9 +169,8 @@ export default function AuthPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label htmlFor="passwordNew">Senha</Label>
-                      <Input
+                      <PasswordInput
                         id="passwordNew"
-                        type="password"
                         autoComplete="new-password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -180,9 +179,8 @@ export default function AuthPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="passwordNew2">Confirmar</Label>
-                      <Input
+                      <PasswordInput
                         id="passwordNew2"
-                        type="password"
                         autoComplete="new-password"
                         value={password2}
                         onChange={(e) => setPassword2(e.target.value)}
