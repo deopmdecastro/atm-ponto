@@ -1,9 +1,11 @@
  
 
+import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Upload, Clock, AlertTriangle, Users, Settings, LogOut, FolderKanban } from "lucide-react";
+import { LayoutDashboard, Upload, Clock, AlertTriangle, Users, Settings, LogOut, FolderKanban, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
+import { useAlertCount } from "@/hooks/useAlertCount";
 import atmIcon from "@/img/atm_icon.png";
 
 const useLocalBackend = import.meta.env.VITE_USE_LOCAL_BACKEND === "true";
@@ -18,12 +20,27 @@ const navItems = [
   { to: "/colaboradores", icon: Users, label: "Colaboradores" },
 ];
 
+const mobileNavItems = navItems.filter((item) => ["/", "/upload", "/historico", "/alertas"].includes(item.to));
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAdmin = user?.role === "admin";
   const visibleNavItems = isAdmin ? navItems : navItems.filter((i) => i.to !== "/colaboradores");
+  const mobileMenuItems = visibleNavItems.filter((item) => !mobileNavItems.some((mobileItem) => mobileItem.to === item.to));
+  const alertCount = useAlertCount({ user, refreshKey: location.pathname });
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  function handleLogout() {
+    setMobileMenuOpen(false);
+    logout(false);
+    navigate("/login", { replace: true });
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -37,21 +54,54 @@ export default function Layout() {
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground leading-none whitespace-nowrap">Controle de Horas</p>
             </div>
           </div>
-          {useLocalBackend && (
-            <div className="sm:hidden">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Sair"
-                onClick={() => {
-                  logout(false);
-                  navigate("/login", { replace: true });
-                }}
-              >
-                <LogOut className="h-5 w-5" />
-              </Button>
-            </div>
-          )}
+          <div className="relative sm:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen((open) => !open)}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+            {mobileMenuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Fechar menu"
+                  className="fixed inset-0 top-16 z-40 cursor-default bg-black/10"
+                  onClick={() => setMobileMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-12 z-50 w-56 overflow-hidden rounded-md border border-border bg-card shadow-lg">
+                  {mobileMenuItems.map((item) => {
+                    const active = location.pathname === item.to;
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        className={`flex h-11 items-center gap-3 px-4 text-sm font-medium ${
+                          active ? "bg-secondary text-primary" : "text-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                  {useLocalBackend && (
+                    <button
+                      type="button"
+                      className="flex h-11 w-full items-center gap-3 border-t border-border px-4 text-sm font-medium text-red-600 hover:bg-red-50"
+                      onClick={handleLogout}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sair
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
           <div className="hidden sm:flex items-center justify-end gap-3 min-w-0 flex-1">
             <nav className="flex items-center justify-end gap-1 min-w-0">
               {visibleNavItems.map(item => {
@@ -96,17 +146,24 @@ export default function Layout() {
       {/* Mobile nav */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border">
         <div className="flex justify-around py-2">
-          {visibleNavItems.map(item => {
+          {mobileNavItems.map(item => {
             const active = location.pathname === item.to;
             return (
               <Link
                 key={item.to}
                 to={item.to}
-                className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-1.5 text-xs font-medium transition-all ${
                   active ? "text-primary" : "text-muted-foreground"
                 }`}
               >
-                <item.icon className={`h-5 w-5 ${active ? "text-primary" : ""}`} />
+                <span className="relative">
+                  <item.icon className={`h-5 w-5 ${active ? "text-primary" : ""}`} />
+                  {item.to === "/alertas" && alertCount > 0 && (
+                    <span className="absolute -right-3 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white">
+                      {alertCount > 99 ? "99+" : alertCount}
+                    </span>
+                  )}
+                </span>
                 {item.label}
               </Link>
             );
