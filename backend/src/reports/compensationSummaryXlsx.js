@@ -67,6 +67,15 @@ function hoursToDays(value) {
   return truncate2(safeNumber(value) / 8);
 }
 
+function formatCompactNumber(value) {
+  const number = truncate2(value);
+  return Number.isInteger(number) ? String(number) : number.toFixed(2);
+}
+
+function formatHoursAndDays(value) {
+  return `${formatCompactNumber(value)}h | ${formatCompactNumber(hoursToDays(value))} dia(s)`;
+}
+
 function normalizeTimesheetManualUsed(timesheet, usedFromRecords) {
   const total = safeNumber(timesheet?.total_compensation_hours);
   const manualUsed = safeNumber(timesheet?.total_descanso_compensatorio_hours);
@@ -204,40 +213,25 @@ function patchResumoXml(xml, values) {
     `<row r="19" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
       "A19",
       labelStyle,
-      "Compensadas (horas)"
-    )}${makeNumberCell("B19", numberStyle, truncate2(values.totalComp))}</row>`,
+      "Compensadas (total)"
+    )}${makeStringCell("B19", numberStyle, formatHoursAndDays(values.totalComp))}</row>`,
     `<row r="20" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
       "A20",
       labelStyle,
-      "Compensadas (dias)"
-    )}${makeNumberCell("B20", numberStyle, hoursToDays(values.totalComp))}</row>`,
+      "Gozadas (total)"
+    )}${makeStringCell("B20", numberStyle, formatHoursAndDays(values.totalUsed))}</row>`,
     `<row r="21" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
       "A21",
       labelStyle,
-      "Gozadas (horas)"
-    )}${makeNumberCell("B21", numberStyle, truncate2(values.totalUsed))}</row>`,
-    `<row r="22" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
-      "A22",
-      labelStyle,
-      "Gozadas (dias)"
-    )}${makeNumberCell("B22", numberStyle, hoursToDays(values.totalUsed))}</row>`,
-    `<row r="23" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
-      "A23",
-      labelStyle,
-      "Disponíveis (horas)"
-    )}${makeNumberCell("B23", availableStyle, truncate2(values.available))}</row>`,
-    `<row r="24" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
-      "A24",
-      labelStyle,
-      "Disponíveis (dias)"
-    )}${makeNumberCell("B24", availableStyle, hoursToDays(values.available))}</row>`
+      "Disponíveis"
+    )}${makeStringCell("B21", availableStyle, formatHoursAndDays(values.available))}</row>`
   ].join("");
   nextXml = nextXml.replace(
     /<row\b[^>]*\br="15"[^>]*>[\s\S]*?<\/row>[\s\S]*?<row\b[^>]*\br="22"[^>]*>[\s\S]*?<\/row>/,
     summaryRows
   );
-  nextXml = updateSheetRange(nextXml, "A1:B24");
-  nextXml = updateIgnoredErrorsRange(nextXml, "A1:B24");
+  nextXml = updateSheetRange(nextXml, "A1:B21");
+  nextXml = updateIgnoredErrorsRange(nextXml, "A1:B21");
   return nextXml;
 }
 
@@ -249,7 +243,7 @@ function patchPorMesXml(xml, rowsByMonth) {
   const yearStyle = getCellStyle(xml, "B2", "10");
   const numberStyle = getCellStyle(xml, "C2", "11");
   const headerStyle = getCellStyle(xml, "A1", "9");
-  const simplifiedHeaderRow = `<row r="1" spans="1:13" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${[
+  const simplifiedHeaderRow = `<row r="1" spans="1:10" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${[
     "Mês",
     "Ano",
     "Horas normais",
@@ -257,12 +251,9 @@ function patchPorMesXml(xml, rowsByMonth) {
     "Horas viagem",
     "Horas ausência",
     "Faltas (dias)",
-    "Compensadas (h)",
-    "Compensadas (dias)",
-    "Gozadas (h)",
-    "Gozadas (dias)",
-    "Disponíveis (h)",
-    "Disponíveis (dias)"
+    "Compensadas",
+    "Gozadas",
+    "Disponíveis"
   ]
     .map((value, index) => makeStringCell(`${columnName(index)}1`, headerStyle, value))
     .join("")}</row>`;
@@ -276,12 +267,9 @@ function patchPorMesXml(xml, rowsByMonth) {
       truncate2(row.travel),
       truncate2(row.absence),
       row.absenceDays,
-      truncate2(row.totalComp),
-      hoursToDays(row.totalComp),
-      truncate2(row.totalUsed),
-      hoursToDays(row.totalUsed),
-      truncate2(row.available),
-      hoursToDays(row.available)
+      formatHoursAndDays(row.totalComp),
+      formatHoursAndDays(row.totalUsed),
+      formatHoursAndDays(row.available)
     ];
 
     const cells = values
@@ -289,10 +277,11 @@ function patchPorMesXml(xml, rowsByMonth) {
         const address = cellAddress(rowNumber - 1, colIndex);
         if (colIndex === 0) return makeStringCell(address, stringStyle, value);
         if (colIndex === 1) return makeNumberCell(address, yearStyle, value);
+        if (colIndex >= 7) return makeStringCell(address, numberStyle, value);
         return makeNumberCell(address, numberStyle, value);
       })
       .join("");
-    return `<row r="${rowNumber}" spans="1:13" x14ac:dyDescent="0.2">${cells}</row>`;
+    return `<row r="${rowNumber}" spans="1:10" x14ac:dyDescent="0.2">${cells}</row>`;
   });
 
   const totals = rowsByMonth.reduce(
@@ -318,44 +307,42 @@ function patchPorMesXml(xml, rowsByMonth) {
     truncate2(totals.travel),
     truncate2(totals.absence),
     totals.absenceDays,
-    truncate2(totals.totalComp),
-    hoursToDays(totals.totalComp),
-    truncate2(totals.totalUsed),
-    hoursToDays(totals.totalUsed),
-    truncate2(totals.available),
-    hoursToDays(totals.available)
+    formatHoursAndDays(totals.totalComp),
+    formatHoursAndDays(totals.totalUsed),
+    formatHoursAndDays(totals.available)
   ]
     .map((value, colIndex) => {
       const address = cellAddress(totalRowNumber - 1, colIndex);
       if (colIndex < 2) return makeStringCell(address, headerStyle, value);
+      if (colIndex >= 7) return makeStringCell(address, headerStyle, value);
       return makeNumberCell(address, headerStyle, value);
     })
     .join("");
-  const totalRow = `<row r="${totalRowNumber}" spans="1:13" ht="20" customHeight="1" x14ac:dyDescent="0.2">${totalCells}</row>`;
+  const totalRow = `<row r="${totalRowNumber}" spans="1:10" ht="20" customHeight="1" x14ac:dyDescent="0.2">${totalCells}</row>`;
 
   const lastRow = Math.max(2, totalRowNumber);
   let nextXml = xml.replace(
     /<sheetData>[\s\S]*?<\/sheetData>/,
     `<sheetData>${simplifiedHeaderRow}${dataRows.join("")}${totalRow}</sheetData>`
   );
-  nextXml = updateSheetRange(nextXml, `A1:M${lastRow}`);
-  nextXml = updateIgnoredErrorsRange(nextXml, `A1:M${lastRow}`);
+  nextXml = updateSheetRange(nextXml, `A1:J${lastRow}`);
+  nextXml = updateIgnoredErrorsRange(nextXml, `A1:J${lastRow}`);
   return nextXml;
 }
 
 function makeHorasGozadasXml(enjoyments) {
   const rows = enjoyments.map((row, index) => {
     const rowNumber = index + 4;
-    return `<row r="${rowNumber}" spans="1:5" x14ac:dyDescent="0.2">${makeStringCell(
+    return `<row r="${rowNumber}" spans="1:4" x14ac:dyDescent="0.2">${makeStringCell(
       `A${rowNumber}`,
       "10",
       formatDate(row.created_date, true)
-    )}${makeStringCell(`B${rowNumber}`, "10", formatDate(row.enjoy_date))}${makeNumberCell(
+    )}${makeStringCell(`B${rowNumber}`, "10", formatDate(row.enjoy_date))}${makeStringCell(
       `C${rowNumber}`,
       "11",
-      truncate2(row.hours)
-    )}${makeNumberCell(`D${rowNumber}`, "11", hoursToDays(row.hours))}${makeStringCell(
-      `E${rowNumber}`,
+      formatHoursAndDays(row.hours)
+    )}${makeStringCell(
+      `D${rowNumber}`,
       "10",
       row.reason || ""
     )}</row>`;
@@ -364,73 +351,123 @@ function makeHorasGozadasXml(enjoyments) {
   const totalHours = enjoyments.reduce((total, row) => total + safeNumber(row.hours), 0);
   const emptyRow =
     enjoyments.length === 0
-      ? `<row r="4" spans="1:5" x14ac:dyDescent="0.2">${makeStringCell("A4", "10", "Sem horas gozadas registadas.")}</row>`
+      ? `<row r="4" spans="1:4" x14ac:dyDescent="0.2">${makeStringCell("A4", "10", "Sem horas gozadas registadas.")}</row>`
       : "";
-  const totalRow = `<row r="${totalRowNumber}" spans="1:5" ht="20" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+  const totalRow = `<row r="${totalRowNumber}" spans="1:4" ht="20" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
     `A${totalRowNumber}`,
     "9",
     "Total"
-  )}${makeStringCell(`B${totalRowNumber}`, "9", "")}${makeNumberCell(
+  )}${makeStringCell(`B${totalRowNumber}`, "9", "")}${makeStringCell(
     `C${totalRowNumber}`,
     "9",
-    truncate2(totalHours)
-  )}${makeNumberCell(`D${totalRowNumber}`, "9", hoursToDays(totalHours))}${makeStringCell(
-    `E${totalRowNumber}`,
+    formatHoursAndDays(totalHours)
+  )}${makeStringCell(
+    `D${totalRowNumber}`,
     "9",
     ""
   )}</row>`;
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x14ac" xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac">
-<dimension ref="A1:E${totalRowNumber}"/>
-<sheetViews><sheetView workbookViewId="0"><selection activeCell="A4" sqref="A4:E4"/></sheetView></sheetViews>
+<dimension ref="A1:D${totalRowNumber}"/>
+<sheetViews><sheetView workbookViewId="0"><selection activeCell="A4" sqref="A4:D4"/></sheetView></sheetViews>
 <sheetFormatPr defaultRowHeight="15" x14ac:dyDescent="0.2"/>
-<cols><col min="1" max="1" width="22" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="4" width="12" customWidth="1"/><col min="5" max="5" width="55" customWidth="1"/></cols>
+<cols><col min="1" max="1" width="22" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="55" customWidth="1"/></cols>
 <sheetData>
-<row r="1" spans="1:5" ht="32.1" customHeight="1" x14ac:dyDescent="0.45">${makeStringCell("A1", "12", "ATM Ponto")}</row>
-<row r="2" spans="1:5" ht="20.1" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell("A2", "13", "Horas Gozadas")}</row>
-<row r="3" spans="1:5" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${["Criado em", "Data gozada", "Horas", "Dias", "Motivo"]
+<row r="1" spans="1:4" ht="32.1" customHeight="1" x14ac:dyDescent="0.45">${makeStringCell("A1", "12", "ATM Ponto")}</row>
+<row r="2" spans="1:4" ht="20.1" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell("A2", "13", "Horas Gozadas")}</row>
+<row r="3" spans="1:4" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${["Criado em", "Data gozada", "Horas", "Motivo"]
     .map((value, index) => makeStringCell(`${columnName(index)}3`, "9", value))
     .join("")}</row>
 ${rows.join("")}${emptyRow}${totalRow}
 </sheetData>
-<mergeCells count="2"><mergeCell ref="A1:E1"/><mergeCell ref="A2:E2"/></mergeCells>
+<mergeCells count="2"><mergeCell ref="A1:D1"/><mergeCell ref="A2:D2"/></mergeCells>
 <pageMargins left="0" right="0" top="0" bottom="0" header="0" footer="0"/>
-<ignoredErrors><ignoredError sqref="A1:E${totalRowNumber}" numberStoredAsText="1"/></ignoredErrors>
+<ignoredErrors><ignoredError sqref="A1:D${totalRowNumber}" numberStoredAsText="1"/></ignoredErrors>
 </worksheet>`;
 }
 
-function addHorasGozadasSheet(archive, enjoyments) {
+function makeAusenciasXml(absences) {
+  const rows = absences.map((row, index) => {
+    const rowNumber = index + 4;
+    return `<row r="${rowNumber}" spans="1:4" x14ac:dyDescent="0.2">${makeStringCell(
+      `A${rowNumber}`,
+      "10",
+      formatDate(row.created_date, true)
+    )}${makeStringCell(`B${rowNumber}`, "10", formatDate(row.date))}${makeStringCell(
+      `C${rowNumber}`,
+      "11",
+      formatHoursAndDays(row.absence_hours)
+    )}${makeStringCell(`D${rowNumber}`, "10", row.absence_type || row.observations || "")}</row>`;
+  });
+  const totalRowNumber = absences.length === 0 ? 5 : absences.length + 4;
+  const totalHours = absences.reduce((total, row) => total + safeNumber(row.absence_hours), 0);
+  const emptyRow =
+    absences.length === 0
+      ? `<row r="4" spans="1:4" x14ac:dyDescent="0.2">${makeStringCell("A4", "10", "Sem ausências registadas.")}</row>`
+      : "";
+  const totalRow = `<row r="${totalRowNumber}" spans="1:4" ht="20" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+    `A${totalRowNumber}`,
+    "9",
+    "Total"
+  )}${makeStringCell(`B${totalRowNumber}`, "9", "")}${makeStringCell(
+    `C${totalRowNumber}`,
+    "9",
+    formatHoursAndDays(totalHours)
+  )}${makeStringCell(`D${totalRowNumber}`, "9", "")}</row>`;
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x14ac" xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac">
+<dimension ref="A1:D${totalRowNumber}"/>
+<sheetViews><sheetView workbookViewId="0"><selection activeCell="A4" sqref="A4:D4"/></sheetView></sheetViews>
+<sheetFormatPr defaultRowHeight="15" x14ac:dyDescent="0.2"/>
+<cols><col min="1" max="1" width="22" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="55" customWidth="1"/></cols>
+<sheetData>
+<row r="1" spans="1:4" ht="32.1" customHeight="1" x14ac:dyDescent="0.45">${makeStringCell("A1", "12", "ATM Ponto")}</row>
+<row r="2" spans="1:4" ht="20.1" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell("A2", "13", "Ausências")}</row>
+<row r="3" spans="1:4" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${["Criado em", "Data ausência", "Horas", "Motivo"]
+    .map((value, index) => makeStringCell(`${columnName(index)}3`, "9", value))
+    .join("")}</row>
+${rows.join("")}${emptyRow}${totalRow}
+</sheetData>
+<mergeCells count="2"><mergeCell ref="A1:D1"/><mergeCell ref="A2:D2"/></mergeCells>
+<pageMargins left="0" right="0" top="0" bottom="0" header="0" footer="0"/>
+<ignoredErrors><ignoredError sqref="A1:D${totalRowNumber}" numberStoredAsText="1"/></ignoredErrors>
+</worksheet>`;
+}
+
+function addDetailSheets(archive, enjoyments, absences) {
   archive["xl/worksheets/sheet3.xml"] = strToU8(makeHorasGozadasXml(enjoyments));
+  archive["xl/worksheets/sheet4.xml"] = strToU8(makeAusenciasXml(absences));
 
   const workbookXml = strFromU8(archive["xl/workbook.xml"]).replace(
     "</sheets>",
-    '<sheet name="Horas Gozadas" sheetId="3" r:id="rId6"/></sheets>'
+    '<sheet name="Horas Gozadas" sheetId="3" r:id="rId6"/><sheet name="Ausências" sheetId="4" r:id="rId7"/></sheets>'
   );
   archive["xl/workbook.xml"] = strToU8(workbookXml);
 
   const relationshipsXml = strFromU8(archive["xl/_rels/workbook.xml.rels"]).replace(
     "</Relationships>",
-    '<Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/></Relationships>'
+    '<Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/><Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet4.xml"/></Relationships>'
   );
   archive["xl/_rels/workbook.xml.rels"] = strToU8(relationshipsXml);
 
   const contentTypesXml = strFromU8(archive["[Content_Types].xml"]).replace(
     "</Types>",
-    '<Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'
+    '<Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet4.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'
   );
   archive["[Content_Types].xml"] = strToU8(contentTypesXml);
 
   const appPropertiesXml = strFromU8(archive["docProps/app.xml"])
-    .replace("<vt:i4>2</vt:i4>", "<vt:i4>3</vt:i4>")
+    .replace("<vt:i4>2</vt:i4>", "<vt:i4>4</vt:i4>")
     .replace(
       '<TitlesOfParts><vt:vector size="2" baseType="lpstr"><vt:lpstr>Resumo</vt:lpstr><vt:lpstr>Por Mês</vt:lpstr></vt:vector></TitlesOfParts>',
-      '<TitlesOfParts><vt:vector size="3" baseType="lpstr"><vt:lpstr>Resumo</vt:lpstr><vt:lpstr>Por Mês</vt:lpstr><vt:lpstr>Horas Gozadas</vt:lpstr></vt:vector></TitlesOfParts>'
+      '<TitlesOfParts><vt:vector size="4" baseType="lpstr"><vt:lpstr>Resumo</vt:lpstr><vt:lpstr>Por Mês</vt:lpstr><vt:lpstr>Horas Gozadas</vt:lpstr><vt:lpstr>Ausências</vt:lpstr></vt:vector></TitlesOfParts>'
     );
   archive["docProps/app.xml"] = strToU8(appPropertiesXml);
 }
 
-function patchTemplateWorkbook({ templateFile, rowsByMonth, summaryValues, enjoyments }) {
+function patchTemplateWorkbook({ templateFile, rowsByMonth, summaryValues, enjoyments, absences }) {
   const archive = unzipSync(fs.readFileSync(templateFile));
   archive["xl/worksheets/sheet1.xml"] = strToU8(
     patchResumoXml(strFromU8(archive["xl/worksheets/sheet1.xml"]), summaryValues)
@@ -438,7 +475,7 @@ function patchTemplateWorkbook({ templateFile, rowsByMonth, summaryValues, enjoy
   archive["xl/worksheets/sheet2.xml"] = strToU8(
     patchPorMesXml(strFromU8(archive["xl/worksheets/sheet2.xml"]), rowsByMonth)
   );
-  addHorasGozadasSheet(archive, enjoyments);
+  addDetailSheets(archive, enjoyments, absences);
   return Buffer.from(zipSync(archive, { level: 6 }));
 }
 
@@ -486,6 +523,18 @@ export async function generateCompensationSummaryXlsx({ userId }) {
     FROM compensation_enjoyments
     WHERE user_id = $1
     ORDER BY enjoy_date ASC
+    `,
+    [userId]
+  );
+
+  const absences = await query(
+    prisma,
+    `
+    SELECT created_date, date, absence_hours, absence_type, observations
+    FROM timesheet_records
+    WHERE user_id = $1
+      AND COALESCE(absence_hours, 0) > 0
+    ORDER BY date ASC, created_date ASC
     `,
     [userId]
   );
@@ -589,6 +638,7 @@ export async function generateCompensationSummaryXlsx({ userId }) {
     templateFile,
     rowsByMonth,
     enjoyments,
+    absences,
     summaryValues: {
       employeeName: first?.employee_name || "Colaborador",
       employeeNumber: first?.employee_number || "",
