@@ -45,6 +45,7 @@ export function calculateSummary(records, options = {}) {
   let computedCompensatedHours = 0;
   let totalAbsenceHours = 0;
   let totalTravelHours = 0;
+  const absenceDates = new Set();
   const alerts = [];
 
   for (const r of records) {
@@ -53,6 +54,9 @@ export function calculateSummary(records, options = {}) {
     totalExtraHours += r.extra_hours;
     totalAbsenceHours += r.absence_hours;
     totalTravelHours += r.travel_hours;
+    if (Number(r.absence_hours || 0) > 0 && r.date) {
+      absenceDates.add(String(r.date).slice(0, 10));
+    }
     
     if (r.compensated) {
       computedCompensatedHours += r.normal_hours;
@@ -86,6 +90,7 @@ export function calculateSummary(records, options = {}) {
   const rawBank = totalPool - totalCompensatedHours;
   const hourBank = Math.max(0, rawBank);
   const totalCompensationHours = hourBank + totalCompensatedHours;
+  const totalAbsenceDays = absenceDates.size;
   
   if (rawBank < 0) {
     alerts.push({
@@ -103,7 +108,11 @@ export function calculateSummary(records, options = {}) {
     totalCompensationHours,
     compensationUsedHours: totalCompensatedHours,
     compensationAvailableHours: hourBank,
+    totalCompensationDays: totalCompensationHours / 8,
+    compensationUsedDays: totalCompensatedHours / 8,
+    compensationAvailableDays: hourBank / 8,
     totalAbsenceHours,
+    totalAbsenceDays,
     totalTravelHours,
     hourBank,
     alerts,

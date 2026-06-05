@@ -9,6 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatHours } from "@/lib/formatHours";
 
+function formatDays(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number.toFixed(2) : "0.00";
+}
+
 export default function HourBankSummary({ summary, history, filterMode = "all", onCreateEnjoyment }) {
   const compensatedDays = history ? history.filter((h) => h.compensated).length : 0;
   const [open, setOpen] = useState(false);
@@ -28,6 +33,9 @@ export default function HourBankSummary({ summary, history, filterMode = "all", 
   const available = Number(summary.compensationAvailableHours ?? summary.hourBank ?? 0);
   const used = Number(summary.compensationUsedHours ?? summary.totalCompensatedHours ?? 0);
   const total = Number(summary.totalCompensationHours ?? available + used);
+  const availableDays = Number(summary.compensationAvailableDays ?? available / 8);
+  const usedDays = Number(summary.compensationUsedDays ?? used / 8);
+  const totalDays = Number(summary.totalCompensationDays ?? total / 8);
 
   const canEnjoy =
     filterMode === "all" &&
@@ -174,7 +182,10 @@ export default function HourBankSummary({ summary, history, filterMode = "all", 
               <p className="text-sm text-muted-foreground">Horas que ainda pode gozar</p>
             </div>
           </div>
-          <p className="text-xl font-bold text-primary tabular-nums whitespace-nowrap">{formatHours(available)}h</p>
+          <div className="text-right whitespace-nowrap">
+            <p className="text-xl font-bold text-primary tabular-nums">{formatHours(available)}h</p>
+            <p className="text-xs text-muted-foreground">{formatDays(availableDays)} dias</p>
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-4 bg-green-50 rounded-lg p-4 min-w-0">
@@ -187,7 +198,10 @@ export default function HourBankSummary({ summary, history, filterMode = "all", 
               <p className="text-sm text-muted-foreground">Disponíveis + gozadas</p>
             </div>
           </div>
-          <p className="text-xl font-bold text-green-700 tabular-nums whitespace-nowrap">{formatHours(total)}h</p>
+          <div className="text-right whitespace-nowrap">
+            <p className="text-xl font-bold text-green-700 tabular-nums">{formatHours(total)}h</p>
+            <p className="text-xs text-muted-foreground">{formatDays(totalDays)} dias</p>
+          </div>
         </div>
 
         {used > 0 && (
@@ -201,7 +215,10 @@ export default function HourBankSummary({ summary, history, filterMode = "all", 
                 <p className="text-sm text-muted-foreground">Horas já consumidas</p>
               </div>
             </div>
-            <p className="text-xl font-bold text-blue-700 tabular-nums whitespace-nowrap">{formatHours(used)}h</p>
+            <div className="text-right whitespace-nowrap">
+              <p className="text-xl font-bold text-blue-700 tabular-nums">{formatHours(used)}h</p>
+              <p className="text-xs text-muted-foreground">{formatDays(usedDays)} dias</p>
+            </div>
           </div>
         )}
       </div>

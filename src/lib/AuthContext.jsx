@@ -40,22 +40,50 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (useLocalBackend) {
+      let cancelled = false;
       (async () => {
-        setIsLoadingAuth(true);
         setIsLoadingPublicSettings(false);
         setAppPublicSettings({ id: "local", public_settings: {} });
-        try {
-          const currentUser = await base44.auth.me();
-          setUser(currentUser);
-          setIsAuthenticated(true);
-        } catch {
+
+        if (!base44.auth.hasToken()) {
           setUser(null);
           setIsAuthenticated(false);
-        } finally {
           setIsLoadingAuth(false);
+          return;
+        }
+
+        const cachedUser = base44.auth.getCachedUser();
+        if (cachedUser) {
+          setUser(cachedUser);
+          setIsAuthenticated(true);
+          setIsLoadingAuth(false);
+        } else {
+          setIsLoadingAuth(true);
+        }
+
+        try {
+          const currentUser = await base44.auth.me();
+          if (cancelled) return;
+          setUser(currentUser);
+          setIsAuthenticated(true);
+          setAuthError(null);
+        } catch (error) {
+          if (cancelled) return;
+          if (error?.status === 401 || error?.status === 403) {
+            setUser(null);
+            setIsAuthenticated(false);
+            base44.auth.logout(false);
+          } else if (!cachedUser) {
+            setUser(null);
+            setIsAuthenticated(false);
+          }
+        } finally {
+          if (!cancelled) setIsLoadingAuth(false);
         }
       })();
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
     checkAppState();
   }, []);

@@ -63,6 +63,9 @@ function truncate2(value) {
   return Math.trunc(number * 100) / 100;
 }
 
+function hoursToDays(value) {
+  return truncate2(safeNumber(value) / 8);
+}
 
 function normalizeTimesheetManualUsed(timesheet, usedFromRecords) {
   const total = safeNumber(timesheet?.total_compensation_hours);
@@ -157,10 +160,7 @@ function patchResumoXml(xml, values) {
     B11: values.normal,
     B12: values.extra,
     B13: values.travel,
-    B14: values.absence,
-    B17: values.totalComp,
-    B18: values.totalUsed,
-    B19: values.available
+    B14: values.absence
   };
 
   for (const [address, value] of Object.entries(stringCells)) {
@@ -175,24 +175,69 @@ function patchResumoXml(xml, values) {
     );
 
   }
+  const blankStyleLeft = getCellStyle(xml, "A15", "14");
+  const blankStyleRight = getCellStyle(xml, "B15", "15");
+  const labelStyle = getCellStyle(xml, "A17", "4");
+  const numberStyle = getCellStyle(xml, "B17", "7");
+  const availableStyle = getCellStyle(xml, "B22", "8");
   const summaryRows = [
+    `<row r="15" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+      "A15",
+      blankStyleLeft,
+      ""
+    )}${makeStringCell("B15", blankStyleRight, "")}</row>`,
+    `<row r="16" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+      "A16",
+      labelStyle,
+      "Faltas (dias)"
+    )}${makeNumberCell("B16", numberStyle, values.absenceDays)}</row>`,
+    `<row r="17" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+      "A17",
+      blankStyleLeft,
+      ""
+    )}${makeStringCell("B17", blankStyleRight, "")}</row>`,
     `<row r="18" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
       "A18",
-      getCellStyle(xml, "A21", "4"),
-      "Gozadas (total)"
-    )}${makeNumberCell("B18", getCellStyle(xml, "B21", "7"), truncate2(values.totalUsed))}</row>`,
+      labelStyle,
+      "Banco de horas (compensação)"
+    )}${makeStringCell("B18", getCellStyle(xml, "B16", "3"), "")}</row>`,
     `<row r="19" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
       "A19",
-      getCellStyle(xml, "A22", "4"),
-      "Disponíveis"
-    )}${makeNumberCell("B19", getCellStyle(xml, "B22", "8"), truncate2(values.available))}</row>`
+      labelStyle,
+      "Compensadas (horas)"
+    )}${makeNumberCell("B19", numberStyle, truncate2(values.totalComp))}</row>`,
+    `<row r="20" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+      "A20",
+      labelStyle,
+      "Compensadas (dias)"
+    )}${makeNumberCell("B20", numberStyle, hoursToDays(values.totalComp))}</row>`,
+    `<row r="21" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+      "A21",
+      labelStyle,
+      "Gozadas (horas)"
+    )}${makeNumberCell("B21", numberStyle, truncate2(values.totalUsed))}</row>`,
+    `<row r="22" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+      "A22",
+      labelStyle,
+      "Gozadas (dias)"
+    )}${makeNumberCell("B22", numberStyle, hoursToDays(values.totalUsed))}</row>`,
+    `<row r="23" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+      "A23",
+      labelStyle,
+      "Disponíveis (horas)"
+    )}${makeNumberCell("B23", availableStyle, truncate2(values.available))}</row>`,
+    `<row r="24" spans="1:2" ht="15" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+      "A24",
+      labelStyle,
+      "Disponíveis (dias)"
+    )}${makeNumberCell("B24", availableStyle, hoursToDays(values.available))}</row>`
   ].join("");
   nextXml = nextXml.replace(
-    /<row\b[^>]*\br="18"[^>]*>[\s\S]*?<\/row>[\s\S]*?<row\b[^>]*\br="22"[^>]*>[\s\S]*?<\/row>/,
+    /<row\b[^>]*\br="15"[^>]*>[\s\S]*?<\/row>[\s\S]*?<row\b[^>]*\br="22"[^>]*>[\s\S]*?<\/row>/,
     summaryRows
   );
-  nextXml = updateSheetRange(nextXml, "A1:B19");
-  nextXml = updateIgnoredErrorsRange(nextXml, "A1:B19");
+  nextXml = updateSheetRange(nextXml, "A1:B24");
+  nextXml = updateIgnoredErrorsRange(nextXml, "A1:B24");
   return nextXml;
 }
 
@@ -204,16 +249,20 @@ function patchPorMesXml(xml, rowsByMonth) {
   const yearStyle = getCellStyle(xml, "B2", "10");
   const numberStyle = getCellStyle(xml, "C2", "11");
   const headerStyle = getCellStyle(xml, "A1", "9");
-  const simplifiedHeaderRow = `<row r="1" spans="1:9" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${[
+  const simplifiedHeaderRow = `<row r="1" spans="1:13" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${[
     "Mês",
     "Ano",
     "Horas normais",
     "Horas extra",
     "Horas viagem",
     "Horas ausência",
-    "Compensadas (total)",
-    "Gozadas (total)",
-    "Disponíveis"
+    "Faltas (dias)",
+    "Compensadas (h)",
+    "Compensadas (dias)",
+    "Gozadas (h)",
+    "Gozadas (dias)",
+    "Disponíveis (h)",
+    "Disponíveis (dias)"
   ]
     .map((value, index) => makeStringCell(`${columnName(index)}1`, headerStyle, value))
     .join("")}</row>`;
@@ -226,9 +275,13 @@ function patchPorMesXml(xml, rowsByMonth) {
       truncate2(row.extra),
       truncate2(row.travel),
       truncate2(row.absence),
+      row.absenceDays,
       truncate2(row.totalComp),
+      hoursToDays(row.totalComp),
       truncate2(row.totalUsed),
-      truncate2(row.available)
+      hoursToDays(row.totalUsed),
+      truncate2(row.available),
+      hoursToDays(row.available)
     ];
 
     const cells = values
@@ -239,23 +292,61 @@ function patchPorMesXml(xml, rowsByMonth) {
         return makeNumberCell(address, numberStyle, value);
       })
       .join("");
-    return `<row r="${rowNumber}" spans="1:9" x14ac:dyDescent="0.2">${cells}</row>`;
+    return `<row r="${rowNumber}" spans="1:13" x14ac:dyDescent="0.2">${cells}</row>`;
   });
 
-  const lastRow = Math.max(1, rowsByMonth.length + 1);
+  const totals = rowsByMonth.reduce(
+    (acc, row) => {
+      acc.normal += safeNumber(row.normal);
+      acc.extra += safeNumber(row.extra);
+      acc.travel += safeNumber(row.travel);
+      acc.absence += safeNumber(row.absence);
+      acc.absenceDays += safeNumber(row.absenceDays);
+      acc.totalComp += safeNumber(row.totalComp);
+      acc.totalUsed += safeNumber(row.totalUsed);
+      acc.available += safeNumber(row.available);
+      return acc;
+    },
+    { normal: 0, extra: 0, travel: 0, absence: 0, absenceDays: 0, totalComp: 0, totalUsed: 0, available: 0 }
+  );
+  const totalRowNumber = rowsByMonth.length + 2;
+  const totalCells = [
+    "Total",
+    "",
+    truncate2(totals.normal),
+    truncate2(totals.extra),
+    truncate2(totals.travel),
+    truncate2(totals.absence),
+    totals.absenceDays,
+    truncate2(totals.totalComp),
+    hoursToDays(totals.totalComp),
+    truncate2(totals.totalUsed),
+    hoursToDays(totals.totalUsed),
+    truncate2(totals.available),
+    hoursToDays(totals.available)
+  ]
+    .map((value, colIndex) => {
+      const address = cellAddress(totalRowNumber - 1, colIndex);
+      if (colIndex < 2) return makeStringCell(address, headerStyle, value);
+      return makeNumberCell(address, headerStyle, value);
+    })
+    .join("");
+  const totalRow = `<row r="${totalRowNumber}" spans="1:13" ht="20" customHeight="1" x14ac:dyDescent="0.2">${totalCells}</row>`;
+
+  const lastRow = Math.max(2, totalRowNumber);
   let nextXml = xml.replace(
     /<sheetData>[\s\S]*?<\/sheetData>/,
-    `<sheetData>${simplifiedHeaderRow}${dataRows.join("")}</sheetData>`
+    `<sheetData>${simplifiedHeaderRow}${dataRows.join("")}${totalRow}</sheetData>`
   );
-  nextXml = updateSheetRange(nextXml, `A1:I${lastRow}`);
-  nextXml = updateIgnoredErrorsRange(nextXml, `A1:I${lastRow}`);
+  nextXml = updateSheetRange(nextXml, `A1:M${lastRow}`);
+  nextXml = updateIgnoredErrorsRange(nextXml, `A1:M${lastRow}`);
   return nextXml;
 }
 
 function makeHorasGozadasXml(enjoyments) {
   const rows = enjoyments.map((row, index) => {
     const rowNumber = index + 4;
-    return `<row r="${rowNumber}" spans="1:4" x14ac:dyDescent="0.2">${makeStringCell(
+    return `<row r="${rowNumber}" spans="1:5" x14ac:dyDescent="0.2">${makeStringCell(
       `A${rowNumber}`,
       "10",
       formatDate(row.created_date, true)
@@ -263,15 +354,19 @@ function makeHorasGozadasXml(enjoyments) {
       `C${rowNumber}`,
       "11",
       truncate2(row.hours)
-    )}${makeStringCell(`D${rowNumber}`, "10", row.reason || "")}</row>`;
+    )}${makeNumberCell(`D${rowNumber}`, "11", hoursToDays(row.hours))}${makeStringCell(
+      `E${rowNumber}`,
+      "10",
+      row.reason || ""
+    )}</row>`;
   });
   const totalRowNumber = enjoyments.length === 0 ? 5 : enjoyments.length + 4;
   const totalHours = enjoyments.reduce((total, row) => total + safeNumber(row.hours), 0);
   const emptyRow =
     enjoyments.length === 0
-      ? `<row r="4" spans="1:4" x14ac:dyDescent="0.2">${makeStringCell("A4", "10", "Sem horas gozadas registadas.")}</row>`
+      ? `<row r="4" spans="1:5" x14ac:dyDescent="0.2">${makeStringCell("A4", "10", "Sem horas gozadas registadas.")}</row>`
       : "";
-  const totalRow = `<row r="${totalRowNumber}" spans="1:4" ht="20" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
+  const totalRow = `<row r="${totalRowNumber}" spans="1:5" ht="20" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell(
     `A${totalRowNumber}`,
     "9",
     "Total"
@@ -279,25 +374,29 @@ function makeHorasGozadasXml(enjoyments) {
     `C${totalRowNumber}`,
     "9",
     truncate2(totalHours)
-  )}${makeStringCell(`D${totalRowNumber}`, "9", "")}</row>`;
+  )}${makeNumberCell(`D${totalRowNumber}`, "9", hoursToDays(totalHours))}${makeStringCell(
+    `E${totalRowNumber}`,
+    "9",
+    ""
+  )}</row>`;
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x14ac" xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac">
-<dimension ref="A1:D${totalRowNumber}"/>
-<sheetViews><sheetView workbookViewId="0"><selection activeCell="A4" sqref="A4:D4"/></sheetView></sheetViews>
+<dimension ref="A1:E${totalRowNumber}"/>
+<sheetViews><sheetView workbookViewId="0"><selection activeCell="A4" sqref="A4:E4"/></sheetView></sheetViews>
 <sheetFormatPr defaultRowHeight="15" x14ac:dyDescent="0.2"/>
-<cols><col min="1" max="1" width="22" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="3" width="12" customWidth="1"/><col min="4" max="4" width="55" customWidth="1"/></cols>
+<cols><col min="1" max="1" width="22" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="4" width="12" customWidth="1"/><col min="5" max="5" width="55" customWidth="1"/></cols>
 <sheetData>
-<row r="1" spans="1:4" ht="32.1" customHeight="1" x14ac:dyDescent="0.45">${makeStringCell("A1", "12", "ATM Ponto")}</row>
-<row r="2" spans="1:4" ht="20.1" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell("A2", "13", "Horas Gozadas")}</row>
-<row r="3" spans="1:4" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${["Criado em", "Data gozada", "Horas", "Motivo"]
+<row r="1" spans="1:5" ht="32.1" customHeight="1" x14ac:dyDescent="0.45">${makeStringCell("A1", "12", "ATM Ponto")}</row>
+<row r="2" spans="1:5" ht="20.1" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell("A2", "13", "Horas Gozadas")}</row>
+<row r="3" spans="1:5" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${["Criado em", "Data gozada", "Horas", "Dias", "Motivo"]
     .map((value, index) => makeStringCell(`${columnName(index)}3`, "9", value))
     .join("")}</row>
 ${rows.join("")}${emptyRow}${totalRow}
 </sheetData>
-<mergeCells count="2"><mergeCell ref="A1:D1"/><mergeCell ref="A2:D2"/></mergeCells>
+<mergeCells count="2"><mergeCell ref="A1:E1"/><mergeCell ref="A2:E2"/></mergeCells>
 <pageMargins left="0" right="0" top="0" bottom="0" header="0" footer="0"/>
-<ignoredErrors><ignoredError sqref="A1:D${totalRowNumber}" numberStoredAsText="1"/></ignoredErrors>
+<ignoredErrors><ignoredError sqref="A1:E${totalRowNumber}" numberStoredAsText="1"/></ignoredErrors>
 </worksheet>`;
 }
 
@@ -371,6 +470,7 @@ export async function generateCompensationSummaryXlsx({ userId }) {
       COALESCE(SUM(extra_hours), 0)::float AS total_extra_hours,
       COALESCE(SUM(travel_hours), 0)::float AS total_travel_hours,
       COALESCE(SUM(absence_hours), 0)::float AS total_absence_hours,
+      COUNT(DISTINCT CASE WHEN absence_hours > 0 THEN date END)::int AS total_absence_days,
       COALESCE(SUM(CASE WHEN compensated THEN normal_hours ELSE 0 END), 0)::float AS used_from_records
     FROM timesheet_records
     WHERE user_id = $1
@@ -397,6 +497,7 @@ export async function generateCompensationSummaryXlsx({ userId }) {
       extra: safeNumber(row.total_extra_hours),
       travel: safeNumber(row.total_travel_hours),
       absence: safeNumber(row.total_absence_hours),
+      absenceDays: safeNumber(row.total_absence_days),
       usedFromRecords: safeNumber(row.used_from_records)
     });
   }
@@ -416,6 +517,7 @@ export async function generateCompensationSummaryXlsx({ userId }) {
         extra: 0,
         travel: 0,
         absence: 0,
+        absenceDays: 0,
         usedFromRecords: 0
       };
       const usedManual = normalizeTimesheetManualUsed(timesheet, agg.usedFromRecords);
@@ -433,6 +535,7 @@ export async function generateCompensationSummaryXlsx({ userId }) {
         extra: agg.extra,
         travel: agg.travel,
         absence: agg.absence,
+        absenceDays: agg.absenceDays,
         totalComp,
         usedFromRecords: agg.usedFromRecords,
         usedManual,
@@ -452,13 +555,24 @@ export async function generateCompensationSummaryXlsx({ userId }) {
       acc.extra += safeNumber(row.extra);
       acc.travel += safeNumber(row.travel);
       acc.absence += safeNumber(row.absence);
+      acc.absenceDays += safeNumber(row.absenceDays);
       acc.totalComp += safeNumber(row.totalComp);
       acc.usedFromRecords += safeNumber(row.usedFromRecords);
       acc.usedManual += safeNumber(row.usedManual);
       acc.usedEnjoyed += safeNumber(row.usedEnjoyed);
       return acc;
     },
-    { normal: 0, extra: 0, travel: 0, absence: 0, totalComp: 0, usedFromRecords: 0, usedManual: 0, usedEnjoyed: 0 }
+    {
+      normal: 0,
+      extra: 0,
+      travel: 0,
+      absence: 0,
+      absenceDays: 0,
+      totalComp: 0,
+      usedFromRecords: 0,
+      usedManual: 0,
+      usedEnjoyed: 0
+    }
   );
   totals.totalUsed = Math.max(0, totals.usedFromRecords + totals.usedManual + totals.usedEnjoyed);
   totals.available = Math.max(0, totals.totalComp - totals.totalUsed);
@@ -485,6 +599,7 @@ export async function generateCompensationSummaryXlsx({ userId }) {
       extra: totals.extra,
       travel: totals.travel,
       absence: totals.absence,
+      absenceDays: totals.absenceDays,
       totalComp: totals.totalComp,
       usedFromRecords: totals.usedFromRecords,
       usedManual: totals.usedManual,

@@ -2,6 +2,7 @@ import { createClient } from "@base44/sdk";
 import { appParams } from "@/lib/app-params";
 
 const TOKEN_KEY = "atm.auth.token.v1";
+const USER_CACHE_KEY = "atm.auth.user.v1";
 
 function normalizeBaseUrl(value) {
   let s = String(value || "").trim();
@@ -29,6 +30,24 @@ function setToken(token) {
   try {
     if (!token) localStorage.removeItem(TOKEN_KEY);
     else localStorage.setItem(TOKEN_KEY, String(token));
+  } catch {
+    // ignore
+  }
+}
+
+function getCachedUser() {
+  try {
+    const raw = localStorage.getItem(USER_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedUser(user) {
+  try {
+    if (!user) localStorage.removeItem(USER_CACHE_KEY);
+    else localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
   } catch {
     // ignore
   }
@@ -235,17 +254,26 @@ function createFetchClient(baseUrl) {
       downloadCompensationSummaryXlsx: () => download("/api/reports/compensation-summary.xlsx")
     },
     auth: {
+      hasToken: () => Boolean(getToken()),
+      getCachedUser,
+      setCachedUser,
       login: async ({ email, password }) => {
         const payload = await request("POST", "/auth/login", { email, password });
         if (payload?.token) setToken(payload.token);
+        if (payload?.user) setCachedUser(payload.user);
         return payload?.user || null;
       },
       register: async ({ email, password, profile }) => {
         const payload = await request("POST", "/auth/register", { email, password, profile });
         if (payload?.token) setToken(payload.token);
+        if (payload?.user) setCachedUser(payload.user);
         return payload?.user || null;
       },
-      me: async () => request("GET", "/auth/me"),
+      me: async () => {
+        const user = await request("GET", "/auth/me");
+        setCachedUser(user);
+        return user;
+      },
       updateProfile: async ({ email, currentPassword, newPassword, profile }) => {
         const payload = await request("PUT", "/auth/me", {
           email,
@@ -253,6 +281,7 @@ function createFetchClient(baseUrl) {
           new_password: newPassword,
           profile
         });
+        if (payload) setCachedUser(payload);
         return payload || null;
       },
       logout: async () => {
@@ -260,6 +289,7 @@ function createFetchClient(baseUrl) {
           await request("POST", "/auth/logout");
         } finally {
           setToken("");
+          setCachedUser(null);
         }
         return { ok: true };
       },
