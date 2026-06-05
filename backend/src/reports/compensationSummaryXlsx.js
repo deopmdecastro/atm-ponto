@@ -424,8 +424,8 @@ function makeAusenciasXml(absences) {
 <cols><col min="1" max="1" width="22" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="55" customWidth="1"/></cols>
 <sheetData>
 <row r="1" spans="1:4" ht="32.1" customHeight="1" x14ac:dyDescent="0.45">${makeStringCell("A1", "12", "ATM Ponto")}</row>
-<row r="2" spans="1:4" ht="20.1" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell("A2", "13", "Ausências")}</row>
-<row r="3" spans="1:4" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${["Criado em", "Data ausência", "Horas", "Motivo"]
+<row r="2" spans="1:4" ht="20.1" customHeight="1" x14ac:dyDescent="0.2">${makeStringCell("A2", "13", "Ausencias")}</row>
+<row r="3" spans="1:4" ht="26.1" customHeight="1" x14ac:dyDescent="0.2">${["Criado em", "Data ausencia", "Horas", "Motivo"]
     .map((value, index) => makeStringCell(`${columnName(index)}3`, "9", value))
     .join("")}</row>
 ${rows.join("")}${emptyRow}${totalRow}
@@ -442,7 +442,7 @@ function addDetailSheets(archive, enjoyments, absences) {
 
   const workbookXml = strFromU8(archive["xl/workbook.xml"]).replace(
     "</sheets>",
-    '<sheet name="Horas Gozadas" sheetId="3" r:id="rId6"/><sheet name="Ausências" sheetId="4" r:id="rId7"/></sheets>'
+    '<sheet name="Horas Gozadas" sheetId="3" r:id="rId6"/><sheet name="Ausencias" sheetId="4" r:id="rId7"/></sheets>'
   );
   archive["xl/workbook.xml"] = strToU8(workbookXml);
 
@@ -459,10 +459,10 @@ function addDetailSheets(archive, enjoyments, absences) {
   archive["[Content_Types].xml"] = strToU8(contentTypesXml);
 
   const appPropertiesXml = strFromU8(archive["docProps/app.xml"])
-    .replace("<vt:i4>2</vt:i4>", "<vt:i4>4</vt:i4>")
+    .replace(/<vt:i4>\d+<\/vt:i4>/, "<vt:i4>4</vt:i4>")
     .replace(
-      '<TitlesOfParts><vt:vector size="2" baseType="lpstr"><vt:lpstr>Resumo</vt:lpstr><vt:lpstr>Por Mês</vt:lpstr></vt:vector></TitlesOfParts>',
-      '<TitlesOfParts><vt:vector size="4" baseType="lpstr"><vt:lpstr>Resumo</vt:lpstr><vt:lpstr>Por Mês</vt:lpstr><vt:lpstr>Horas Gozadas</vt:lpstr><vt:lpstr>Ausências</vt:lpstr></vt:vector></TitlesOfParts>'
+      /<TitlesOfParts><vt:vector size="\d+" baseType="lpstr">[\s\S]*?<\/vt:vector><\/TitlesOfParts>/,
+      '<TitlesOfParts><vt:vector size="4" baseType="lpstr"><vt:lpstr>Resumo</vt:lpstr><vt:lpstr>Por Mês</vt:lpstr><vt:lpstr>Horas Gozadas</vt:lpstr><vt:lpstr>Ausencias</vt:lpstr></vt:vector></TitlesOfParts>'
     );
   archive["docProps/app.xml"] = strToU8(appPropertiesXml);
 }
