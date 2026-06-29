@@ -1,8 +1,9 @@
- 
-
 import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Upload, Clock, AlertTriangle, Users, Settings, LogOut, FolderKanban, Menu, X, PenLine } from "lucide-react";
+import {
+  LayoutDashboard, Upload, Clock, AlertTriangle, Users, Settings, LogOut,
+  FolderKanban, Menu, X, PenLine, ChevronRight, User, Bell
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
 import { useAlertCount } from "@/hooks/useAlertCount";
@@ -14,24 +15,37 @@ const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/upload", icon: Upload, label: "Upload" },
   { to: "/preencher", icon: PenLine, label: "Preencher" },
-  { to: "/historico", icon: Clock, label: "Histórico" },
+  { to: "/historico", icon: Clock, label: "Hist\u00f3rico" },
   { to: "/projetos", icon: FolderKanban, label: "Projetos" },
   { to: "/alertas", icon: AlertTriangle, label: "Alertas" },
   { to: "/settings", icon: Settings, label: "Conta" },
   { to: "/colaboradores", icon: Users, label: "Colaboradores" },
 ];
 
-const mobileNavItems = navItems.filter((item) => ["/", "/preencher", "/historico", "/alertas"].includes(item.to));
+const mobileMainItems = ["/", "/preencher", "/historico", "/alertas"];
+
+function isActive(path, to) {
+  if (to === "/") return path === "/";
+  return path.startsWith(to);
+}
 
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const isAdmin = user?.role === "admin";
   const visibleNavItems = isAdmin ? navItems : navItems.filter((i) => i.to !== "/colaboradores");
-  const mobileMenuItems = visibleNavItems.filter((item) => !mobileNavItems.some((mobileItem) => mobileItem.to === item.to));
+  const mobileVisible = visibleNavItems.filter((i) => mobileMainItems.includes(i.to));
+  const mobileMore = visibleNavItems.filter((i) => !mobileMainItems.includes(i.to));
   const alertCount = useAlertCount({ user, refreshKey: location.pathname });
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -44,146 +58,178 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top bar */}
-      <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
-        <div className="w-full px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 gap-4">
-          <div className="flex items-center gap-3 flex-none min-w-[190px]">
-            <img src={atmIcon} alt="ATM Ponto" className="h-9 w-9 object-contain flex-none" draggable={false} />
-            <div className="min-w-0">
-              <h1 className="text-lg font-bold tracking-tight text-foreground leading-tight whitespace-nowrap">ATM Ponto</h1>
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground leading-none whitespace-nowrap">Controle de Horas</p>
+    <div className="min-h-screen bg-[#f7f7f7]">
+      {/* ── Desktop top bar ── */}
+      <header
+        className={`sticky top-0 z-50 hidden sm:block transition-shadow duration-200 ${
+          scrolled ? "shadow-sm" : ""
+        } bg-white border-b border-gray-100`}
+      >
+        <div className="max-w-[1440px] mx-auto flex items-center h-14 px-6 gap-6">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2.5 flex-shrink-0 mr-2">
+            <img src={atmIcon} alt="ATM Ponto" className="h-8 w-8 object-contain" draggable={false} />
+            <div className="hidden lg:block leading-tight">
+              <span className="text-sm font-bold tracking-tight text-gray-900">ATM Ponto</span>
+              <span className="block text-[9px] font-semibold uppercase tracking-[0.15em] text-red-600">Controle de Horas</span>
             </div>
-          </div>
-          <div className="relative sm:hidden">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
-              aria-expanded={mobileMenuOpen}
-              onClick={() => setMobileMenuOpen((open) => !open)}
-            >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
-            {mobileMenuOpen && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Fechar menu"
-                  className="fixed inset-0 top-16 z-40 cursor-default bg-black/10"
-                  onClick={() => setMobileMenuOpen(false)}
-                />
-                <div className="absolute right-0 top-12 z-50 w-56 overflow-hidden rounded-md border border-border bg-card shadow-lg">
-                  {mobileMenuItems.map((item) => {
-                    const active = location.pathname === item.to;
-                    return (
-                      <Link
-                        key={item.to}
-                        to={item.to}
-                        className={`flex h-11 items-center gap-3 px-4 text-sm font-medium ${
-                          active ? "bg-secondary text-primary" : "text-foreground hover:bg-secondary"
-                        }`}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                  {useLocalBackend && (
-                    <button
-                      type="button"
-                      className="flex h-11 w-full items-center gap-3 border-t border-border px-4 text-sm font-medium text-red-600 hover:bg-red-50"
-                      onClick={handleLogout}
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Sair
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-          <div className="hidden sm:flex items-center justify-end gap-3 min-w-0 flex-1">
-            <nav className="flex items-center justify-end gap-1 min-w-0">
-              {visibleNavItems.map(item => {
-                const active = location.pathname === item.to;
-                return (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                      active
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
-            {useLocalBackend && (
-              <div className="flex items-center gap-3 pl-2 border-l border-border min-w-0 flex-none">
-                {user?.email && <span className="hidden lg:inline max-w-[220px] truncate text-sm text-muted-foreground">{user.email}</span>}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => {
-                    logout(false);
-                    navigate("/login", { replace: true });
-                  }}
+          </Link>
+
+          {/* Nav */}
+          <nav className="flex items-center gap-0.5 flex-1 justify-center">
+            {visibleNavItems.map((item) => {
+              const active = isActive(location.pathname, item.to);
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={`relative flex items-center gap-2 h-9 px-3.5 rounded-lg text-[13px] font-medium transition-all ${
+                    active
+                      ? "bg-red-50 text-red-700"
+                      : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+                  }`}
                 >
-                  <LogOut className="h-4 w-4" />
+                  <item.icon className="h-4 w-4" />
+                  <span className="hidden xl:inline">{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Right side */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {useLocalBackend && (
+              <>
+                <div className="hidden lg:flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-full pl-3 pr-1 py-1">
+                  <User className="h-3.5 w-3.5" />
+                  <span className="max-w-[180px] truncate">{user?.email || ""}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="h-3.5 w-3.5" />
                   Sair
                 </Button>
-              </div>
+              </>
             )}
           </div>
         </div>
       </header>
 
-      {/* Mobile nav */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border">
-        <div className="flex justify-around py-2">
-          {mobileNavItems.map(item => {
-            const active = location.pathname === item.to;
+      {/* ── Mobile top bar ── */}
+      <header className="sticky top-0 z-50 sm:hidden bg-white border-b border-gray-100">
+        <div className="flex items-center justify-between h-14 px-4">
+          <Link to="/" className="flex items-center gap-2">
+            <img src={atmIcon} alt="ATM Ponto" className="h-7 w-7 object-contain" draggable={false} />
+            <div className="leading-tight">
+              <span className="text-sm font-bold tracking-tight text-gray-900">ATM Ponto</span>
+              <span className="block text-[8px] font-semibold uppercase tracking-[0.12em] text-red-600">Controle de Horas</span>
+            </div>
+          </Link>
+          <div className="flex items-center gap-1">
+            {alertCount > 0 && (
+              <Link to="/alertas" className="relative p-2 text-gray-500">
+                <Bell className="h-5 w-5" />
+                <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                  {alertCount > 99 ? "99+" : alertCount}
+                </span>
+              </Link>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-gray-600"
+              aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
+              onClick={() => setMobileMenuOpen((o) => !o)}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile dropdown menu */}
+        {mobileMenuOpen && (
+          <>
+            <div className="fixed inset-0 top-14 z-40 bg-black/20" onClick={() => setMobileMenuOpen(false)} />
+            <div className="absolute left-0 right-0 top-14 z-50 bg-white border-b border-gray-100 shadow-lg animate-in slide-in-from-top-2 duration-200">
+              <div className="p-3 space-y-1">
+                {mobileMore.map((item) => {
+                  const active = isActive(location.pathname, item.to);
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className={`flex items-center gap-3 px-3 h-11 rounded-lg text-sm font-medium transition-colors ${
+                        active ? "bg-red-50 text-red-700" : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+                {useLocalBackend && (
+                  <button
+                    type="button"
+                    className="flex items-center gap-3 w-full px-3 h-11 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sair
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </header>
+
+      {/* ── Mobile bottom nav ── */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-gray-100 safe-area-inset-bottom">
+        <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
+          {mobileVisible.map((item) => {
+            const active = isActive(location.pathname, item.to);
             return (
               <Link
                 key={item.to}
                 to={item.to}
-                className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-1.5 text-xs font-medium transition-all ${
-                  active ? "text-primary" : "text-muted-foreground"
+                className={`relative flex flex-col items-center justify-center gap-0.5 min-w-0 flex-1 h-full text-[10px] font-medium transition-colors ${
+                  active ? "text-red-600" : "text-gray-400"
                 }`}
               >
                 <span className="relative">
-                  <item.icon className={`h-5 w-5 ${active ? "text-primary" : ""}`} />
+                  <item.icon className={`h-5 w-5 ${active ? "text-red-600" : "text-gray-400"}`} />
                   {item.to === "/alertas" && alertCount > 0 && (
-                    <span className="absolute -right-3 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white">
+                    <span className="absolute -top-1.5 -right-3 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white">
                       {alertCount > 99 ? "99+" : alertCount}
                     </span>
                   )}
                 </span>
                 {item.label}
+                {active && <span className="absolute bottom-0 w-8 h-0.5 bg-red-600 rounded-full" />}
               </Link>
             );
           })}
         </div>
       </nav>
 
-      {/* Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 sm:pb-8">
+      {/* ── Content ── */}
+      <main className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 sm:pb-8">
         <Outlet />
       </main>
-      <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24 sm:pb-6">
-        <p className="text-center text-xs text-muted-foreground">
-          Designed by:{" "}
+
+      {/* ── Footer ── */}
+      <footer className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 pb-20 sm:pb-5">
+        <p className="text-center text-[11px] text-gray-400">
+          Desenvolvido por{" "}
           <a
             href="https://pt.linkedin.com/in/deogracia-manuel-de-castro-6a4a8a296"
             target="_blank"
             rel="noreferrer"
-            className="font-bold text-primary hover:underline"
+            className="font-semibold text-red-600 hover:text-red-700"
           >
             Deogracia Castro
           </a>

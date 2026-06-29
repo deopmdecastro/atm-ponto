@@ -300,7 +300,7 @@ function SummaryCard({ icon: Icon, label, value, accent, hint }) {
         </div>
         <span className="text-2xl font-bold tabular-nums text-foreground">{value}</span>
       </div>
-      <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">{label}</p>
       {hint && <p className="mt-1 text-[10px] text-muted-foreground">{hint}</p>}
     </div>
   );
@@ -912,15 +912,15 @@ export default function FillTimesheetPage() {
               e.target.value = "";
             }}
           />
-          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => fileInputRef.current?.click()} disabled={parsing}>
+          <Button type="button" variant="outline" size="sm" className="gap-1.5 h-9 text-xs font-medium border-gray-200 hover:bg-gray-50 hover:border-gray-300" onClick={() => fileInputRef.current?.click()} disabled={parsing}>
             {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             Carregar Excel
           </Button>
-          <Button type="button" variant="outline" size="sm" className="gap-2" onClick={handleExport} disabled={!hasGrid || exporting}>
+          <Button type="button" variant="outline" size="sm" className="gap-1.5 h-9 text-xs font-medium border-gray-200 hover:bg-gray-50 hover:border-gray-300" onClick={handleExport} disabled={!hasGrid || exporting}>
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Exportar Excel
           </Button>
-          <Button type="button" size="sm" className="gap-2" onClick={handleSave} disabled={!canSave || saving}>
+          <Button type="button" size="sm" className="gap-1.5 h-9 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white" onClick={handleSave} disabled={!canSave || saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Guardar Folha
           </Button>
@@ -928,7 +928,7 @@ export default function FillTimesheetPage() {
       </div>
 
       {parseError && (
-        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+        <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50/90 p-4">
           <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-500" />
           <p className="text-sm text-red-700">{parseError}</p>
           <button type="button" className="ml-auto rounded-md p-1 text-red-500 hover:bg-red-100" onClick={() => setParseError("")}>
@@ -941,7 +941,7 @@ export default function FillTimesheetPage() {
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
-          className="cursor-pointer rounded-2xl border-2 border-dashed border-border bg-card p-10 text-center transition-all hover:border-primary/50 hover:bg-accent/30"
+          className="cursor-pointer rounded-xl border-2 border-dashed border-gray-200 bg-white p-10 text-center transition-all hover:border-red-300 hover:bg-red-50/30"
           onClick={() => fileInputRef.current?.click()}
         >
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary">
@@ -997,20 +997,25 @@ export default function FillTimesheetPage() {
       )}
 
       {hasGrid && (
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
-            <UserSquare2 className="h-4 w-4 text-primary" />
-            Identificação
-          </h3>
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50">
+              <UserSquare2 className="h-4 w-4 text-red-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Identificação do Colaborador</h3>
+              <p className="text-[11px] text-gray-500">Dados para a folha de imputação</p>
+            </div>
+          </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
-              <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Nº Colaborador</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Nº Colaborador</Label>
               <Input value={meta.employee_number} onChange={(e) => setMeta((m) => ({ ...m, employee_number: e.target.value }))} placeholder="63001366" />
             </div>
             <div className="space-y-1 lg:col-span-2">
-              <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Nome</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Nome</Label>
               <div className="flex gap-1.5">
-                <Input value={meta.employee_name} onChange={(e) => setMeta((m) => ({ ...m, employee_name: e.target.value }))} placeholder="Nome do colaborador" className="flex-1" />
+                <Input value={meta.employee_name} onChange={(e) => setMeta((m) => ({ ...m, employee_name: e.target.value }))} placeholder="Nome do colaborador" className="flex-1 bg-gray-50 border-gray-200 focus:bg-white" />
                 {previousEmployees.length > 0 && (
                   <Popover>
                     <PopoverTrigger asChild>
@@ -1056,23 +1061,23 @@ export default function FillTimesheetPage() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Função</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Função</Label>
               <Input value={meta.funcao} onChange={(e) => setMeta((m) => ({ ...m, funcao: e.target.value }))} placeholder="Assistente de Manutenção" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Departamento</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Departamento</Label>
               <Input value={meta.department} onChange={(e) => setMeta((m) => ({ ...m, department: e.target.value }))} placeholder="Equipas Móveis Serviços Norte" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Direção / ACE</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Direção / ACE</Label>
               <Input value={meta.direcao} onChange={(e) => setMeta((m) => ({ ...m, direcao: e.target.value }))} placeholder="Serviços" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Centro de Custo</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Centro de Custo</Label>
               <Input value={meta.centro_custo} onChange={(e) => setMeta((m) => ({ ...m, centro_custo: e.target.value }))} placeholder="003SER04" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Mês</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Mês</Label>
               <Select value={meta.month} onValueChange={(v) => setMeta((m) => ({ ...m, month: v }))}>
                 <SelectTrigger><SelectValue placeholder="Mês" /></SelectTrigger>
                 <SelectContent>
@@ -1083,7 +1088,7 @@ export default function FillTimesheetPage() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Ano</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Ano</Label>
               <Input
                 type="number"
                 min={2020}
@@ -1097,7 +1102,7 @@ export default function FillTimesheetPage() {
       )}
 
       {hasGrid && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-1">
           <SummaryCard icon={Clock} label="Total Normais" value={formatHours(totals.normal)} accent="#16A34A" hint={`${totals.worked} dia(s) trabalhado(s)`} />
           <SummaryCard icon={ClipboardList} label="Total Extras" value={formatHours(totals.extra)} accent="#F5A623" hint="Horas suplementares" />
           <SummaryCard icon={Plane} label="Total Viagem" value={formatHours(totals.travel)} accent="#4ECDC4" />
@@ -1108,7 +1113,7 @@ export default function FillTimesheetPage() {
       {hasGrid && (validation.errors.length > 0 || validation.warnings.length > 0) && (
         <div className="space-y-2">
           {validation.errors.length > 0 && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <div className="rounded-lg border border-red-200 bg-red-50/80 px-4 py-3">
               <div className="flex items-start gap-2">
                 <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
                 <div className="space-y-1">
@@ -1124,7 +1129,7 @@ export default function FillTimesheetPage() {
             </div>
           )}
           {validation.warnings.length > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3">
               <div className="flex items-start gap-2">
                 <TriangleAlert className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
                 <div className="space-y-1">
@@ -1143,18 +1148,20 @@ export default function FillTimesheetPage() {
       )}
 
       {hasGrid && (
-        <div className="rounded-2xl border border-border bg-card shadow-sm">
-          <div className="flex flex-col gap-2 border-b border-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <FileSpreadsheet className="h-4 w-4 text-primary" />
-                Registos diários — {meta.month} {meta.year}
-              </h3>
-              <p className="text-xs text-muted-foreground">{rows.length} dia(s) · {allProjects.length} projeto(s) no catálogo</p>
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex flex-col gap-2 border-b border-gray-100 px-5 py-3 sm:flex-row sm:items-center sm:justify-between bg-gray-50/50">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50">
+                <FileSpreadsheet className="h-4 w-4 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Registos diários — {meta.month} {meta.year}</h3>
+                <p className="text-[11px] text-gray-500">{rows.length} dia(s) · {allProjects.length} projeto(s) no catálogo</p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button type="button" variant="ghost" size="sm" className="gap-2" onClick={clearMonth}>
-                <Eraser className="h-4 w-4" />
+              <Button type="button" variant="ghost" size="sm" className="gap-2 h-8 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50" onClick={clearMonth}>
+                <Eraser className="h-3.5 w-3.5" />
                 Limpar mês
               </Button>
             </div>
@@ -1200,11 +1207,11 @@ export default function FillTimesheetPage() {
           </div>
 
           <div className="hidden md:block">
-            <div className="overflow-auto rounded-lg border border-border" style={{ maxHeight: "calc(100vh - 280px)" }}>
+            <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 260px)" }}>
               <table className="w-full border-collapse text-[11px]">
                 <thead className="sticky top-0 z-20">
-                  <tr className="border-b-2 border-border bg-secondary/70 text-[9px] uppercase tracking-wider text-muted-foreground">
-                    <th className="sticky left-0 z-30 bg-secondary/70 px-2 py-1.5 text-left w-[100px]">Dia</th>
+                  <tr className="border-b-2 border-border bg-gray-100 text-[9px] font-bold uppercase tracking-wider text-gray-400">
+                    <th className="sticky left-0 z-30 bg-gray-100 px-2 py-1.5 text-left w-[100px]">Dia</th>
                     <th className="px-1.5 py-1.5 text-center w-[50px]">Norm.</th>
                     <th className="px-1.5 py-1.5 text-center w-[62px]">Entrada</th>
                     <th className="px-1.5 py-1.5 text-center w-[62px]">Saída</th>
@@ -1238,14 +1245,14 @@ export default function FillTimesheetPage() {
                     return (
                       <tr
                         key={row.date}
-                        className={`border-b border-border/40 transition-colors hover:bg-secondary/20 ${isWeekend ? "bg-amber-50/40" : (idx % 2 === 0 ? "bg-white" : "bg-slate-50/40")} ${hasError ? "bg-red-50/40" : ""}`}
+                        className={`border-b border-border/40 transition-colors hover:bg-secondary/20 ${isWeekend ? "bg-amber-50/60" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50/60")} ${hasError ? "bg-red-50/40" : ""}`}
                       >
                         {/* Day cell - sticky left */}
-                        <td className={`sticky left-0 z-10 px-2 py-1 ${isWeekend ? "bg-amber-50/40" : (idx % 2 === 0 ? "bg-white" : "bg-slate-50/40")} ${hasError ? "bg-red-50/40" : ""}`}>
+                        <td className={`sticky left-0 z-10 px-2 py-1 ${isWeekend ? "bg-amber-50/60" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50/60")} ${hasError ? "bg-red-50/40" : ""}`}>
                           <div className="flex items-center gap-1.5">
                             <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${accent.dot}`} />
                             <div className="min-w-0">
-                              <p className="text-xs font-semibold text-foreground leading-tight">
+                              <p className="text-xs font-semibold text-gray-900 leading-tight">
                                 {row.weekday} {String(row.day).padStart(2, "0")}/{row.date.slice(5, 7)}
                               </p>
                               <p className="text-[9px] text-muted-foreground leading-tight">{row.date}</p>
@@ -1256,7 +1263,7 @@ export default function FillTimesheetPage() {
                         </td>
                         {/* Normal hours */}
                         <td className="px-1 py-1 text-center">
-                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.normal_hours || 0) > 0 ? "bg-emerald-100 text-emerald-700" : "bg-muted/50 text-muted-foreground"}`}>
+                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.normal_hours || 0) > 0 ? "bg-emerald-50 text-emerald-700 font-bold" : "bg-gray-100 text-gray-300"}`}>
                             {formatHours(row.normal_hours)}
                           </span>
                         </td>
@@ -1274,7 +1281,7 @@ export default function FillTimesheetPage() {
                         </td>
                         {/* Extra hours */}
                         <td className="px-1 py-1 text-center">
-                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.extra_hours || 0) > 0 ? "bg-amber-100 text-amber-700" : "bg-muted/50 text-muted-foreground"}`}>
+                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.extra_hours || 0) > 0 ? "bg-amber-50 text-amber-700 font-bold" : "bg-gray-100 text-gray-300"}`}>
                             {formatHours(row.extra_hours)}
                           </span>
                         </td>
@@ -1314,7 +1321,7 @@ export default function FillTimesheetPage() {
                         </td>
                         {/* Travel hours */}
                         <td className="px-1 py-1 text-center">
-                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.travel_hours || 0) > 0 ? "bg-cyan-100 text-cyan-700" : "bg-muted/50 text-muted-foreground"}`}>
+                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.travel_hours || 0) > 0 ? "bg-cyan-50 text-cyan-700 font-bold" : "bg-gray-100 text-gray-300"}`}>
                             {formatHours(row.travel_hours)}
                           </span>
                         </td>
@@ -1399,7 +1406,7 @@ export default function FillTimesheetPage() {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="sticky bottom-0 z-20 border-t-2 border-border bg-secondary/80 text-xs font-bold">
+                  <tr className="sticky bottom-0 z-20 border-t-2 border-border bg-gray-100 text-xs font-bold">
                     <td className="px-2 py-1.5 text-foreground">TOTAL</td>
                     <td className="px-1 py-1.5 text-center tabular-nums text-emerald-700">{formatHours(totals.normal)}</td>
                     <td colSpan={3} />

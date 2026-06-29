@@ -10,23 +10,23 @@
   :root {
     --font-inter: 'Inter', sans-serif;
 
-    --background: 0 0% 98%;
-    --foreground: 0 0% 8%;
+    --background: 0 0% 96%;
+    --foreground: 0 0% 6%;
     --card: 0 0% 100%;
     --card-foreground: 0 0% 8%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 8%;
-    --primary: 0 78% 52%;
+    --primary: 0 75% 50%;
     --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 95%;
     --secondary-foreground: 0 0% 12%;
-    --muted: 0 0% 95%;
-    --muted-foreground: 0 0% 42%;
-    --accent: 0 65% 96%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 70% 96%;
     --accent-foreground: 0 78% 42%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 90%;
+    --border: 0 0% 92%;
     --input: 0 0% 90%;
     --ring: 0 78% 52%;
     --chart-1: 0 78% 52%;
