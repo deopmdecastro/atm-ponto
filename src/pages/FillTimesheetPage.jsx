@@ -1190,10 +1190,27 @@ export default function FillTimesheetPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button type="button" variant="ghost" size="sm" className="gap-2 h-8 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50" onClick={clearMonth}>
-                <Eraser className="h-3.5 w-3.5" />
-                Limpar mês
+              <Button type="button" variant="ghost" size="sm" className="gap-1.5 h-8 text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50" onClick={() => {
+                  if (rows.length > 0 && rows[0].period_start) {
+                    fillDownFromRow(0);
+                  } else {
+                    toast({ title: "Sem dados", description: "Preencha o primeiro dia primeiro." });
+                  }
+                }}>
+                <ArrowDown className="h-3.5 w-3.5" />
+                Preencher todos
               </Button>
+<Button type="button" variant="ghost" size="sm" className="gap-1.5 h-8 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => {
+            setRows((prev) => prev.map((r) => r.isWeekend ? r : { ...r, subsidio_almoco: true }));
+            toast({ title: "S.Alim.", description: "Subsídio de almoço ativado para todos os dias úteis." });
+          }}>
+            <Check className="h-3.5 w-3.5" />
+            S.Alim. todos
+          </Button>
+          <Button type="button" variant="ghost" size="sm" className="gap-2 h-8 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50" onClick={clearMonth}>
+            <Eraser className="h-3.5 w-3.5" />
+            Limpar mês
+          </Button>
             </div>
           </div>
 
