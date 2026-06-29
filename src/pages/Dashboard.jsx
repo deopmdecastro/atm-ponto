@@ -330,7 +330,7 @@ export default function Dashboard() {
       "Erro ao carregar dados";
     return (
       <div className="max-w-2xl mx-auto">
-        <div className="border border-red-200 bg-red-50 rounded-xl p-4 text-sm text-red-700">{message}</div>
+        <div className="border border-red-200 bg-red-50/80 rounded-xl p-4 text-sm text-red-700">{message}</div>
       </div>
     );
   }
@@ -345,7 +345,7 @@ export default function Dashboard() {
         <p className="text-muted-foreground mb-6 max-w-md">
           Faça upload da sua folha de ponto Excel para visualizar o dashboard completo com resumo, gráficos e histórico.
         </p>
-        <Button asChild size="lg" className="gap-2">
+        <Button asChild size="lg" className="gap-2 bg-red-600 hover:bg-red-700 text-white">
           <Link to="/upload">
             <Upload className="h-4 w-4" />
             Importar Folha de Ponto
@@ -462,7 +462,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h2>
+          <h2 className="text-[22px] font-bold tracking-tight text-gray-900">Dashboard</h2>
           <p className="text-sm text-muted-foreground">Visão geral do controle de horas</p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
