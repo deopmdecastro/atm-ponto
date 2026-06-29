@@ -224,6 +224,27 @@ function extractDailyRecords(matrix) {
     }
   }
 
+  // Detect travel time columns (ida inicio/fim, volta inicio/fim)
+  const travelCols = { travel1_start: -1, travel1_end: -1, travel2_start: -1, travel2_end: -1 };
+  for (let c = 0; c < headerRow.length; c++) {
+    const h1v = h1(c);
+    const h2v = h2(c);
+    if (h2v.includes("ida") && (h2v.includes("inicio") || h2v.includes("início"))) travelCols.travel1_start = c;
+    if (h2v.includes("ida") && h2v.includes("fim")) travelCols.travel1_end = c;
+    if (h2v.includes("volta") && (h2v.includes("inicio") || h2v.includes("início"))) travelCols.travel2_start = c;
+    if (h2v.includes("volta") && h2v.includes("fim")) travelCols.travel2_end = c;
+  }
+  // Fallback: look for "Ida (Inicio)" etc patterns
+  if (travelCols.travel1_start < 0) {
+    for (let c = 0; c < headerRow.length; c++) {
+      const h1v = h1(c);
+      if (h1v.includes("ida") && h1v.includes("inicio")) travelCols.travel1_start = c;
+      if (h1v.includes("ida") && h1v.includes("fim")) travelCols.travel1_end = c;
+      if (h1v.includes("volta") && h1v.includes("inicio")) travelCols.travel2_start = c;
+      if (h1v.includes("volta") && h1v.includes("fim")) travelCols.travel2_end = c;
+    }
+  }
+
   if (cols.day_type < 0 || h1(cols.day_type) === "dia") {
     const patterns = ["dia util", "dia útil", "desc", "feriado"];
     const colCount = Math.max(0, ...matrix.map((r) => (r ? r.length : 0)));
@@ -281,6 +302,10 @@ function extractDailyRecords(matrix) {
       extra2_start: cols.extra2_start >= 0 ? formatTimeCell(row[cols.extra2_start]) : "",
       extra2_end: cols.extra2_end >= 0 ? formatTimeCell(row[cols.extra2_end]) : "",
       extra_motivo: cols.extra_motivo >= 0 ? text(row[cols.extra_motivo]) : "",
+      travel1_start: travelCols.travel1_start >= 0 ? formatTimeCell(row[travelCols.travel1_start]) : "",
+      travel1_end: travelCols.travel1_end >= 0 ? formatTimeCell(row[travelCols.travel1_end]) : "",
+      travel2_start: travelCols.travel2_start >= 0 ? formatTimeCell(row[travelCols.travel2_start]) : "",
+      travel2_end: travelCols.travel2_end >= 0 ? formatTimeCell(row[travelCols.travel2_end]) : "",
       project_number: cols.project_number >= 0 ? text(row[cols.project_number]) : "",
       project_client: cols.project_client >= 0 ? text(row[cols.project_client]) : "",
       project_description: cols.project_description >= 0 ? text(row[cols.project_description]) : ""
@@ -509,9 +534,19 @@ export function buildMonthGrid(monthName, year) {
       extra2_start: "",
       extra2_end: "",
       extra_motivo: "",
+      travel1_start: "",
+      travel1_end: "",
+      travel2_start: "",
+      travel2_end: "",
       project_number: "",
       project_client: "",
-      project_description: ""
+      project_description: "",
+      subsidio_almoco: false,
+      prevencao: false,
+      deslocado: false,
+      local_deslocacao: "",
+      motivo_deslocacao: "",
+      observacoes: "",
     });
   }
   return out;
@@ -548,10 +583,19 @@ export function recomputeRow(row) {
   if (e1s != null && e1e != null && e1e > e1s) extra += e1e - e1s;
   if (e2s != null && e2e != null && e2e > e2s) extra += e2e - e2s;
 
+  let travel = 0;
+  const t1s = parseHHMM(row.travel1_start);
+  const t1e = parseHHMM(row.travel1_end);
+  const t2s = parseHHMM(row.travel2_start);
+  const t2e = parseHHMM(row.travel2_end);
+  if (t1s != null && t1e != null && t1e > t1s) travel += t1e - t1s;
+  if (t2s != null && t2e != null && t2e > t2s) travel += t2e - t2s;
+
   return {
     ...row,
     normal_hours: truncate2(normal),
     extra_hours: truncate2(extra),
+    travel_hours: truncate2(travel),
     pause_hours: Number.isFinite(pause) ? truncate2(pause) : 0,
     extra_motivo: extra > 0 && !String(row.extra_motivo || "").trim() ? "Motivo Simples" : row.extra_motivo
   };
@@ -606,18 +650,24 @@ export function exportTimesheetToExcel({ meta, rows, projects = [] }) {
   const header = [
     "Dia", "Data", "Total Normais", "Entrada", "Saída", "Pausa",
     "Total Extras", "1º HE Início", "1º HE Fim", "2º HE Início", "2º HE Fim", "Motivo TS",
+    "Total Viagem", "Ida Início", "Ida Fim", "Volta Início", "Volta Fim",
     "Tipo de Dia", "Tipo Ausência",
-    "Nº Projeto", "Cliente", "Descrição Projeto"
+    "Nº Projeto", "Cliente", "Descrição Projeto",
+    "S.Alim.Adicional", "Prevenção", "Deslocado", "Local Deslocação", "Motivo Deslocação", "Observações"
   ];
   const body = rows.map((r) => [
     r.day, r.date, r.normal_hours, r.period_start, r.period_end, r.pause_hours,
     r.extra_hours, r.extra1_start, r.extra1_end, r.extra2_start, r.extra2_end, r.extra_motivo,
+    r.travel_hours, r.travel1_start || "", r.travel1_end || "", r.travel2_start || "", r.travel2_end || "",
     r.day_type, r.absence_type,
-    r.project_number, r.project_client, r.project_description
+    r.project_number, r.project_client, r.project_description,
+    r.subsidio_almoco ? "1" : "", r.prevencao ? "X" : "", r.deslocado ? "X" : "",
+    r.local_deslocacao || "", r.motivo_deslocacao || "", r.observacoes || ""
   ]);
   const totalNormal = rows.reduce((a, r) => a + Number(r.normal_hours || 0), 0);
   const totalExtra = rows.reduce((a, r) => a + Number(r.extra_hours || 0), 0);
-  const footer = ["TOTAL", "", totalNormal, "", "", "", totalExtra, "", "", "", "", "", "", "", "", "", ""];
+  const totalTravel = rows.reduce((a, r) => a + Number(r.travel_hours || 0), 0);
+  const footer = ["TOTAL", "", totalNormal, "", "", "", totalExtra, "", "", "", "", "", totalTravel, "", "", "", "", "", "", "", "", "", "", "", "", "", ""];
 
   const sheetMeta = [
     ["FOLHA DE IMPUTAÇÃO — Versão Web ATM Ponto"],
@@ -639,8 +689,10 @@ export function exportTimesheetToExcel({ meta, rows, projects = [] }) {
   ws["!cols"] = [
     { wch: 5 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 },
     { wch: 8 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 18 },
-    { wch: 14 }, { wch: 18 },
-    { wch: 16 }, { wch: 30 }, { wch: 40 }
+    { wch: 8 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 11 },
+    { wch: 14 }, { wch: 22 },
+    { wch: 16 }, { wch: 30 }, { wch: 40 },
+    { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 20 }
   ];
 
   const wb = XLSX.utils.book_new();

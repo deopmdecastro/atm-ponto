@@ -5,15 +5,20 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
+  ArrowDown,
   Calendar as CalendarIcon,
+  Check,
+  ChevronsUpDown,
   ClipboardList,
   Clock,
+  Copy,
   Download,
   Eraser,
   FileSpreadsheet,
   Loader2,
   Plane,
   Save,
+  Search,
   TriangleAlert,
   Upload,
   UserSquare2,
@@ -35,6 +40,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList
+} from "@/components/ui/command";
 import { queryClientInstance } from "@/lib/query-client";
 import { formatHours } from "@/lib/formatHours";
 import {
@@ -47,6 +65,38 @@ import {
 } from "@/lib/parseTimesheetClient";
 
 const DAY_TYPES = ["Dia Útil", "Desc.Comp", "Desc. Obrig", "Feriado"];
+
+const ABSENCE_TYPES = [
+  { value: "", label: "— Nenhuma —" },
+  { value: "1110 Férias (dia)", label: "1110 Férias (dia)" },
+  { value: "1120 Folga Descan. Compensatório (dia)", label: "1120 Folga Desc. Comp. (dia)" },
+  { value: "1120H Folga Descan. Compensatório (hora)", label: "1120H Folga Desc. Comp. (hora)" },
+  { value: "1121 Folga Descan. Obrigatório (dia)", label: "1121 Folga Desc. Obrig. (dia)" },
+  { value: "1121H Folga Descan. Obrigatório (hora)", label: "1121H Folga Desc. Obrig. (hora)" },
+  { value: "1130 Tolerância de Ponto", label: "1130 Tolerância de Ponto" },
+  { value: "1140 Dispensa Comparência Serviço", label: "1140 Dispensa Comparência" },
+  { value: "1170 Insp.Médica-Serv.Medicina", label: "1170 Insp. Médica" },
+  { value: "2111 Delegado Sindical", label: "2111 Delegado Sindical" },
+  { value: "2120 Trabalhador Estudante", label: "2120 Trab. Estudante" },
+  { value: "2131 Consulta Médica-Acid.Trb. (dia)", label: "2131 Consulta Médica Acid. (dia)" },
+  { value: "2131H Consulta Médica-Acid.Trb. (hora)", label: "2131H Consulta Médica Acid. (hora)" },
+  { value: "2150 Nojo (Cônj+1ºG L.Rect)", label: "2150 Nojo (Cônj+1ºG)" },
+  { value: "2151 Nojo (L.Recta+2ºG L.Colat.)", label: "2151 Nojo (2ºG)" },
+  { value: "2155 Licença de Casamento", label: "2155 Licença Casamento" },
+  { value: "2170 Acid. Trabalho (1º dia) (dia)", label: "2170 Acid. Trabalho (dia)" },
+  { value: "2190 Ausência Justif. Remunerada (dia)", label: "2190 Ausência Justif. Rem. (dia)" },
+  { value: "2190H Ausência Justif. Remunerada (hora)", label: "2190H Ausência Justif. Rem. (hora)" },
+  { value: "2230 Consulta Médica NR (dia)", label: "2230 Consulta Médica NR (dia)" },
+  { value: "2230H Consulta Médica NR (hora)", label: "2230H Consulta Médica NR (hora)" },
+  { value: "2240 Ass. Inad. Família NR (dia)", label: "2240 Ass. Inad. Família (dia)" },
+  { value: "2290 Ausência Justificada NR (dia)", label: "2290 Ausência Justif. NR (dia)" },
+  { value: "2292 Ausência Injustificada (dia)", label: "2292 Ausência Injustificada (dia)" },
+  { value: "Baixa Doença", label: "Baixa Doença" },
+  { value: "Baixa Acid. Trabalho", label: "Baixa Acid. Trabalho" },
+  { value: "Baixa Assist. Família", label: "Baixa Assist. Família" },
+  { value: "Licença Maternidade", label: "Licença Maternidade" },
+  { value: "Licença Paternidade", label: "Licença Paternidade" },
+];
 
 const EMPTY_META = {
   employee_name: "",
@@ -61,7 +111,8 @@ const EMPTY_META = {
   year: new Date().getFullYear(),
   email_remetente: "",
   email_nivel1: "",
-  email_nivel2: ""
+  email_nivel2: "",
+  empresa: "6300",
 };
 
 function clean(v) {
@@ -109,6 +160,135 @@ function TimeInput({ value, onChange, disabled, className, ...rest }) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* ComboBox — searchable select                                        */
+/* ------------------------------------------------------------------ */
+
+function ComboBox({ value, onChange, options, placeholder, className, emptyText, disabled }) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className={`h-8 w-full justify-between px-2 text-xs font-normal ${className || ""}`}
+        >
+          <span className={`truncate ${!selected?.label ? "text-muted-foreground" : ""}`}>
+            {selected?.label || placeholder || "Selecionar..."}
+          </span>
+          <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Procurar..." />
+          <CommandList>
+            <CommandEmpty>{emptyText || "Nenhum resultado."}</CommandEmpty>
+            <CommandGroup>
+              {options.map((opt) => (
+                <CommandItem
+                  key={opt.value}
+                  value={opt.label || opt.value}
+                  onSelect={() => {
+                    onChange(opt.value === value ? "" : opt.value);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={`mr-2 h-3.5 w-3.5 ${opt.value === value ? "opacity-100" : "opacity-0"}`} />
+                  {opt.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Project ComboBox — searchable project selector                       */
+/* ------------------------------------------------------------------ */
+
+function ProjectComboBox({ value, onChange, projects, disabled }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const options = useMemo(() => {
+    return projects.map((p) => ({
+      value: p.code,
+      label: `${p.code} — ${p.client || ""}${p.description ? ` · ${p.description}` : ""}`.trim(),
+      client: p.client,
+      description: p.description
+    }));
+  }, [projects]);
+
+  const filtered = useMemo(() => {
+    if (!search) return options.slice(0, 50);
+    const s = search.toLowerCase();
+    return options.filter(
+      (o) => o.value.toLowerCase().includes(s) || o.label.toLowerCase().includes(s)
+    ).slice(0, 50);
+  }, [options, search]);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className="h-8 w-full justify-between px-2 font-mono text-[11px] font-normal"
+        >
+          <span className={`truncate ${!selected?.value ? "text-muted-foreground" : ""}`}>
+            {selected?.value || "Projeto..."}
+          </span>
+          <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[420px] p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Procurar projeto..."
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            <CommandEmpty>Nenhum projeto encontrado.</CommandEmpty>
+            <CommandGroup>
+              {filtered.map((opt) => (
+                <CommandItem
+                  key={opt.value}
+                  value={opt.value}
+                  onSelect={() => {
+                    onChange(opt.value, { client: opt.client, description: opt.description });
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  className="flex flex-col items-start py-1.5"
+                >
+                  <span className="text-[11px] font-mono font-semibold">{opt.value}</span>
+                  <span className="text-[10px] text-muted-foreground truncate max-w-full">
+                    {opt.client}{opt.description ? ` · ${opt.description}` : ""}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function SummaryCard({ icon: Icon, label, value, accent, hint }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
@@ -149,98 +329,110 @@ function parseHHMMOrNumber(text) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function RowEditor({ row, index, onPatch, onClear, onCopyPrev, canCopyPrev, projectCodes }) {
+function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCopyPrev, canFillDown, projectCodes }) {
+  const dayTypeOpts = DAY_TYPES.map((d) => ({ value: d, label: d }));
   return (
-    <div className="space-y-3 bg-secondary/20 px-5 py-4">
-      <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-2 bg-secondary/20 px-4 py-3">
+      <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Entrada</Label>
+          <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Entrada</Label>
           <TimeInput value={row.period_start} onChange={(v) => onPatch(index, { period_start: v })} />
         </div>
         <div className="space-y-1">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Saída</Label>
+          <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Saída</Label>
           <TimeInput value={row.period_end} onChange={(v) => onPatch(index, { period_end: v })} />
         </div>
         <div className="space-y-1">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Pausa (hh:mm)</Label>
+          <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Pausa (hh:mm)</Label>
           <TimeInput value={row.pause_hours ? formatHHMMFromHours(row.pause_hours) : ""} onChange={(v) => onPatch(index, { pause_hours: parseHHMMOrNumber(v) })} />
         </div>
         <div className="space-y-1">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Tipo de Dia</Label>
-          <Select value={row.day_type || "Dia Útil"} onValueChange={(v) => onPatch(index, { day_type: v }, { skipRecompute: true })}>
-            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {DAY_TYPES.map((d) => (
-                <SelectItem key={d} value={d}>{d}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Tipo de Dia</Label>
+          <ComboBox value={row.day_type || "Dia Útil"} onChange={(v) => onPatch(index, { day_type: v }, { skipRecompute: true })} options={dayTypeOpts} placeholder="Dia Útil" />
         </div>
       </div>
 
-      <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-amber-700">Horas Extraordinárias</p>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wider text-amber-700/70">1º Período de</Label>
+      {/* Extra hours */}
+      <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-2">
+        <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700">Horas Extraordinárias</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          <div className="space-y-0.5">
+            <Label className="text-[8px] uppercase text-amber-700/70">1º Período de</Label>
             <TimeInput value={row.extra1_start} onChange={(v) => onPatch(index, { extra1_start: v })} />
           </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wider text-amber-700/70">1º Período a</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[8px] uppercase text-amber-700/70">1º Período a</Label>
             <TimeInput value={row.extra1_end} onChange={(v) => onPatch(index, { extra1_end: v })} />
           </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wider text-amber-700/70">2º Período de</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[8px] uppercase text-amber-700/70">2º Período de</Label>
             <TimeInput value={row.extra2_start} onChange={(v) => onPatch(index, { extra2_start: v })} />
           </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-wider text-amber-700/70">2º Período a</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[8px] uppercase text-amber-700/70">2º Período a</Label>
             <TimeInput value={row.extra2_end} onChange={(v) => onPatch(index, { extra2_end: v })} />
           </div>
         </div>
       </div>
 
+      {/* Project */}
       <div className="space-y-1">
-        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Nº Projeto</Label>
-        <input
-          list="project-codes-mobile"
+        <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Nº Projeto</Label>
+        <ProjectComboBox
           value={row.project_number || ""}
-          onChange={(e) => onPatch(index, { project_number: e.target.value })}
-          placeholder="Ex.: 260042-001"
-          className="h-9 w-full rounded-md border border-border bg-white px-2 text-sm font-medium tabular-nums text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+          onChange={(code, info) => onPatch(index, { project_number: code, project_client: info?.client || "", project_description: info?.description || "" })}
+          projects={projectCodes}
         />
-        <datalist id="project-codes-mobile">
-          {projectCodes.map((p) => (
-            <option key={p.code} value={p.code}>{p.client || ""} {p.description ? `— ${p.description}` : ""}</option>
-          ))}
-        </datalist>
       </div>
 
-      <div className="grid grid-cols-1 gap-2">
-        <div className="space-y-1">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Cliente</Label>
-          <Input value={row.project_client || ""} onChange={(e) => onPatch(index, { project_client: e.target.value }, { skipRecompute: true })} placeholder="(auto)" />
+      {/* Client & Description */}
+      <div className="grid grid-cols-1 gap-1.5">
+        <div className="space-y-0.5">
+          <Label className="text-[8px] uppercase text-muted-foreground">Cliente</Label>
+          <Input value={row.project_client || ""} onChange={(e) => onPatch(index, { project_client: e.target.value }, { skipRecompute: true })} placeholder="(auto)" className="h-8 text-xs" />
         </div>
-        <div className="space-y-1">
-          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Descrição</Label>
-          <Input value={row.project_description || ""} onChange={(e) => onPatch(index, { project_description: e.target.value }, { skipRecompute: true })} placeholder="(auto)" />
+        <div className="space-y-0.5">
+          <Label className="text-[8px] uppercase text-muted-foreground">Descrição</Label>
+          <Input value={row.project_description || ""} onChange={(e) => onPatch(index, { project_description: e.target.value }, { skipRecompute: true })} placeholder="(auto)" className="h-8 text-xs" />
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-        <div className="text-[11px] text-muted-foreground">
+      {/* Absence */}
+      <div className="space-y-1">
+        <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Ausência</Label>
+        <ComboBox value={row.absence_type || ""} onChange={(v) => onPatch(index, { absence_type: v }, { skipRecompute: true })} options={ABSENCE_TYPES} placeholder="Sem ausência" />
+      </div>
+
+      {/* Checkboxes */}
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input type="checkbox" checked={!!row.subsidio_almoco} onChange={(e) => onPatch(index, { subsidio_almoco: e.target.checked }, { skipRecompute: true })} className="h-3.5 w-3.5 rounded border-border accent-emerald-600" />
+          S.Alim.
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input type="checkbox" checked={!!row.prevencao} onChange={(e) => onPatch(index, { prevencao: e.target.checked }, { skipRecompute: true })} className="h-3.5 w-3.5 rounded border-border accent-amber-600" />
+          Prevenção
+        </label>
+      </div>
+
+      {/* Observations */}
+      <div className="space-y-0.5">
+        <Label className="text-[8px] uppercase text-muted-foreground">Observações</Label>
+        <Input value={row.observacoes || ""} onChange={(e) => onPatch(index, { observacoes: e.target.value }, { skipRecompute: true })} placeholder="..." className="h-8 text-xs" />
+      </div>
+
+      {/* Calculated + Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+        <div className="text-[10px] text-muted-foreground">
           Calculado: <span className="font-semibold text-foreground">{formatHours(row.normal_hours)}h</span> normais
           {Number(row.extra_hours || 0) > 0 && (
             <span> · <span className="font-semibold text-amber-700">{formatHours(row.extra_hours)}h</span> extras</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="ghost" size="sm" disabled={!canCopyPrev} onClick={onCopyPrev}>
-            Copiar dia anterior
-          </Button>
-          <Button type="button" variant="ghost" size="sm" className="text-red-600 hover:bg-red-50" onClick={onClear}>
-            <Eraser className="mr-1 h-3.5 w-3.5" /> Limpar
-          </Button>
+        <div className="flex items-center gap-1">
+          <Button type="button" variant="ghost" size="sm" disabled={!canCopyPrev} onClick={onCopyPrev} className="text-xs h-7">Copiar anterior</Button>
+          {canFillDown && <Button type="button" variant="ghost" size="sm" onClick={onFillDown} className="text-xs h-7"><ArrowDown className="mr-1 h-3 w-3" />Preencher abaixo</Button>}
+          <Button type="button" variant="ghost" size="sm" className="text-xs h-7 text-red-600 hover:bg-red-50" onClick={onClear}><Eraser className="mr-1 h-3 w-3" />Limpar</Button>
         </div>
       </div>
     </div>
@@ -269,6 +461,12 @@ export default function FillTimesheetPage() {
     queryFn: () => base44.reference.getTimesheetConfig()
   });
 
+  const previousTimesheetsQuery = useQuery({
+    queryKey: ["timesheets"],
+    queryFn: () => base44.entities.Timesheet.list(200),
+    staleTime: 60_000
+  });
+
   const catalogProjects = useMemo(() => {
     const list = Array.isArray(projectsQuery.data?.projects) ? projectsQuery.data.projects : [];
     return list.map((p) => ({
@@ -277,6 +475,30 @@ export default function FillTimesheetPage() {
       client: clean(p.client)
     }));
   }, [projectsQuery.data]);
+
+  const previousTimesheets = useMemo(() => {
+    return Array.isArray(previousTimesheetsQuery.data) ? previousTimesheetsQuery.data : [];
+  }, [previousTimesheetsQuery.data]);
+
+  const previousEmployees = useMemo(() => {
+    const map = new Map();
+    previousTimesheets.forEach((ts) => {
+      const name = clean(ts.employee_name);
+      if (!name) return;
+      const key = name.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, {
+          employee_name: name,
+          employee_number: clean(ts.employee_number),
+          department: clean(ts.department),
+          funcao: clean(ts.funcao),
+          direcao: clean(ts.direcao),
+          centro_custo: clean(ts.centro_custo),
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [previousTimesheets]);
 
   const allProjects = useMemo(() => {
     const map = new Map();
@@ -300,6 +522,27 @@ export default function FillTimesheetPage() {
     });
     return map;
   }, [allProjects]);
+
+  // Auto-fill employee data from last selected timesheet
+  useEffect(() => {
+    try {
+      const lastTsId = localStorage.getItem("atm.selectedTimesheetId");
+      if (lastTsId && previousTimesheets.length > 0 && !meta.employee_name) {
+        const ts = previousTimesheets.find((t) => t.id === lastTsId);
+        if (ts) {
+          setMeta((m) => ({
+            ...m,
+            employee_name: clean(ts.employee_name) || m.employee_name,
+            employee_number: clean(ts.employee_number) || m.employee_number,
+            department: clean(ts.department) || m.department,
+            funcao: clean(ts.funcao) || m.funcao,
+            direcao: clean(ts.direcao) || m.direcao,
+            centro_custo: clean(ts.centro_custo) || m.centro_custo,
+          }));
+        }
+      }
+    } catch { /* ignore */ }
+  }, [previousTimesheets]);
 
   useEffect(() => {
     if (!meta.month || !meta.year) return;
@@ -450,6 +693,30 @@ export default function FillTimesheetPage() {
       });
       return next;
     });
+  }
+
+  function fillDownFromRow(index) {
+    setRows((prev) => {
+      const next = [...prev];
+      const src = next[index];
+      for (let i = index + 1; i < next.length; i++) {
+        const slot = next[i];
+        if (!slot.isWeekend && !slot.period_start) {
+          next[i] = recomputeRow({
+            ...slot,
+            project_number: src.project_number,
+            project_client: src.project_client,
+            project_description: src.project_description,
+            period_start: src.period_start,
+            period_end: src.period_end,
+            pause_hours: src.pause_hours,
+            day_type: slot.isWeekend ? slot.day_type : src.day_type,
+          });
+        }
+      }
+      return next;
+    });
+    toast({ title: "Preenchimento automático", description: "Horário e projeto copiados para os dias úteis seguintes." });
   }
 
   function clearMonth() {
@@ -739,7 +1006,51 @@ export default function FillTimesheetPage() {
             </div>
             <div className="space-y-1 lg:col-span-2">
               <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Nome</Label>
-              <Input value={meta.employee_name} onChange={(e) => setMeta((m) => ({ ...m, employee_name: e.target.value }))} placeholder="Nome do colaborador" />
+              <div className="flex gap-1.5">
+                <Input value={meta.employee_name} onChange={(e) => setMeta((m) => ({ ...m, employee_name: e.target.value }))} placeholder="Nome do colaborador" className="flex-1" />
+                {previousEmployees.length > 0 && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon" className="h-9 w-9 flex-shrink-0" title="Carregar do histórico">
+                        <UserSquare2 className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[360px] p-0" align="end">
+                      <Command>
+                        <CommandInput placeholder="Procurar colaborador..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum colaborador no histórico.</CommandEmpty>
+                          <CommandGroup heading="Colaboradores anteriores">
+                            {previousEmployees.map((emp) => (
+                              <CommandItem
+                                key={emp.employee_name}
+                                value={emp.employee_name}
+                                onSelect={() => {
+                                  setMeta((m) => ({
+                                    ...m,
+                                    employee_name: emp.employee_name,
+                                    employee_number: emp.employee_number,
+                                    department: emp.department,
+                                    funcao: emp.funcao,
+                                    direcao: emp.direcao,
+                                    centro_custo: emp.centro_custo,
+                                  }));
+                                }}
+                                className="flex flex-col items-start py-2"
+                              >
+                                <span className="text-sm font-semibold">{emp.employee_name}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  Nº {emp.employee_number} · {emp.department}
+                                </span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Função</Label>
@@ -875,7 +1186,9 @@ export default function FillTimesheetPage() {
                     onPatch={patchRow}
                     onClear={() => clearRow(idx)}
                     onCopyPrev={() => copyPreviousRow(idx)}
+                    onFillDown={() => fillDownFromRow(idx)}
                     canCopyPrev={idx > 0}
+                    canFillDown={idx < rows.length - 1}
                     projectCodes={allProjects}
                   />
                 </details>
@@ -884,24 +1197,29 @@ export default function FillTimesheetPage() {
           </div>
 
           <div className="hidden md:block">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground">
-                    <th className="sticky left-0 z-10 w-[110px] bg-secondary/40 px-3 py-2 text-left">Dia</th>
-                    <th className="w-[70px] px-2 py-2 text-center">Normais</th>
-                    <th className="w-[90px] px-2 py-2 text-center">Entrada</th>
-                    <th className="w-[90px] px-2 py-2 text-center">Saída</th>
-                    <th className="w-[80px] px-2 py-2 text-center">Pausa</th>
-                    <th className="w-[70px] px-2 py-2 text-center">Extras</th>
-                    <th className="w-[90px] px-2 py-2 text-center">1º HE de</th>
-                    <th className="w-[90px] px-2 py-2 text-center">1º HE a</th>
-                    <th className="w-[90px] px-2 py-2 text-center">2º HE de</th>
-                    <th className="w-[90px] px-2 py-2 text-center">2º HE a</th>
-                    <th className="w-[130px] px-2 py-2 text-left">Tipo Dia</th>
-                    <th className="min-w-[150px] px-2 py-2 text-left">Nº Projeto</th>
-                    <th className="min-w-[160px] px-2 py-2 text-left">Cliente</th>
-                    <th className="min-w-[200px] px-2 py-2 text-left">Descrição</th>
+            <div className="overflow-auto rounded-lg border border-border" style={{ maxHeight: "calc(100vh - 280px)" }}>
+              <table className="w-full border-collapse text-[11px]">
+                <thead className="sticky top-0 z-20">
+                  <tr className="border-b-2 border-border bg-secondary/70 text-[9px] uppercase tracking-wider text-muted-foreground">
+                    <th className="sticky left-0 z-30 bg-secondary/70 px-2 py-1.5 text-left w-[100px]">Dia</th>
+                    <th className="px-1.5 py-1.5 text-center w-[50px]">Norm.</th>
+                    <th className="px-1.5 py-1.5 text-center w-[62px]">Entrada</th>
+                    <th className="px-1.5 py-1.5 text-center w-[62px]">Saída</th>
+                    <th className="px-1.5 py-1.5 text-center w-[50px]">Pausa</th>
+                    <th className="px-1.5 py-1.5 text-center w-[50px]">Extra</th>
+                    <th className="px-1.5 py-1.5 text-center w-[62px]">1ºHE de</th>
+                    <th className="px-1.5 py-1.5 text-center w-[62px]">1ºHE a</th>
+                    <th className="px-1.5 py-1.5 text-center w-[62px]">2ºHE de</th>
+                    <th className="px-1.5 py-1.5 text-center w-[62px]">2ºHE a</th>
+                    <th className="px-1.5 py-1.5 text-center w-[105px]">Tipo Dia</th>
+                    <th className="px-1.5 py-1.5 text-left w-[180px]">Ausência</th>
+                    <th className="px-1.5 py-1.5 text-left w-[120px]">Nº Projeto</th>
+                    <th className="px-1.5 py-1.5 text-left w-[150px]">Cliente</th>
+                    <th className="px-1.5 py-1.5 text-left w-[180px]">Descrição</th>
+                    <th className="px-1.5 py-1.5 text-center w-[55px]">S.Alim</th>
+                    <th className="px-1.5 py-1.5 text-center w-[50px]">Prev</th>
+                    <th className="px-1.5 py-1.5 text-left w-[110px]">Obs.</th>
+                    <th className="px-1.5 py-1.5 text-center w-[115px]">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -911,110 +1229,166 @@ export default function FillTimesheetPage() {
                     const hasWarn = v.warnings.length > 0;
                     const accent = dayTypeAccent(row.day_type);
                     const isWeekend = row.isWeekend;
+                    const dayTypeOpts = DAY_TYPES.map((d) => ({ value: d, label: d }));
                     return (
                       <tr
                         key={row.date}
-                        className={`border-b border-border transition-colors hover:bg-secondary/30 ${isWeekend ? "bg-amber-50/30" : ""} ${hasError ? "bg-red-50/50" : ""}`}
+                        className={`border-b border-border/50 transition-colors hover:bg-secondary/20 ${isWeekend ? "bg-muted/30" : ""} ${hasError ? "bg-red-50/40" : ""}`}
                       >
-                        <td className="sticky left-0 z-10 bg-card px-3 py-2 text-left">
-                          <div className="flex items-center gap-2">
-                            <span className={`h-2 w-2 flex-shrink-0 rounded-full ${accent.dot}`} />
+                        {/* Day cell - sticky left */}
+                        <td className={`sticky left-0 z-10 px-2 py-1 ${isWeekend ? "bg-muted/30" : "bg-card"} ${hasError ? "bg-red-50/40" : ""}`}>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${accent.dot}`} />
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-foreground">
+                              <p className="text-xs font-semibold text-foreground leading-tight">
                                 {row.weekday} {String(row.day).padStart(2, "0")}/{row.date.slice(5, 7)}
                               </p>
-                              <p className="text-[10px] text-muted-foreground">{row.date}</p>
+                              <p className="text-[9px] text-muted-foreground leading-tight">{row.date}</p>
                             </div>
-                            {hasError && <AlertCircle className="h-3.5 w-3.5 text-red-500" />}
-                            {!hasError && hasWarn && <TriangleAlert className="h-3.5 w-3.5 text-amber-500" />}
+                            {hasError && <AlertCircle className="h-3 w-3 text-red-500 flex-shrink-0" />}
+                            {!hasError && hasWarn && <TriangleAlert className="h-3 w-3 text-amber-500 flex-shrink-0" />}
                           </div>
                         </td>
-                        <td className="px-2 py-2 text-center">
-                          <span className="inline-flex h-9 w-full items-center justify-center rounded-md bg-secondary/60 text-sm font-semibold tabular-nums text-foreground">
+                        {/* Normal hours */}
+                        <td className="px-1 py-1 text-center">
+                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.normal_hours || 0) > 0 ? "bg-emerald-100 text-emerald-700" : "bg-muted/50 text-muted-foreground"}`}>
                             {formatHours(row.normal_hours)}
                           </span>
                         </td>
-                        <td className="px-2 py-2">
+                        {/* Period start */}
+                        <td className="px-1 py-1">
                           <TimeInput value={row.period_start} onChange={(v) => patchRow(idx, { period_start: v })} />
                         </td>
-                        <td className="px-2 py-2">
+                        {/* Period end */}
+                        <td className="px-1 py-1">
                           <TimeInput value={row.period_end} onChange={(v) => patchRow(idx, { period_end: v })} />
                         </td>
-                        <td className="px-2 py-2">
+                        {/* Pause */}
+                        <td className="px-1 py-1">
                           <TimeInput value={row.pause_hours ? formatHHMMFromHours(row.pause_hours) : ""} onChange={(v) => patchRow(idx, { pause_hours: parseHHMMOrNumber(v) })} />
                         </td>
-                        <td className="px-2 py-2 text-center">
-                          <span className={`inline-flex h-9 w-full items-center justify-center rounded-md text-sm font-semibold tabular-nums ${Number(row.extra_hours || 0) > 0 ? "bg-amber-100 text-amber-700" : "bg-secondary/60 text-muted-foreground"}`}>
+                        {/* Extra hours */}
+                        <td className="px-1 py-1 text-center">
+                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.extra_hours || 0) > 0 ? "bg-amber-100 text-amber-700" : "bg-muted/50 text-muted-foreground"}`}>
                             {formatHours(row.extra_hours)}
                           </span>
                         </td>
-                        <td className="px-2 py-2">
-                          <TimeInput value={row.extra1_start} onChange={(v) => patchRow(idx, { extra1_start: v })} />
+                        {/* 1st HE start */}
+                        <td className="px-1 py-1">
+                          <TimeInput value={row.extra1_start} onChange={(v) => patchRow(idx, { extra1_start: v })} className="border-amber-200" />
                         </td>
-                        <td className="px-2 py-2">
-                          <TimeInput value={row.extra1_end} onChange={(v) => patchRow(idx, { extra1_end: v })} />
+                        {/* 1st HE end */}
+                        <td className="px-1 py-1">
+                          <TimeInput value={row.extra1_end} onChange={(v) => patchRow(idx, { extra1_end: v })} className="border-amber-200" />
                         </td>
-                        <td className="px-2 py-2">
-                          <TimeInput value={row.extra2_start} onChange={(v) => patchRow(idx, { extra2_start: v })} />
+                        {/* 2nd HE start */}
+                        <td className="px-1 py-1">
+                          <TimeInput value={row.extra2_start} onChange={(v) => patchRow(idx, { extra2_start: v })} className="border-amber-200" />
                         </td>
-                        <td className="px-2 py-2">
-                          <TimeInput value={row.extra2_end} onChange={(v) => patchRow(idx, { extra2_end: v })} />
+                        {/* 2nd HE end */}
+                        <td className="px-1 py-1">
+                          <TimeInput value={row.extra2_end} onChange={(v) => patchRow(idx, { extra2_end: v })} className="border-amber-200" />
                         </td>
-                        <td className="px-2 py-2">
-                          <Select value={row.day_type || "Dia Útil"} onValueChange={(v) => patchRow(idx, { day_type: v }, { skipRecompute: true })}>
-                            <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {DAY_TYPES.map((d) => (
-                                <SelectItem key={d} value={d}>{d}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            list="project-codes"
-                            value={row.project_number || ""}
-                            onChange={(e) => patchRow(idx, { project_number: e.target.value })}
-                            placeholder="Ex.: 260042-001"
-                            className="h-9 w-full rounded-md border border-border bg-white px-2 text-sm font-medium tabular-nums text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                        {/* Day type */}
+                        <td className="px-1 py-1">
+                          <ComboBox
+                            value={row.day_type || "Dia Útil"}
+                            onChange={(v) => patchRow(idx, { day_type: v }, { skipRecompute: true })}
+                            options={dayTypeOpts}
+                            placeholder="Dia Útil"
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        {/* Absence type */}
+                        <td className="px-1 py-1">
+                          <ComboBox
+                            value={row.absence_type || ""}
+                            onChange={(v) => patchRow(idx, { absence_type: v }, { skipRecompute: true })}
+                            options={ABSENCE_TYPES}
+                            placeholder="Sem ausência"
+                          />
+                        </td>
+                        {/* Project number */}
+                        <td className="px-1 py-1">
+                          <ProjectComboBox
+                            value={row.project_number || ""}
+                            onChange={(code, info) => patchRow(idx, { project_number: code, project_client: info?.client || "", project_description: info?.description || "" })}
+                            projects={allProjects}
+                          />
+                        </td>
+                        {/* Client */}
+                        <td className="px-1 py-1">
                           <input
                             value={row.project_client || ""}
                             onChange={(e) => patchRow(idx, { project_client: e.target.value }, { skipRecompute: true })}
                             placeholder="(auto)"
-                            className="h-9 w-full rounded-md border border-border bg-white px-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                            className="h-7 w-full rounded border border-border bg-muted/30 px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
                           />
                         </td>
-                        <td className="px-2 py-2">
+                        {/* Description */}
+                        <td className="px-1 py-1">
                           <input
                             value={row.project_description || ""}
                             onChange={(e) => patchRow(idx, { project_description: e.target.value }, { skipRecompute: true })}
                             placeholder="(auto)"
-                            className="h-9 w-full rounded-md border border-border bg-white px-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                            className="h-7 w-full rounded border border-border bg-muted/30 px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
                           />
+                        </td>
+                        {/* Subsidio almoco (checkbox) */}
+                        <td className="px-1 py-1 text-center">
+                          <input
+                            type="checkbox"
+                            checked={!!row.subsidio_almoco}
+                            onChange={(e) => patchRow(idx, { subsidio_almoco: e.target.checked }, { skipRecompute: true })}
+                            className="h-3.5 w-3.5 rounded border-border accent-emerald-600"
+                          />
+                        </td>
+                        {/* Prevencao (checkbox) */}
+                        <td className="px-1 py-1 text-center">
+                          <input
+                            type="checkbox"
+                            checked={!!row.prevencao}
+                            onChange={(e) => patchRow(idx, { prevencao: e.target.checked }, { skipRecompute: true })}
+                            className="h-3.5 w-3.5 rounded border-border accent-amber-600"
+                          />
+                        </td>
+                        {/* Observations */}
+                        <td className="px-1 py-1">
+                          <input
+                            value={row.observacoes || ""}
+                            onChange={(e) => patchRow(idx, { observacoes: e.target.value }, { skipRecompute: true })}
+                            placeholder="..."
+                            className="h-7 w-full rounded border border-border bg-white px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                          />
+                        </td>
+                        {/* Actions */}
+                        <td className="px-1 py-1">
+                          <div className="flex items-center justify-center gap-0.5">
+                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6" title="Copiar dia anterior" disabled={idx === 0} onClick={() => copyPreviousRow(idx)}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6" title="Preencher dias seguintes" onClick={() => fillDownFromRow(idx)}>
+                              <ArrowDown className="h-3 w-3" />
+                            </Button>
+                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:bg-red-50" title="Limpar linha" onClick={() => clearRow(idx)}>
+                              <Eraser className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-border bg-secondary/50 text-sm font-semibold">
-                    <td className="sticky left-0 z-10 bg-secondary/70 px-3 py-2 text-foreground">TOTAL</td>
-                    <td className="px-2 py-2 text-center tabular-nums text-foreground">{formatHours(totals.normal)}</td>
+                  <tr className="sticky bottom-0 z-20 border-t-2 border-border bg-secondary/80 text-xs font-bold">
+                    <td className="px-2 py-1.5 text-foreground">TOTAL</td>
+                    <td className="px-1 py-1.5 text-center tabular-nums text-emerald-700">{formatHours(totals.normal)}</td>
                     <td colSpan={3} />
-                    <td className="px-2 py-2 text-center tabular-nums text-amber-700">{formatHours(totals.extra)}</td>
-                    <td colSpan={8} />
+                    <td className="px-1 py-1.5 text-center tabular-nums text-amber-700">{formatHours(totals.extra)}</td>
+                    <td colSpan={13} />
                   </tr>
                 </tfoot>
               </table>
 
-              <datalist id="project-codes">
-                {allProjects.map((p) => (
-                  <option key={p.code} value={p.code}>{p.client || ""} {p.description ? `— ${p.description}` : ""}</option>
-                ))}
-              </datalist>
             </div>
           </div>
         </div>
