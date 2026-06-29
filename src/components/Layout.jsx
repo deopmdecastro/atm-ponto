@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Upload, Clock, AlertTriangle, Users, Settings, LogOut, FolderKanban, Menu, X } from "lucide-react";
+import { LayoutDashboard, Upload, Clock, AlertTriangle, Users, Settings, LogOut, FolderKanban, Menu, X, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
 import { useAlertCount } from "@/hooks/useAlertCount";
@@ -13,6 +13,7 @@ const useLocalBackend = import.meta.env.VITE_USE_LOCAL_BACKEND === "true";
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/upload", icon: Upload, label: "Upload" },
+  { to: "/preencher", icon: PenLine, label: "Preencher" },
   { to: "/historico", icon: Clock, label: "Histórico" },
   { to: "/projetos", icon: FolderKanban, label: "Projetos" },
   { to: "/alertas", icon: AlertTriangle, label: "Alertas" },
@@ -20,7 +21,7 @@ const navItems = [
   { to: "/colaboradores", icon: Users, label: "Colaboradores" },
 ];
 
-const mobileNavItems = navItems.filter((item) => ["/", "/upload", "/historico", "/alertas"].includes(item.to));
+const mobileNavItems = navItems.filter((item) => ["/", "/preencher", "/historico", "/alertas"].includes(item.to));
 
 export default function Layout() {
   const location = useLocation();

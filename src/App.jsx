@@ -12,6 +12,7 @@ import Layout from './components/Layout';
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
+const FillTimesheetPage = lazy(() => import("./pages/FillTimesheetPage"));
 const HistoryPage = lazy(() => import("./pages/HistoryPage"));
 const ProjectsPage = lazy(() => import("./pages/ProjectsPage"));
 const AlertsPage = lazy(() => import("./pages/AlertsPage"));
@@ -70,6 +71,7 @@ const AuthenticatedApp = () => {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/upload" element={<UploadPage />} />
+          <Route path="/preencher" element={<FillTimesheetPage />} />
           <Route path="/historico" element={<HistoryPage />} />
           <Route path="/projetos" element={<ProjectsPage />} />
           <Route path="/alertas" element={<AlertsPage />} />
