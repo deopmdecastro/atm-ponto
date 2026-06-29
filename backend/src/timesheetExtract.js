@@ -66,8 +66,12 @@ function parseHoursCell(value) {
   }
   if (typeof value === "number") {
     if (!Number.isFinite(value)) return 0;
-    if (value > 0 && value < 1) return truncate2(value * 24);
-    return truncate2(value);
+    // Snap to an integer when within EPS tolerance to guard against Excel
+    // floating-point imprecision (e.g. 1.0 stored as 0.9999999999999991).
+    const rounded = Math.round(value);
+    const normalized = Math.abs(value - rounded) <= 1e-6 ? rounded : value;
+    if (normalized > 0 && normalized < 1) return truncate2(normalized * 24);
+    return truncate2(normalized);
   }
   const s = String(value).trim();
   const hm = s.match(/^(\d{1,2}):(\d{2})$/);
