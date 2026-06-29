@@ -60,8 +60,7 @@ import {
   exportTimesheetToExcel,
   readTimesheetFile,
   recomputeRow,
-  validateRow,
-  fillTimesheetTemplate
+  validateRow
 } from "@/lib/parseTimesheetClient";
 
 const DAY_TYPES = ["Dia Útil", "Desc.Comp", "Desc. Obrig", "Feriado"];
@@ -453,7 +452,6 @@ export default function FillTimesheetPage() {
   const [rows, setRows] = useState([]);
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [importedProjects, setImportedProjects] = useState([]);
   const [sourceFile, setSourceFile] = useState(null);
   const [parseError, setParseError] = useState("");
@@ -868,28 +866,7 @@ export default function FillTimesheetPage() {
     }
   }
 
-  function handleExport() {
-    setExporting(true);
-    try {
-      const blob = exportTimesheetToExcel({ meta, rows, projects: allProjects });
-      const safeName = clean(meta.employee_name)
-        .replace(/[^\p{L}\p{N}\s._-]+/gu, "")
-        .replace(/\s+/g, "_")
-        .slice(0, 60) || "Colaborador";
-      const safeMonth = clean(meta.month) || "Mes";
-      const filename = `${safeName}_TimeSheet_${safeMonth}_${meta.year || ""}.xlsx`;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } finally {
-      setExporting(false);
-    }
-  }
+
 
   const hasGrid = rows.length > 0;
 
@@ -916,11 +893,7 @@ export default function FillTimesheetPage() {
           />
           <Button type="button" variant="outline" size="sm" className="gap-1.5 h-9 text-xs font-medium border-gray-200 hover:bg-gray-50 hover:border-gray-300" onClick={() => fileInputRef.current?.click()} disabled={parsing}>
             {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Carregar Excel
-          </Button>
-          <Button type="button" variant="outline" size="sm" className="gap-1.5 h-9 text-xs font-medium border-gray-200 hover:bg-gray-50 hover:border-gray-300" onClick={handleExport} disabled={!hasGrid || exporting}>
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Exportar Excel
+            Novo Excel
           </Button>
           <Button type="button" size="sm" className="gap-1.5 h-9 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white" onClick={handleSave} disabled={!canSave || saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

@@ -721,7 +721,7 @@ export function exportTimesheetToExcel({ meta, rows, projects = [] }) {
  */
 export async function fillTimesheetTemplate(originalFile, { rows, meta }) {
   const buf = await originalFile.arrayBuffer();
-  const wb = XLSX.read(buf, { cellDates: true, bookSheets: true, bookProps: true });
+  const wb = XLSX.read(buf, { cellDates: true });
 
   // Find the TimeSheet sheet
   const preferred = "TimeSheet";
@@ -923,6 +923,6 @@ export async function fillTimesheetTemplate(originalFile, { rows, meta }) {
   }
 
   // Write back the workbook
-  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array", bookSST: true });
+  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   return new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
