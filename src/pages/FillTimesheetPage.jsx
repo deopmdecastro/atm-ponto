@@ -412,6 +412,10 @@ function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCo
           <input type="checkbox" checked={!!row.prevencao} onChange={(e) => onPatch(index, { prevencao: e.target.checked }, { skipRecompute: true })} className="h-3.5 w-3.5 rounded border-border accent-amber-600" />
           Prevenção
         </label>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input type="checkbox" checked={!!row.deslocado} onChange={(e) => onPatch(index, { deslocado: e.target.checked }, { skipRecompute: true })} className="h-3.5 w-3.5 rounded border-border accent-purple-600" />
+          Deslocado
+        </label>
       </div>
 
       {/* Observations */}
@@ -1218,6 +1222,7 @@ export default function FillTimesheetPage() {
                     <th className="px-1.5 py-1.5 text-left w-[180px]">Descrição</th>
                     <th className="px-1.5 py-1.5 text-center w-[55px]">S.Alim</th>
                     <th className="px-1.5 py-1.5 text-center w-[50px]">Prev</th>
+                    <th className="px-1.5 py-1.5 text-center w-[55px]">Desl.</th>
                     <th className="px-1.5 py-1.5 text-left w-[110px]">Obs.</th>
                     <th className="px-1.5 py-1.5 text-center w-[115px]">Ações</th>
                   </tr>
@@ -1233,10 +1238,10 @@ export default function FillTimesheetPage() {
                     return (
                       <tr
                         key={row.date}
-                        className={`border-b border-border/50 transition-colors hover:bg-secondary/20 ${isWeekend ? "bg-muted/30" : ""} ${hasError ? "bg-red-50/40" : ""}`}
+                        className={`border-b border-border/40 transition-colors hover:bg-secondary/20 ${isWeekend ? "bg-amber-50/40" : (idx % 2 === 0 ? "bg-white" : "bg-slate-50/40")} ${hasError ? "bg-red-50/40" : ""}`}
                       >
                         {/* Day cell - sticky left */}
-                        <td className={`sticky left-0 z-10 px-2 py-1 ${isWeekend ? "bg-muted/30" : "bg-card"} ${hasError ? "bg-red-50/40" : ""}`}>
+                        <td className={`sticky left-0 z-10 px-2 py-1 ${isWeekend ? "bg-amber-50/40" : (idx % 2 === 0 ? "bg-white" : "bg-slate-50/40")} ${hasError ? "bg-red-50/40" : ""}`}>
                           <div className="flex items-center gap-1.5">
                             <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${accent.dot}`} />
                             <div className="min-w-0">
@@ -1327,7 +1332,7 @@ export default function FillTimesheetPage() {
                             value={row.project_client || ""}
                             onChange={(e) => patchRow(idx, { project_client: e.target.value }, { skipRecompute: true })}
                             placeholder="(auto)"
-                            className="h-7 w-full rounded border border-border bg-muted/30 px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                            className="h-7 w-full rounded-sm border border-slate-200 bg-white px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
                           />
                         </td>
                         {/* Description */}
@@ -1336,7 +1341,7 @@ export default function FillTimesheetPage() {
                             value={row.project_description || ""}
                             onChange={(e) => patchRow(idx, { project_description: e.target.value }, { skipRecompute: true })}
                             placeholder="(auto)"
-                            className="h-7 w-full rounded border border-border bg-muted/30 px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                            className="h-7 w-full rounded-sm border border-slate-200 bg-white px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
                           />
                         </td>
                         {/* Subsidio almoco (checkbox) */}
@@ -1357,13 +1362,22 @@ export default function FillTimesheetPage() {
                             className="h-3.5 w-3.5 rounded border-border accent-amber-600"
                           />
                         </td>
+                        {/* Deslocado (checkbox) */}
+                        <td className="px-1 py-1 text-center">
+                          <input
+                            type="checkbox"
+                            checked={!!row.deslocado}
+                            onChange={(e) => patchRow(idx, { deslocado: e.target.checked }, { skipRecompute: true })}
+                            className="h-3.5 w-3.5 rounded border-border accent-purple-600"
+                          />
+                        </td>
                         {/* Observations */}
                         <td className="px-1 py-1">
                           <input
                             value={row.observacoes || ""}
                             onChange={(e) => patchRow(idx, { observacoes: e.target.value }, { skipRecompute: true })}
                             placeholder="..."
-                            className="h-7 w-full rounded border border-border bg-white px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                            className="h-7 w-full rounded-sm border border-slate-200 bg-white px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
                           />
                         </td>
                         {/* Actions */}
@@ -1390,7 +1404,7 @@ export default function FillTimesheetPage() {
                     <td className="px-1 py-1.5 text-center tabular-nums text-emerald-700">{formatHours(totals.normal)}</td>
                     <td colSpan={3} />
                     <td className="px-1 py-1.5 text-center tabular-nums text-amber-700">{formatHours(totals.extra)}</td>
-                    <td colSpan={14} />
+                    <td colSpan={15} />
                   </tr>
                 </tfoot>
               </table>
