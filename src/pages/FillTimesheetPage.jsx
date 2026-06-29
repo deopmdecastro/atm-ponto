@@ -56,6 +56,7 @@ import { formatHours } from "@/lib/formatHours";
 import {
   MONTH_NAMES_PT,
   buildMonthGrid,
+  exportTimesheetToExcel,
   readTimesheetFile,
   recomputeRow,
   validateRow
