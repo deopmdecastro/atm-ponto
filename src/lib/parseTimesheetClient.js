@@ -709,3 +709,220 @@ export function exportTimesheetToExcel({ meta, rows, projects = [] }) {
   const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   return new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
+
+/* ------------------------------------------------------------------ */
+/* Fill existing Excel template with edited rows                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Takes an original ATM Excel template (ArrayBuffer) and fills it with 
+ * the edited row data. Returns a Blob ready for download.
+ * This preserves the original template's layout, formulas, and styling.
+ */
+export async function fillTimesheetTemplate(originalFile, { rows, meta }) {
+  const buf = await originalFile.arrayBuffer();
+  const wb = XLSX.read(buf, { cellDates: true, bookSheets: true, bookProps: true });
+
+  // Find the TimeSheet sheet
+  const preferred = "TimeSheet";
+  const sheetName =
+    wb.Sheets[preferred] != null
+      ? preferred
+      : wb.SheetNames.find((n) => normalizeSheetName(n).includes("timesheet")) || wb.SheetNames[0];
+
+  if (!wb.Sheets[sheetName]) {
+    throw new Error("Aba TimeSheet n\u00e3o encontrada no template.");
+  }
+
+  const ws = wb.Sheets[sheetName];
+  const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+  // Find the data rows (same logic as extractDailyRecords)
+  const dateCol = (() => {
+    let bestCol = 0, bestCount = -1;
+    const sampleStart = Math.min(30, Math.max(0, matrix.length - 1));
+    const sampleEnd = Math.min(matrix.length, sampleStart + 120);
+    const colCount = Math.max(0, ...matrix.map((r) => (r ? r.length : 0)));
+    for (let c = 0; c < colCount; c++) {
+      let count = 0;
+      for (let r = sampleStart; r < sampleEnd; r++) {
+        if (parseDateCell(matrix[r]?.[c])) count++;
+      }
+      if (count > bestCount) { bestCount = count; bestCol = c; }
+    }
+    return bestCol;
+  })();
+
+  const startRow = (() => {
+    let consecutive = 0;
+    for (let r = 0; r < matrix.length; r++) {
+      if (parseDateCell(matrix[r]?.[dateCol])) consecutive++;
+      else consecutive = 0;
+      if (consecutive >= 5) return Math.max(0, r - (consecutive - 1));
+    }
+    return Math.min(37, Math.max(0, matrix.length - 1));
+  })();
+
+  // Map edited rows by date
+  const rowByDate = new Map(rows.map((r) => [r.date, r]));
+
+  // Column mapping (same indices as extraction)
+  const headerRowIdx = (() => {
+    const patterns = ["data", "entrada", "saida", "pausa", "normal", "extra", "viagem", "ausencia", "feriado", "cliente", "projeto", "descricao"];
+    let bestIdx = Math.max(0, startRow - 1), bestScore = -1;
+    for (let r = Math.max(0, startRow - 15); r < startRow; r++) {
+      const cells = (matrix[r] || []).map(normalizeHeaderCell).join(" ");
+      let score = 0;
+      for (const p of patterns) if (cells.includes(p)) score++;
+      if (score > bestScore) { bestScore = score; bestIdx = r; }
+    }
+    return bestIdx;
+  })();
+
+  const headerRow = matrix[headerRowIdx] || [];
+  const h1 = (i) => normalizeHeaderCell(headerRow?.[i]);
+
+  function findCol(keywords) {
+    const normalized = (headerRow || []).map(normalizeHeaderCell);
+    let best = -1, bestScore = -1;
+    for (let i = 0; i < normalized.length; i++) {
+      let score = 0;
+      for (const k of keywords) if (normalized[i].includes(k)) score++;
+      if (score > bestScore) { bestScore = score; best = i; }
+    }
+    return bestScore > 0 ? best : -1;
+  }
+
+  const cols = {
+    normal_hours: findCol(["normal", "normais", "hn"]),
+    extra_hours: findCol(["total", "extra"]),
+    period_start: findCol(["entrada", "inicio", "inici"]),
+    period_end: findCol(["saida", "fim"]),
+    pause_hours: findCol(["pausa", "almoco"]),
+    extra1_start: findCol(["suplementares"]),
+    day_type: dateCol + 7, // approximate
+    project_number: findCol(["projeto", "project"]),
+    project_client: findCol(["cliente", "client"]),
+    project_description: findCol(["descricao", "description"]),
+  };
+
+  // Also try to find via column header row 2
+  const headerRow2 = matrix[headerRowIdx + 1] || [];
+  const h2 = (i) => normalizeHeaderCell(headerRow2?.[i]);
+
+  if (cols.extra1_start < 0 && h2(dateCol + 6)?.includes("1") && h2(dateCol + 6).includes("de")) cols.extra1_start = dateCol + 6;
+  if (cols.extra_hours < 0 && h1(dateCol + 5)?.includes("total")) cols.extra_hours = dateCol + 5;
+
+  // Write data back
+  for (let r = startRow; r < matrix.length; r++) {
+    const dateISO = parseDateCell(matrix[r]?.[dateCol]);
+    if (!dateISO) continue;
+
+    const edited = rowByDate.get(dateISO);
+    if (!edited) continue;
+
+    const cell = (cIdx) => matrix[r][cIdx];
+
+    // Hours column 2 (Total Normais)
+    if (cols.normal_hours >= 0 && typeof edited.normal_hours === "number") {
+      // Write as a number directly (not time fraction)
+      const cellRef = XLSX.utils.encode_cell({ r, c: cols.normal_hours });
+      if (ws[cellRef]) {
+        ws[cellRef].v = edited.normal_hours;
+        ws[cellRef].t = "n";
+      }
+    }
+
+    // Period start (col 3)
+    if (cols.period_start >= 0 && edited.period_start) {
+      const cellRef = XLSX.utils.encode_cell({ r, c: cols.period_start });
+      if (ws[cellRef]) {
+        const [hh, mm] = edited.period_start.split(":").map(Number);
+        ws[cellRef].v = (hh + mm / 60) / 24;
+        ws[cellRef].t = "n";
+        ws[cellRef].z = "h:mm";
+      }
+    }
+
+    // Period end (col 4)
+    if (cols.period_end >= 0 && edited.period_end) {
+      const cellRef = XLSX.utils.encode_cell({ r, c: cols.period_end });
+      if (ws[cellRef]) {
+        const [hh, mm] = edited.period_end.split(":").map(Number);
+        ws[cellRef].v = (hh + mm / 60) / 24;
+        ws[cellRef].t = "n";
+        ws[cellRef].z = "h:mm";
+      }
+    }
+
+    // Pause (col 5)
+    if (cols.pause_hours >= 0 && edited.pause_hours > 0) {
+      const cellRef = XLSX.utils.encode_cell({ r, c: cols.pause_hours });
+      if (ws[cellRef]) {
+        ws[cellRef].v = edited.pause_hours / 24;
+        ws[cellRef].t = "n";
+        ws[cellRef].z = "h:mm";
+      }
+    }
+
+    // Extra hours
+    if (cols.extra_hours >= 0 && typeof edited.extra_hours === "number") {
+      const cellRef = XLSX.utils.encode_cell({ r, c: cols.extra_hours });
+      if (ws[cellRef]) {
+        ws[cellRef].v = edited.extra_hours;
+        ws[cellRef].t = "n";
+      }
+    }
+
+    // Extra 1 start/end
+    if (cols.extra1_start >= 0 && edited.extra1_start) {
+      const cellRef = XLSX.utils.encode_cell({ r, c: cols.extra1_start });
+      if (ws[cellRef]) {
+        const [hh, mm] = edited.extra1_start.split(":").map(Number);
+        ws[cellRef].v = (hh + mm / 60) / 24;
+        ws[cellRef].t = "n";
+      }
+    }
+
+    // Project number
+    if (cols.project_number >= 0 && edited.project_number) {
+      const cellRef = XLSX.utils.encode_cell({ r, c: cols.project_number });
+      if (ws[cellRef]) {
+        ws[cellRef].v = edited.project_number;
+        ws[cellRef].t = "s";
+      }
+    }
+
+    // Day type
+    if (cols.day_type >= 0 && edited.day_type) {
+      const cellRef = XLSX.utils.encode_cell({ r, c: cols.day_type });
+      if (ws[cellRef]) {
+        ws[cellRef].v = edited.day_type;
+        ws[cellRef].t = "s";
+      }
+    }
+  }
+
+  // Also write project clients/descriptions in the columns just after project number
+  if (cols.project_number >= 0) {
+    for (let r = startRow; r < matrix.length; r++) {
+      const dateISO = parseDateCell(matrix[r]?.[dateCol]);
+      if (!dateISO) continue;
+      const edited = rowByDate.get(dateISO);
+      if (!edited) continue;
+
+      if (edited.project_client && cols.project_number + 1 < (matrix[r]?.length || 0)) {
+        const cellRef = XLSX.utils.encode_cell({ r, c: cols.project_number + 1 });
+        if (ws[cellRef]) { ws[cellRef].v = edited.project_client; ws[cellRef].t = "s"; }
+      }
+      if (edited.project_description && cols.project_number + 2 < (matrix[r]?.length || 0)) {
+        const cellRef = XLSX.utils.encode_cell({ r, c: cols.project_number + 2 });
+        if (ws[cellRef]) { ws[cellRef].v = edited.project_description; ws[cellRef].t = "s"; }
+      }
+    }
+  }
+
+  // Write back the workbook
+  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array", bookSST: true });
+  return new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}

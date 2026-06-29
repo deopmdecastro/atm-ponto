@@ -60,7 +60,8 @@ import {
   exportTimesheetToExcel,
   readTimesheetFile,
   recomputeRow,
-  validateRow
+  validateRow,
+  fillTimesheetTemplate
 } from "@/lib/parseTimesheetClient";
 
 const DAY_TYPES = ["Dia Útil", "Desc.Comp", "Desc. Obrig", "Feriado"];
@@ -615,7 +616,7 @@ export default function FillTimesheetPage() {
       setImportedProjects(projects || []);
 
       toast({
-        title: "Folha de ponto carregada",
+        title: "Template carregado",
         description: `${records.length} registos lidos · ${(projects || []).length} projetos no catálogo.`
       });
     } catch (e) {
@@ -813,7 +814,7 @@ export default function FillTimesheetPage() {
       if (ts?.id) {
         try { localStorage.setItem("atm.selectedTimesheetId", ts.id); } catch { /* ignore */ }
       }
-      toast({ title: "Folha de ponto guardada", description: `${rows.length} registos salvos com sucesso.` });
+      toast({ title: "Folha de ponto guardada", description: `Excel exportado e ${rows.length} registos salvos no histórico.` });
       setTimeout(() => navigate("/"), 1000);
     },
     onError: (err) => {
@@ -923,7 +924,7 @@ export default function FillTimesheetPage() {
           </Button>
           <Button type="button" size="sm" className="gap-1.5 h-9 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white" onClick={handleSave} disabled={!canSave || saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Guardar Folha
+            Guardar & Exportar
           </Button>
         </div>
       </div>
@@ -952,7 +953,7 @@ export default function FillTimesheetPage() {
             Arraste o Excel aqui ou clique para selecionar
           </p>
           <p className="mt-1 text-[11px] font-medium text-gray-600">
-            O ficheiro é lido localmente no browser — os dados só são gravados quando carregar em "Guardar Folha".
+            O ficheiro é lido localmente no browser — os dados só são gravados quando carregar em "Guardar & Exportar".
           </p>
           <div className="mt-4 flex items-center justify-center gap-2 text-[11px] font-medium text-gray-600">
             <span>ou</span>
