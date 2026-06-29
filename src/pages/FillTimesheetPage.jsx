@@ -301,7 +301,7 @@ function SummaryCard({ icon: Icon, label, value, accent, hint }) {
         <span className="text-2xl font-bold tabular-nums text-foreground">{value}</span>
       </div>
       <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">{label}</p>
-      {hint && <p className="mt-1 text-[10px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="mt-1 text-[11px] font-medium text-gray-600">{hint}</p>}
     </div>
   );
 }
@@ -330,45 +330,46 @@ function parseHHMMOrNumber(text) {
 
 function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCopyPrev, canFillDown, projectCodes }) {
   const dayTypeOpts = DAY_TYPES.map((d) => ({ value: d, label: d }));
+  const accent = dayTypeAccent(row.day_type);
   return (
-    <div className="space-y-2 bg-secondary/20 px-4 py-3">
+    <div className="space-y-3 bg-gray-50/80 px-5 py-4 border-t border-gray-100">
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Entrada</Label>
+          <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Entrada</Label>
           <TimeInput value={row.period_start} onChange={(v) => onPatch(index, { period_start: v })} />
         </div>
         <div className="space-y-1">
-          <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Saída</Label>
+          <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Saída</Label>
           <TimeInput value={row.period_end} onChange={(v) => onPatch(index, { period_end: v })} />
         </div>
         <div className="space-y-1">
-          <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Pausa (hh:mm)</Label>
+          <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Pausa (hh:mm)</Label>
           <TimeInput value={row.pause_hours ? formatHHMMFromHours(row.pause_hours) : ""} onChange={(v) => onPatch(index, { pause_hours: parseHHMMOrNumber(v) })} />
         </div>
         <div className="space-y-1">
-          <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Tipo de Dia</Label>
+          <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Tipo de Dia</Label>
           <ComboBox value={row.day_type || "Dia Útil"} onChange={(v) => onPatch(index, { day_type: v }, { skipRecompute: true })} options={dayTypeOpts} placeholder="Dia Útil" />
         </div>
       </div>
 
       {/* Extra hours */}
-      <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-2">
-        <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700">Horas Extraordinárias</p>
+      <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-600">⚡ Horas Extra</p>
         <div className="grid grid-cols-2 gap-1.5">
           <div className="space-y-0.5">
-            <Label className="text-[8px] uppercase text-amber-700/70">1º Período de</Label>
+            <Label className="text-[9px] font-semibold uppercase text-amber-600">1º Período de</Label>
             <TimeInput value={row.extra1_start} onChange={(v) => onPatch(index, { extra1_start: v })} />
           </div>
           <div className="space-y-0.5">
-            <Label className="text-[8px] uppercase text-amber-700/70">1º Período a</Label>
+            <Label className="text-[9px] font-semibold uppercase text-amber-600">1º Período a</Label>
             <TimeInput value={row.extra1_end} onChange={(v) => onPatch(index, { extra1_end: v })} />
           </div>
           <div className="space-y-0.5">
-            <Label className="text-[8px] uppercase text-amber-700/70">2º Período de</Label>
+            <Label className="text-[9px] font-semibold uppercase text-amber-600">2º Período de</Label>
             <TimeInput value={row.extra2_start} onChange={(v) => onPatch(index, { extra2_start: v })} />
           </div>
           <div className="space-y-0.5">
-            <Label className="text-[8px] uppercase text-amber-700/70">2º Período a</Label>
+            <Label className="text-[9px] font-semibold uppercase text-amber-600">2º Período a</Label>
             <TimeInput value={row.extra2_end} onChange={(v) => onPatch(index, { extra2_end: v })} />
           </div>
         </div>
@@ -376,7 +377,7 @@ function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCo
 
       {/* Project */}
       <div className="space-y-1">
-        <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Nº Projeto</Label>
+        <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Nº Projeto</Label>
         <ProjectComboBox
           value={row.project_number || ""}
           onChange={(code, info) => onPatch(index, { project_number: code, project_client: info?.client || "", project_description: info?.description || "" })}
@@ -398,21 +399,21 @@ function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCo
 
       {/* Absence */}
       <div className="space-y-1">
-        <Label className="text-[9px] uppercase tracking-wider text-muted-foreground">Ausência</Label>
+        <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Ausência</Label>
         <ComboBox value={row.absence_type || ""} onChange={(v) => onPatch(index, { absence_type: v }, { skipRecompute: true })} options={ABSENCE_TYPES} placeholder="Sem ausência" />
       </div>
 
       {/* Checkboxes */}
       <div className="flex items-center gap-4">
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <label className="flex items-center gap-1.5 text-[11px] font-medium text-gray-600">
           <input type="checkbox" checked={!!row.subsidio_almoco} onChange={(e) => onPatch(index, { subsidio_almoco: e.target.checked }, { skipRecompute: true })} className="h-3.5 w-3.5 rounded border-border accent-emerald-600" />
           S.Alim.
         </label>
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <label className="flex items-center gap-1.5 text-[11px] font-medium text-gray-600">
           <input type="checkbox" checked={!!row.prevencao} onChange={(e) => onPatch(index, { prevencao: e.target.checked }, { skipRecompute: true })} className="h-3.5 w-3.5 rounded border-border accent-amber-600" />
           Prevenção
         </label>
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <label className="flex items-center gap-1.5 text-[11px] font-medium text-gray-600">
           <input type="checkbox" checked={!!row.deslocado} onChange={(e) => onPatch(index, { deslocado: e.target.checked }, { skipRecompute: true })} className="h-3.5 w-3.5 rounded border-border accent-purple-600" />
           Deslocado
         </label>
@@ -426,16 +427,16 @@ function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCo
 
       {/* Calculated + Actions */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <div className="text-[10px] text-muted-foreground">
-          Calculado: <span className="font-semibold text-foreground">{formatHours(row.normal_hours)}h</span> normais
+        <div className="text-[11px] font-medium text-gray-600">
+          Calculado: <span className="font-bold text-gray-900">{formatHours(row.normal_hours)}h</span> normais
           {Number(row.extra_hours || 0) > 0 && (
-            <span> · <span className="font-semibold text-amber-700">{formatHours(row.extra_hours)}h</span> extras</span>
+            <span> · <span className="font-bold text-amber-700">{formatHours(row.extra_hours)}h</span> extras</span>
           )}
         </div>
         <div className="flex items-center gap-1">
-          <Button type="button" variant="ghost" size="sm" disabled={!canCopyPrev} onClick={onCopyPrev} className="text-xs h-7">Copiar anterior</Button>
-          {canFillDown && <Button type="button" variant="ghost" size="sm" onClick={onFillDown} className="text-xs h-7"><ArrowDown className="mr-1 h-3 w-3" />Preencher abaixo</Button>}
-          <Button type="button" variant="ghost" size="sm" className="text-xs h-7 text-red-600 hover:bg-red-50" onClick={onClear}><Eraser className="mr-1 h-3 w-3" />Limpar</Button>
+          <Button type="button" variant="ghost" size="sm" disabled={!canCopyPrev} onClick={onCopyPrev} className="text-[11px] h-8 font-medium">📋 Copiar anterior</Button>
+          {canFillDown && <Button type="button" variant="ghost" size="sm" onClick={onFillDown} className="text-[11px] h-8 font-medium"><ArrowDown className="mr-1 h-3.5 w-3.5" />Preencher abaixo</Button>}
+          <Button type="button" variant="ghost" size="sm" className="text-[11px] h-8 font-medium text-red-600 hover:bg-red-50" onClick={onClear}><Eraser className="mr-1 h-3.5 w-3.5" />Limpar</Button>
         </div>
       </div>
     </div>
@@ -947,13 +948,13 @@ export default function FillTimesheetPage() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary">
             {parsing ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />}
           </div>
-          <p className="mt-4 text-sm font-semibold text-foreground">
+          <p className="mt-4 text-sm font-bold text-gray-900">
             Arraste o Excel aqui ou clique para selecionar
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-[11px] font-medium text-gray-600">
             O ficheiro é lido localmente no browser — os dados só são gravados quando carregar em "Guardar Folha".
           </p>
-          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <div className="mt-4 flex items-center justify-center gap-2 text-[11px] font-medium text-gray-600">
             <span>ou</span>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
@@ -1047,7 +1048,7 @@ export default function FillTimesheetPage() {
                                 className="flex flex-col items-start py-2"
                               >
                                 <span className="text-sm font-semibold">{emp.employee_name}</span>
-                                <span className="text-[10px] text-muted-foreground">
+                                <span className="text-[11px] font-medium text-gray-600">
                                   Nº {emp.employee_number} · {emp.department}
                                 </span>
                               </CommandItem>
@@ -1101,6 +1102,35 @@ export default function FillTimesheetPage() {
         </div>
       )}
 
+      <AlertDialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          if (!open && confirmOpen) resolveReplaceConfirmation(false);
+          else setConfirmOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Substituir folha de ponto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Já existe uma folha de ponto guardada de <strong>{confirmInfo.period}</strong> para{" "}
+              <strong>{confirmInfo.employeeLabel}</strong>.
+              <br />
+              <br />
+              Pretende substituir? Isto irá apagar o registo anterior desse mês.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => resolveReplaceConfirmation(false)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => resolveReplaceConfirmation(true)}>
+              Substituir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
       {hasGrid && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-1">
           <SummaryCard icon={Clock} label="Total Normais" value={formatHours(totals.normal)} accent="#16A34A" hint={`${totals.worked} dia(s) trabalhado(s)`} />
@@ -1133,7 +1163,7 @@ export default function FillTimesheetPage() {
               <div className="flex items-start gap-2">
                 <TriangleAlert className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-amber-700">{validation.warnings.length} aviso(s)</p>
+                  <p className="text-sm font-bold text-amber-700">{validation.warnings.length} aviso(s)</p>
                   <ul className="space-y-0.5 text-xs text-amber-700/90">
                     {validation.warnings.slice(0, 6).map((e, i) => (
                       <li key={i}>Dia {rows[e.idx]?.day}: {e.msg}</li>
@@ -1176,10 +1206,10 @@ export default function FillTimesheetPage() {
                   <summary className="flex cursor-pointer items-center gap-3 px-5 py-3.5 hover:bg-secondary/30">
                     <span className={`h-2 w-2 flex-shrink-0 rounded-full ${accent.dot}`} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-foreground">
+                      <p className="text-sm font-bold text-gray-900">
                         {row.weekday} {String(row.day).padStart(2, "0")}/{row.date.slice(5, 7)}
                       </p>
-                      <p className="truncate text-xs text-muted-foreground">{row.day_type}{row.project_client ? ` · ${row.project_client}` : ""}</p>
+                      <p className="truncate text-[11px] font-medium text-gray-600">{row.day_type}{row.project_client ? ` · ${row.project_client}` : ""}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold tabular-nums text-foreground">{formatHours(row.normal_hours)}h</p>
@@ -1207,34 +1237,38 @@ export default function FillTimesheetPage() {
           </div>
 
           <div className="hidden md:block">
-            <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 260px)" }}>
-              <table className="w-full border-collapse text-[11px]">
+            {/* Excel-style table */}
+            <div className="overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm" style={{ maxHeight: "calc(100vh - 250px)" }}>
+              <table className="w-full border-collapse">
+                {/* ── Header ── */}
                 <thead className="sticky top-0 z-20">
-                  <tr className="border-b-2 border-border bg-gray-100 text-[9px] font-bold uppercase tracking-wider text-gray-400">
-                    <th className="sticky left-0 z-30 bg-gray-100 px-2 py-1.5 text-left w-[100px]">Dia</th>
-                    <th className="px-1.5 py-1.5 text-center w-[50px]">Norm.</th>
-                    <th className="px-1.5 py-1.5 text-center w-[62px]">Entrada</th>
-                    <th className="px-1.5 py-1.5 text-center w-[62px]">Saída</th>
-                    <th className="px-1.5 py-1.5 text-center w-[50px]">Pausa</th>
-                    <th className="px-1.5 py-1.5 text-center w-[50px]">Extra</th>
-                    <th className="px-1.5 py-1.5 text-center w-[62px]">1ºHE de</th>
-                    <th className="px-1.5 py-1.5 text-center w-[62px]">1ºHE a</th>
-                    <th className="px-1.5 py-1.5 text-center w-[62px]">2ºHE de</th>
-                    <th className="px-1.5 py-1.5 text-center w-[62px]">2ºHE a</th>
-                    <th className="px-1.5 py-1.5 text-center w-[105px]">Tipo Dia</th>
-                    <th className="px-1.5 py-1.5 text-left w-[180px]">Ausência</th>
-                    <th className="px-1.5 py-1.5 text-center w-[60px]">Viagem</th>
-                    <th className="px-1.5 py-1.5 text-left w-[120px]">Nº Projeto</th>
-                    <th className="px-1.5 py-1.5 text-left w-[150px]">Cliente</th>
-                    <th className="px-1.5 py-1.5 text-left w-[180px]">Descrição</th>
-                    <th className="px-1.5 py-1.5 text-center w-[55px]">S.Alim</th>
-                    <th className="px-1.5 py-1.5 text-center w-[50px]">Prev</th>
-                    <th className="px-1.5 py-1.5 text-center w-[55px]">Desl.</th>
-                    <th className="px-1.5 py-1.5 text-left w-[110px]">Obs.</th>
-                    <th className="px-1.5 py-1.5 text-center w-[115px]">Ações</th>
+                  <tr className="bg-gradient-to-b from-gray-50 to-gray-100 text-[10px] font-bold uppercase tracking-wider text-gray-500 border-b-2 border-gray-200">
+                    <th className="sticky left-0 z-30 bg-gradient-to-b from-gray-50 to-gray-100 px-3 py-2.5 text-left w-[120px] border-r border-gray-200">
+                      <span className="flex items-center gap-2">
+                        <CalendarIcon className="h-3.5 w-3.5 text-red-500" />
+                        Dia
+                      </span>
+                    </th>
+                    <th className="px-2 py-2.5 text-center w-[70px] border-r border-gray-100">Horas</th>
+                    <th className="px-2 py-2.5 text-center w-[75px] border-r border-gray-100">Entrada</th>
+                    <th className="px-2 py-2.5 text-center w-[75px] border-r border-gray-100">Saída</th>
+                    <th className="px-2 py-2.5 text-center w-[65px] border-r border-gray-200">Pausa</th>
+                    <th className="px-2 py-2.5 text-center w-[70px] bg-amber-50/60 text-amber-700 border-r border-gray-200">Extra</th>
+                    <th className="px-2 py-2.5 text-center w-[170px] border-r border-gray-200">Tipo Dia</th>
+                    <th className="px-2 py-2.5 text-left w-[170px] border-r border-gray-200">Ausência</th>
+                    <th className="px-2 py-2.5 text-center w-[65px] bg-cyan-50/60 text-cyan-700 border-r border-gray-200">Viagem</th>
+                    <th className="px-2 py-2.5 text-left w-[155px] border-r border-gray-100">Nº Projeto</th>
+                    <th className="px-2 py-2.5 text-left w-[180px] border-r border-gray-200">Cliente / Descrição</th>
+                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-gray-100">S.Al</th>
+                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-gray-100">Prev</th>
+                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-gray-200">Desl</th>
+                    <th className="px-2 py-2.5 text-left w-[130px] border-r border-gray-200">Observações</th>
+                    <th className="px-2 py-2.5 text-center w-[120px]">Ações</th>
                   </tr>
                 </thead>
-                <tbody>
+
+                {/* ── Body ── */}
+                <tbody className="divide-y divide-gray-100">
                   {rows.map((row, idx) => {
                     const v = validation.perRow[idx];
                     const hasError = v.errors.length > 0;
@@ -1242,67 +1276,76 @@ export default function FillTimesheetPage() {
                     const accent = dayTypeAccent(row.day_type);
                     const isWeekend = row.isWeekend;
                     const dayTypeOpts = DAY_TYPES.map((d) => ({ value: d, label: d }));
+                    const rowBg = isWeekend ? "bg-amber-50/40" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50/30");
+                    const hasHours = Number(row.normal_hours || 0) > 0;
+                    const hasExtra = Number(row.extra_hours || 0) > 0;
+                    const hasTravel = Number(row.travel_hours || 0) > 0;
+
                     return (
                       <tr
                         key={row.date}
-                        className={`border-b border-border/40 transition-colors hover:bg-secondary/20 ${isWeekend ? "bg-amber-50/60" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50/60")} ${hasError ? "bg-red-50/40" : ""}`}
+                        className={`group transition-all duration-75 hover:bg-blue-50/50 ${rowBg} ${hasError ? "!bg-red-50/60" : ""} ${hasHours ? "" : ""}`}
                       >
-                        {/* Day cell - sticky left */}
-                        <td className={`sticky left-0 z-10 px-2 py-1 ${isWeekend ? "bg-amber-50/60" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50/60")} ${hasError ? "bg-red-50/40" : ""}`}>
-                          <div className="flex items-center gap-1.5">
-                            <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${accent.dot}`} />
+                        {/* Day */}
+                        <td className={`sticky left-0 z-10 px-3 py-2 border-r border-gray-200 ${rowBg} ${hasError ? "!bg-red-50/60" : ""}`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`h-2 w-2 flex-shrink-0 rounded-full ${accent.dot} ring-2 ring-offset-1 ${accent.dot === "bg-red-500" ? "ring-red-200" : accent.dot === "bg-amber-500" ? "ring-amber-200" : accent.dot === "bg-purple-500" ? "ring-purple-200" : "ring-emerald-200"}`} />
                             <div className="min-w-0">
-                              <p className="text-xs font-semibold text-gray-900 leading-tight">
-                                {row.weekday} {String(row.day).padStart(2, "0")}/{row.date.slice(5, 7)}
-                              </p>
-                              <p className="text-[9px] text-muted-foreground leading-tight">{row.date}</p>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-gray-800">{row.weekday}</span>
+                                <span className="text-[11px] font-mono font-semibold text-gray-500">{String(row.day).padStart(2, "0")}/{row.date.slice(5, 7)}</span>
+                              </div>
+                              <span className="text-[9px] text-gray-400">{row.date.slice(0, 4)}</span>
                             </div>
-                            {hasError && <AlertCircle className="h-3 w-3 text-red-500 flex-shrink-0" />}
-                            {!hasError && hasWarn && <TriangleAlert className="h-3 w-3 text-amber-500 flex-shrink-0" />}
+                            {hasError && <AlertCircle className="h-3.5 w-3.5 text-red-500 flex-shrink-0 ml-auto" />}
+                            {!hasError && hasWarn && <TriangleAlert className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 ml-auto" />}
                           </div>
                         </td>
-                        {/* Normal hours */}
-                        <td className="px-1 py-1 text-center">
-                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.normal_hours || 0) > 0 ? "bg-emerald-50 text-emerald-700 font-bold" : "bg-gray-100 text-gray-300"}`}>
-                            {formatHours(row.normal_hours)}
+
+                        {/* Hours (normal) */}
+                        <td className="px-2 py-2 text-center border-r border-gray-100">
+                          <span className={`inline-flex items-center justify-center min-w-[44px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
+                            hasHours ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200" : "text-gray-300"
+                          }`}>
+                            {hasHours ? formatHours(row.normal_hours) : "—"}
                           </span>
                         </td>
-                        {/* Period start */}
-                        <td className="px-1 py-1">
+
+                        {/* Entry */}
+                        <td className="px-1.5 py-2 border-r border-gray-100">
                           <TimeInput value={row.period_start} onChange={(v) => patchRow(idx, { period_start: v })} />
                         </td>
-                        {/* Period end */}
-                        <td className="px-1 py-1">
+
+                        {/* Exit */}
+                        <td className="px-1.5 py-2 border-r border-gray-100">
                           <TimeInput value={row.period_end} onChange={(v) => patchRow(idx, { period_end: v })} />
                         </td>
+
                         {/* Pause */}
-                        <td className="px-1 py-1">
+                        <td className="px-1.5 py-2 border-r border-gray-200">
                           <TimeInput value={row.pause_hours ? formatHHMMFromHours(row.pause_hours) : ""} onChange={(v) => patchRow(idx, { pause_hours: parseHHMMOrNumber(v) })} />
                         </td>
+
                         {/* Extra hours */}
-                        <td className="px-1 py-1 text-center">
-                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.extra_hours || 0) > 0 ? "bg-amber-50 text-amber-700 font-bold" : "bg-gray-100 text-gray-300"}`}>
-                            {formatHours(row.extra_hours)}
-                          </span>
+                        <td className="px-2 py-2 text-center border-r border-gray-200 bg-amber-50/20">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className={`inline-flex items-center justify-center min-w-[44px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
+                              hasExtra ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200" : "text-gray-300"
+                            }`}>
+                              {hasExtra ? formatHours(row.extra_hours) : "—"}
+                            </span>
+                            {hasExtra && (
+                              <div className="flex items-center gap-0.5">
+                                <TimeInput value={row.extra1_start} onChange={(v) => patchRow(idx, { extra1_start: v })} className="!h-5 !w-[46px] !text-[9px] !border-amber-200 !rounded-sm" />
+                                <span className="text-[9px] text-gray-400">—</span>
+                                <TimeInput value={row.extra1_end} onChange={(v) => patchRow(idx, { extra1_end: v })} className="!h-5 !w-[46px] !text-[9px] !border-amber-200 !rounded-sm" />
+                              </div>
+                            )}
+                          </div>
                         </td>
-                        {/* 1st HE start */}
-                        <td className="px-1 py-1">
-                          <TimeInput value={row.extra1_start} onChange={(v) => patchRow(idx, { extra1_start: v })} className="border-amber-200" />
-                        </td>
-                        {/* 1st HE end */}
-                        <td className="px-1 py-1">
-                          <TimeInput value={row.extra1_end} onChange={(v) => patchRow(idx, { extra1_end: v })} className="border-amber-200" />
-                        </td>
-                        {/* 2nd HE start */}
-                        <td className="px-1 py-1">
-                          <TimeInput value={row.extra2_start} onChange={(v) => patchRow(idx, { extra2_start: v })} className="border-amber-200" />
-                        </td>
-                        {/* 2nd HE end */}
-                        <td className="px-1 py-1">
-                          <TimeInput value={row.extra2_end} onChange={(v) => patchRow(idx, { extra2_end: v })} className="border-amber-200" />
-                        </td>
+
                         {/* Day type */}
-                        <td className="px-1 py-1">
+                        <td className="px-1.5 py-2 border-r border-gray-200">
                           <ComboBox
                             value={row.day_type || "Dia Útil"}
                             onChange={(v) => patchRow(idx, { day_type: v }, { skipRecompute: true })}
@@ -1310,143 +1353,114 @@ export default function FillTimesheetPage() {
                             placeholder="Dia Útil"
                           />
                         </td>
+
                         {/* Absence type */}
-                        <td className="px-1 py-1">
+                        <td className="px-1.5 py-2 border-r border-gray-200">
                           <ComboBox
                             value={row.absence_type || ""}
                             onChange={(v) => patchRow(idx, { absence_type: v }, { skipRecompute: true })}
                             options={ABSENCE_TYPES}
-                            placeholder="Sem ausência"
+                            placeholder="—"
                           />
                         </td>
+
                         {/* Travel hours */}
-                        <td className="px-1 py-1 text-center">
-                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.travel_hours || 0) > 0 ? "bg-cyan-50 text-cyan-700 font-bold" : "bg-gray-100 text-gray-300"}`}>
-                            {formatHours(row.travel_hours)}
+                        <td className="px-2 py-2 text-center border-r border-gray-200 bg-cyan-50/20">
+                          <span className={`inline-flex items-center justify-center min-w-[44px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
+                            hasTravel ? "bg-cyan-100 text-cyan-800 ring-1 ring-cyan-200" : "text-gray-300"
+                          }`}>
+                            {hasTravel ? formatHours(row.travel_hours) : "—"}
                           </span>
                         </td>
+
                         {/* Project number */}
-                        <td className="px-1 py-1">
+                        <td className="px-1.5 py-2 border-r border-gray-100">
                           <ProjectComboBox
                             value={row.project_number || ""}
                             onChange={(code, info) => patchRow(idx, { project_number: code, project_client: info?.client || "", project_description: info?.description || "" })}
                             projects={allProjects}
                           />
                         </td>
-                        {/* Client */}
-                        <td className="px-1 py-1">
-                          <input
-                            value={row.project_client || ""}
-                            onChange={(e) => patchRow(idx, { project_client: e.target.value }, { skipRecompute: true })}
-                            placeholder="(auto)"
-                            className="h-7 w-full rounded-sm border border-slate-200 bg-white px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
-                          />
+
+                        {/* Client + Description merged */}
+                        <td className="px-1.5 py-2 border-r border-gray-200">
+                          <div className="flex flex-col gap-0.5">
+                            <input
+                              value={row.project_client || ""}
+                              onChange={(e) => patchRow(idx, { project_client: e.target.value }, { skipRecompute: true })}
+                              placeholder="Cliente"
+                              className="h-6 w-full rounded border border-gray-200 bg-transparent px-1.5 text-[10px] font-medium text-gray-700 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
+                            />
+                            <input
+                              value={row.project_description || ""}
+                              onChange={(e) => patchRow(idx, { project_description: e.target.value }, { skipRecompute: true })}
+                              placeholder="Descrição"
+                              className="h-6 w-full rounded border border-gray-200 bg-transparent px-1.5 text-[10px] text-gray-500 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
+                            />
+                          </div>
                         </td>
-                        {/* Description */}
-                        <td className="px-1 py-1">
-                          <input
-                            value={row.project_description || ""}
-                            onChange={(e) => patchRow(idx, { project_description: e.target.value }, { skipRecompute: true })}
-                            placeholder="(auto)"
-                            className="h-7 w-full rounded-sm border border-slate-200 bg-white px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
-                          />
+
+                        {/* Subsidio almoco */}
+                        <td className="px-1 py-2 text-center border-r border-gray-100">
+                          <input type="checkbox" checked={!!row.subsidio_almoco} onChange={(e) => patchRow(idx, { subsidio_almoco: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
                         </td>
-                        {/* Subsidio almoco (checkbox) */}
-                        <td className="px-1 py-1 text-center">
-                          <input
-                            type="checkbox"
-                            checked={!!row.subsidio_almoco}
-                            onChange={(e) => patchRow(idx, { subsidio_almoco: e.target.checked }, { skipRecompute: true })}
-                            className="h-3.5 w-3.5 rounded border-border accent-emerald-600"
-                          />
+
+                        {/* Prevencao */}
+                        <td className="px-1 py-2 text-center border-r border-gray-100">
+                          <input type="checkbox" checked={!!row.prevencao} onChange={(e) => patchRow(idx, { prevencao: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer" />
                         </td>
-                        {/* Prevencao (checkbox) */}
-                        <td className="px-1 py-1 text-center">
-                          <input
-                            type="checkbox"
-                            checked={!!row.prevencao}
-                            onChange={(e) => patchRow(idx, { prevencao: e.target.checked }, { skipRecompute: true })}
-                            className="h-3.5 w-3.5 rounded border-border accent-amber-600"
-                          />
+
+                        {/* Deslocado */}
+                        <td className="px-1 py-2 text-center border-r border-gray-200">
+                          <input type="checkbox" checked={!!row.deslocado} onChange={(e) => patchRow(idx, { deslocado: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer" />
                         </td>
-                        {/* Deslocado (checkbox) */}
-                        <td className="px-1 py-1 text-center">
-                          <input
-                            type="checkbox"
-                            checked={!!row.deslocado}
-                            onChange={(e) => patchRow(idx, { deslocado: e.target.checked }, { skipRecompute: true })}
-                            className="h-3.5 w-3.5 rounded border-border accent-purple-600"
-                          />
-                        </td>
+
                         {/* Observations */}
-                        <td className="px-1 py-1">
+                        <td className="px-1.5 py-2 border-r border-gray-200">
                           <input
                             value={row.observacoes || ""}
                             onChange={(e) => patchRow(idx, { observacoes: e.target.value }, { skipRecompute: true })}
                             placeholder="..."
-                            className="h-7 w-full rounded-sm border border-slate-200 bg-white px-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                            className="h-6 w-full rounded border border-gray-200 bg-transparent px-1.5 text-[10px] text-gray-500 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
                           />
                         </td>
+
                         {/* Actions */}
-                        <td className="px-1 py-1">
-                          <div className="flex items-center justify-center gap-0.5">
-                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6" title="Copiar dia anterior" disabled={idx === 0} onClick={() => copyPreviousRow(idx)}>
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6" title="Preencher dias seguintes" onClick={() => fillDownFromRow(idx)}>
-                              <ArrowDown className="h-3 w-3" />
-                            </Button>
-                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:bg-red-50" title="Limpar linha" onClick={() => clearRow(idx)}>
-                              <Eraser className="h-3 w-3" />
-                            </Button>
+                        <td className="px-1 py-2">
+                          <div className="flex items-center justify-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                            <button type="button" disabled={idx === 0} onClick={() => copyPreviousRow(idx)} className="p-1 rounded hover:bg-gray-100 disabled:opacity-20" title="Copiar anterior">
+                              <Copy className="h-3.5 w-3.5 text-gray-400 hover:text-gray-600" />
+                            </button>
+                            <button type="button" onClick={() => fillDownFromRow(idx)} className="p-1 rounded hover:bg-blue-50" title="Preencher abaixo">
+                              <ArrowDown className="h-3.5 w-3.5 text-blue-400 hover:text-blue-600" />
+                            </button>
+                            <button type="button" onClick={() => clearRow(idx)} className="p-1 rounded hover:bg-red-50" title="Limpar">
+                              <Eraser className="h-3.5 w-3.5 text-gray-400 hover:text-red-500" />
+                            </button>
                           </div>
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
+
+                {/* ── Footer ── */}
                 <tfoot>
-                  <tr className="sticky bottom-0 z-20 border-t-2 border-border bg-gray-100 text-xs font-bold">
-                    <td className="px-2 py-1.5 text-foreground">TOTAL</td>
-                    <td className="px-1 py-1.5 text-center tabular-nums text-emerald-700">{formatHours(totals.normal)}</td>
-                    <td colSpan={3} />
-                    <td className="px-1 py-1.5 text-center tabular-nums text-amber-700">{formatHours(totals.extra)}</td>
-                    <td colSpan={15} />
+                  <tr className="sticky bottom-0 z-20 bg-gradient-to-b from-gray-100 to-gray-200 border-t-2 border-gray-300 text-xs font-bold">
+                    <td className="sticky left-0 z-30 bg-gradient-to-b from-gray-100 to-gray-200 px-3 py-2.5 text-gray-700 border-r border-gray-200">
+                      <span className="flex items-center gap-2">
+                        <ClipboardList className="h-3.5 w-3.5 text-red-500" />
+                        TOTAL
+                      </span>
+                    </td>
+                    <td className="px-2 py-2.5 text-center tabular-nums text-emerald-700 border-r border-gray-100">{formatHours(totals.normal)}</td>
+                    <td className="border-r border-gray-100" colSpan={3} />
+                    <td className="px-2 py-2.5 text-center tabular-nums text-amber-700 border-r border-gray-200">{formatHours(totals.extra)}</td>
+                    <td className="border-r border-gray-200" colSpan={9} />
                   </tr>
                 </tfoot>
               </table>
-
             </div>
           </div>
         </div>
       )}
-
-      <AlertDialog
-        open={confirmOpen}
-        onOpenChange={(open) => {
-          if (!open && confirmOpen) resolveReplaceConfirmation(false);
-          else setConfirmOpen(open);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Substituir folha de ponto?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Já existe uma folha de ponto guardada de <strong>{confirmInfo.period}</strong> para{" "}
-              <strong>{confirmInfo.employeeLabel}</strong>.
-              <br />
-              <br />
-              Pretende substituir? Isto irá apagar o registo anterior desse mês.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => resolveReplaceConfirmation(false)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => resolveReplaceConfirmation(true)}>
-              Substituir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-}
