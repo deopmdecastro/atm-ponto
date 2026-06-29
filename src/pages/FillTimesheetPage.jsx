@@ -18,7 +18,6 @@ import {
   Loader2,
   Plane,
   Save,
-  Search,
   TriangleAlert,
   Upload,
   UserSquare2,
@@ -1213,6 +1212,7 @@ export default function FillTimesheetPage() {
                     <th className="px-1.5 py-1.5 text-center w-[62px]">2ºHE a</th>
                     <th className="px-1.5 py-1.5 text-center w-[105px]">Tipo Dia</th>
                     <th className="px-1.5 py-1.5 text-left w-[180px]">Ausência</th>
+                    <th className="px-1.5 py-1.5 text-center w-[60px]">Viagem</th>
                     <th className="px-1.5 py-1.5 text-left w-[120px]">Nº Projeto</th>
                     <th className="px-1.5 py-1.5 text-left w-[150px]">Cliente</th>
                     <th className="px-1.5 py-1.5 text-left w-[180px]">Descrição</th>
@@ -1307,6 +1307,12 @@ export default function FillTimesheetPage() {
                             placeholder="Sem ausência"
                           />
                         </td>
+                        {/* Travel hours */}
+                        <td className="px-1 py-1 text-center">
+                          <span className={`inline-flex h-7 w-full items-center justify-center rounded text-xs font-bold tabular-nums ${Number(row.travel_hours || 0) > 0 ? "bg-cyan-100 text-cyan-700" : "bg-muted/50 text-muted-foreground"}`}>
+                            {formatHours(row.travel_hours)}
+                          </span>
+                        </td>
                         {/* Project number */}
                         <td className="px-1 py-1">
                           <ProjectComboBox
@@ -1384,7 +1390,7 @@ export default function FillTimesheetPage() {
                     <td className="px-1 py-1.5 text-center tabular-nums text-emerald-700">{formatHours(totals.normal)}</td>
                     <td colSpan={3} />
                     <td className="px-1 py-1.5 text-center tabular-nums text-amber-700">{formatHours(totals.extra)}</td>
-                    <td colSpan={13} />
+                    <td colSpan={14} />
                   </tr>
                 </tfoot>
               </table>
