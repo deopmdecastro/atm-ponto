@@ -658,66 +658,381 @@ export function validateRow(row) {
 /* ------------------------------------------------------------------ */
 
 export function exportTimesheetToExcel({ meta, rows, projects = [] }) {
-  const header = [
-    "Dia", "Data", "Total Normais", "Entrada", "Saída", "Pausa",
-    "Total Extras", "1º HE Início", "1º HE Fim", "2º HE Início", "2º HE Fim", "Motivo TS",
-    "Total Viagem", "Ida Início", "Ida Fim", "Volta Início", "Volta Fim",
-    "Tipo de Dia", "Tipo Ausência",
-    "Nº Projeto", "Cliente", "Descrição Projeto",
-    "S.Alim.Adicional", "Prevenção", "Deslocado", "Local Deslocação", "Motivo Deslocação", "Observações"
-  ];
-  const body = rows.map((r) => [
-    r.day, r.date, r.normal_hours, r.period_start, r.period_end, r.pause_hours,
-    r.extra_hours, r.extra1_start, r.extra1_end, r.extra2_start, r.extra2_end, r.extra_motivo,
-    r.travel_hours, r.travel1_start || "", r.travel1_end || "", r.travel2_start || "", r.travel2_end || "",
-    r.day_type, r.absence_type,
-    r.project_number, r.project_client, r.project_description,
-    r.subsidio_almoco ? "1" : "", r.prevencao ? "X" : "", r.deslocado ? "X" : "",
-    r.local_deslocacao || "", r.motivo_deslocacao || "", r.observacoes || ""
-  ]);
-  const totalNormal = rows.reduce((a, r) => a + Number(r.normal_hours || 0), 0);
-  const totalExtra = rows.reduce((a, r) => a + Number(r.extra_hours || 0), 0);
-  const totalTravel = rows.reduce((a, r) => a + Number(r.travel_hours || 0), 0);
-  const footer = ["TOTAL", "", totalNormal, "", "", "", totalExtra, "", "", "", "", "", totalTravel, "", "", "", "", "", "", "", "", "", "", "", "", "", ""];
+  // ── Colours (ATM brand) ──────────────────────────────────────────────
+  const RED       = "FFC0392B"; // ATM vermelho
+  const RED_LIGHT = "FFFDECEA"; // fundo vermelho suave
+  const GRAY_HDR  = "FF2C3E50"; // cabeçalho cinza escuro
+  const GRAY_MID  = "FF5D6D7E"; // cabeçalho grupo intermédio
+  const GRAY_SUB  = "FF85929E"; // subgrupo
+  const GRAY_COL  = "FFAEB6BF"; // cabeçalho coluna
+  const GRAY_LIGHT= "FFF2F3F4"; // linha par
+  const WKND_BG   = "FFFFF9E7"; // fim-de-semana
+  const BLUE_TOTAL= "FF1A5276"; // linha total
+  const WHITE     = "FFFFFFFF";
+  const BORDER_C  = "FFBDC3C7";
 
-  const sheetMeta = [
-    ["FOLHA DE IMPUTAÇÃO — Versão Web ATM Ponto"],
-    [],
-    ["Colaborador", meta.employee_name || ""],
-    ["Nº", meta.employee_number || ""],
-    ["Função", meta.funcao || ""],
-    ["Departamento", meta.department || ""],
-    ["Direção", meta.direcao || ""],
-    ["Centro de Custo", meta.centro_custo || ""],
-    ["CCT", meta.cct || ""],
-    ["Horário", meta.horario || ""],
-    ["Mês", meta.month || ""],
-    ["Ano", meta.year || ""],
-    []
-  ];
+  const font  = (sz = 9, bold = false, color = "FF000000", name = "Arial") =>
+    ({ name, sz, bold, color: { rgb: color } });
+  const fill  = (rgb) => ({ type: "pattern", pattern: "solid", fgColor: { rgb } });
+  const align = (h = "center", v = "center", wrap = false) =>
+    ({ horizontal: h, vertical: v, wrapText: wrap });
+  const thin  = { style: "thin", color: { rgb: BORDER_C } };
+  const med   = { style: "medium", color: { rgb: "FF7F8C8D" } };
+  const allBorders  = (s = thin) => ({ top: s, bottom: s, left: s, right: s });
+  const fmtTime = (v) => {  // "08:00" → Excel fraction
+    if (!v || typeof v !== "string") return null;
+    const m = v.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    return (Number(m[1]) + Number(m[2]) / 60) / 24;
+  };
+  const fmtHours = (h) => {
+    const n = Number(h || 0);
+    if (!n) return 0;
+    const hh = Math.floor(n), mm = Math.round((n - hh) * 60);
+    return (hh + mm / 60) / 24;  // store as Excel time fraction
+  };
 
-  const ws = XLSX.utils.aoa_to_sheet([...sheetMeta, header, ...body, footer]);
-  ws["!cols"] = [
-    { wch: 5 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 },
-    { wch: 8 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 18 },
-    { wch: 8 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 11 },
-    { wch: 14 }, { wch: 22 },
-    { wch: 16 }, { wch: 30 }, { wch: 40 },
-    { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 20 }
-  ];
-
+  // ── Workbook ─────────────────────────────────────────────────────────
   const wb = XLSX.utils.book_new();
+  const ws = {};
+
+  // Helper: set cell
+  function setCell(row, col, value, styleObj) {
+    const ref = XLSX.utils.encode_cell({ r: row, c: col });
+    const cell = { v: value ?? "", s: styleObj };
+    if (typeof value === "number") cell.t = "n";
+    else if (value instanceof Date) cell.t = "d";
+    else cell.t = "s";
+    if (styleObj?.numFmt) cell.z = styleObj.numFmt;
+    ws[ref] = cell;
+  }
+
+  function mergeRange(r1, c1, r2, c2) {
+    if (!ws["!merges"]) ws["!merges"] = [];
+    ws["!merges"].push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } });
+  }
+
+  // ── Column layout (matches ATM original exactly) ─────────────────────
+  // Col index (0-based):
+  // 0=A(vazio) 1=B(Data) 2=C(TotNorm) 3=D(Entrada) 4=E(Saída) 5=F(Pausa)
+  // 6=G(TotExtra) 7=H(HE1de) 8=I(HE1a) 9=J(HE2de) 10=K(HE2a) 11=L(MotivoTS)
+  // 12=M(TotViagem) 13=N(IdaIn) 14=O(IdaFim) 15=P(VoltaIn) 16=Q(VoltaFim)
+  // 17=R(TotAusencia) 18=S(TipoAusencia) 19=T(AusDe) 20=U(AusA)
+  // 21=V(TipoDia) 22=W(SAlim) 23=X(Prev) 24=Y(Desl) 25=Z(Local) 26=AA(MotivDesl)
+  // 27=AB(NºProj) 28=AC(Cliente) 29=AD(Descricao) 30=AE(Obs)
+
+  const COL_WIDTHS = [
+    2,    // A vazio
+    20,   // B Data
+    9,    // C Total Normais
+    9,    // D Entrada
+    9,    // E Saída
+    9,    // F Pausa
+    9,    // G Total Extras
+    12,   // H HE1 início
+    12,   // I HE1 fim
+    12,   // J HE2 início
+    12,   // K HE2 fim
+    18,   // L Motivo TS
+    9,    // M Total Viagem
+    12,   // N Ida Início
+    12,   // O Ida Fim
+    12,   // P Volta Início
+    12,   // Q Volta Fim
+    9,    // R Total Ausência
+    30,   // S Tipo Ausência/Presença
+    9,    // T Aus. de
+    9,    // U Aus. a
+    16,   // V Tipo de Dia
+    10,   // W S.Alim.
+    10,   // X Prevenção
+    10,   // Y Deslocado
+    22,   // Z Local Deslocação
+    22,   // AA Motivo Deslocação
+    16,   // AB Nº Projeto
+    30,   // AC Cliente
+    42,   // AD Descrição Projeto
+    40,   // AE Observações
+  ];
+  ws["!cols"] = COL_WIDTHS.map((w) => ({ wch: w }));
+
+  // ── Header section (rows 0-12) ────────────────────────────────────────
+  // Row 0-1: top brand bar
+  const brandStyle = { font: font(14, true, WHITE), fill: fill(RED), alignment: align("center"), border: allBorders() };
+  const brandStyle2 = { font: font(10, false, WHITE), fill: fill(RED), alignment: align("center") };
+  mergeRange(0, 0, 1, 30);
+  setCell(0, 0, "FOLHA  DE  IMPUTAÇÃO", brandStyle);
+  mergeRange(2, 0, 2, 23);
+  setCell(2, 0, `Prazo limite de envio para Recursos Humanos: DIA 5 de CADA MÊS`, { font: font(8, false, GRAY_HDR), alignment: align("center") });
+  mergeRange(2, 24, 2, 27);
+  setCell(2, 24, meta.month || "", { font: font(11, true, RED), alignment: align("center") });
+  mergeRange(2, 28, 2, 30);
+  setCell(2, 28, meta.year || "", { font: font(11, true, RED), alignment: align("center") });
+  mergeRange(3, 0, 3, 30);
+  setCell(3, 0, "VERSÃO: 05.26 | DRH", { font: font(8, false, GRAY_SUB), alignment: align("right") });
+
+  // Row 5-11: employee info block
+  const labelStyle = { font: font(9, true, GRAY_HDR), fill: fill(GRAY_LIGHT), alignment: align("right", "center"), border: allBorders() };
+  const valueStyle = { font: font(9, false, "FF000000"), border: allBorders(), alignment: align("left", "center") };
+
+  const infoRows = [
+    [5,  "Nº:",          meta.employee_number || "",  2, 3,  "Nome:",       meta.employee_name || "",    4, 15,  "Função:",   meta.funcao || "",      16, 30],
+    [6,  "CCT:",         meta.cct || "",              2, 3,  "Horário:",    meta.horario || "",          4, 8,   "Direção ATM / ACE:", meta.direcao || "", 9, 15],
+    [7,  "Departamento:",meta.department || "",       2, 10, "Centro de Custo:", meta.centro_custo || "", 11, 20, "","","",    21, 30],
+    [8,  "E-mail Rem.:", meta.email_remetente || "",  2, 10, "E-mail Nível 1:", meta.email_nivel1 || "", 11, 20, "E-mail Nível 2:", meta.email_nivel2 || "", 21, 30],
+  ];
+  for (const [r, lbl1, v1, c1s, c1e, lbl2, v2, c2s, c2e, lbl3, v3, c3s, c3e] of infoRows) {
+    setCell(r, 1, lbl1, labelStyle);
+    mergeRange(r, c1s, r, c1e); setCell(r, c1s, v1, valueStyle);
+    if (lbl2) { setCell(r, c2s - 1, lbl2, labelStyle); mergeRange(r, c2s, r, c2e); setCell(r, c2s, v2, valueStyle); }
+    if (lbl3) { setCell(r, c3s - 1, lbl3, labelStyle); mergeRange(r, c3s, r, c3e); setCell(r, c3s, v3, valueStyle); }
+  }
+
+  // ── Data headers (rows 12-14) ─────────────────────────────────────────
+  // Row 12: group labels
+  const grpStyle = (rgb) => ({ font: font(9, true, WHITE), fill: fill(rgb), alignment: align("center", "center", true), border: allBorders(med) });
+
+  const groups = [
+    [2,  5,  "NORMAIS",              GRAY_HDR],
+    [6,  11, "EXTRAORDINÁRIAS",      GRAY_MID],
+    [12, 16, "HORAS DE VIAGEM",      GRAY_MID],
+    [17, 20, "AUSÊNCIAS/PRESENÇAS",  GRAY_HDR],
+    [21, 21, "TIPO DIA",             GRAY_HDR],
+    [22, 24, "SUBSÍDIOS",            GRAY_HDR],
+    [25, 26, "DESLOCAÇÃO",           GRAY_MID],
+    [27, 29, "IMPUTAÇÃO",            RED],
+    [30, 30, "OBS",                  GRAY_HDR],
+  ];
+  for (const [cs, ce, label, rgb] of groups) {
+    mergeRange(12, cs, 12, ce);
+    setCell(12, cs, label, grpStyle(rgb));
+  }
+  setCell(12, 1, "", grpStyle(GRAY_HDR)); // Data col header
+
+  // Row 13: subgroup labels
+  const subStyle = (rgb) => ({ font: font(8, true, WHITE), fill: fill(rgb), alignment: align("center", "center", true), border: allBorders() });
+  const subs = [
+    [1,  1,  "Data",                 GRAY_HDR],
+    [2,  2,  "Total",                GRAY_HDR],
+    [3,  5,  "PERÍODO",              GRAY_SUB],
+    [6,  6,  "Total",                GRAY_MID],
+    [7,  11, "Suplementares",        GRAY_SUB],
+    [12, 12, "Total",                GRAY_MID],
+    [13, 16, "Trajeto",              GRAY_SUB],
+    [17, 17, "Total",                GRAY_HDR],
+    [18, 20, "Tipo / Período",       GRAY_SUB],
+    [21, 21, "",                     GRAY_HDR],
+    [22, 22, "S.Alim.",              GRAY_HDR],
+    [23, 23, "Prev.",                GRAY_HDR],
+    [24, 24, "Desl.",                GRAY_HDR],
+    [25, 25, "Local",                GRAY_MID],
+    [26, 26, "Motivo",               GRAY_MID],
+    [27, 27, "Nº Projeto",           RED],
+    [28, 28, "Cliente",              RED],
+    [29, 29, "Descrição",            RED],
+    [30, 30, "Observações",          GRAY_HDR],
+  ];
+  for (const [cs, ce, label, rgb] of subs) {
+    mergeRange(13, cs, 13, ce);
+    setCell(13, cs, label, subStyle(rgb));
+  }
+
+  // Row 14: detail column headers
+  const colHdr = (label, rgb = GRAY_COL) => ({ font: font(7.5, true, WHITE), fill: fill(rgb), alignment: align("center", "center", true), border: allBorders() });
+  const detailCols = [
+    [3, "de", GRAY_SUB], [4, "a", GRAY_SUB], [5, "Pausa", GRAY_SUB],
+    [7, "1º HE\nde", GRAY_SUB], [8, "1º HE\na", GRAY_SUB],
+    [9, "2º HE\nde", GRAY_SUB], [10, "2º HE\na", GRAY_SUB],
+    [11, "Motivo TS", GRAY_SUB],
+    [13, "Ida\nInício", GRAY_SUB], [14, "Ida\nFim", GRAY_SUB],
+    [15, "Volta\nInício", GRAY_SUB], [16, "Volta\nFim", GRAY_SUB],
+    [18, "Tipo Ausência", GRAY_SUB], [19, "de", GRAY_SUB], [20, "a", GRAY_SUB],
+  ];
+  for (const [c, lbl, rgb] of detailCols) {
+    setCell(14, c, lbl, colHdr(lbl, rgb));
+  }
+  // Empty cells for merged columns in row 14
+  for (const c of [1, 2, 6, 12, 17, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]) {
+    setCell(14, c, "", colHdr("", GRAY_COL));
+  }
+
+  // ── Data rows ─────────────────────────────────────────────────────────
+  const WEEKDAY_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const timeStyle = (bg) => ({ font: font(9, false, "FF000000"), fill: fill(bg), alignment: align("center"), border: allBorders(), numFmt: "h:mm" });
+  const numStyle  = (bg) => ({ font: font(9, true,  "FF1A5276"), fill: fill(bg), alignment: align("center"), border: allBorders(), numFmt: "h:mm" });
+  const txtStyle  = (bg) => ({ font: font(9, false, "FF000000"), fill: fill(bg), alignment: align("center", "center", true), border: allBorders() });
+  const ckStyle   = (bg) => ({ font: font(9, false, RED),        fill: fill(bg), alignment: align("center"), border: allBorders() });
+  const dayStyle  = (bg, bold = false) => ({ font: font(9, bold, bold ? WHITE : GRAY_HDR), fill: fill(bg), alignment: align("left"), border: allBorders() });
+
+  let excelRow = 15;
+  for (const r of rows) {
+    const date = new Date(r.date + "T00:00:00");
+    const wd   = date.getDay(); // 0=sun..6=sat
+    const isWknd = wd === 0 || wd === 6;
+    const isFeriado = r.day_type === "Feriado";
+    const dayBg = isFeriado ? "FFDFE6FF" : isWknd ? WKND_BG : (excelRow % 2 === 0 ? WHITE : GRAY_LIGHT);
+    const dateLbl = `${WEEKDAY_PT[wd]} ${String(r.day).padStart(2, "0")}/${r.date.slice(5, 7)}`;
+
+    // Col B: Data
+    setCell(excelRow, 1, dateLbl, dayStyle(isWknd || isFeriado ? dayBg : dayBg, isWknd));
+
+    // Col C: Total Normais
+    const nh = fmtHours(r.normal_hours);
+    setCell(excelRow, 2, nh || 0, { ...numStyle(dayBg), v: nh, numFmt: "h:mm" });
+
+    // Col D,E,F: Entrada, Saída, Pausa
+    setCell(excelRow, 3,  fmtTime(r.period_start)  ?? "", { ...timeStyle(dayBg) });
+    setCell(excelRow, 4,  fmtTime(r.period_end)     ?? "", { ...timeStyle(dayBg) });
+    setCell(excelRow, 5,  fmtHours(r.pause_hours)   || "", { ...timeStyle(dayBg) });
+
+    // Col G: Total Extra
+    const eh = fmtHours(r.extra_hours);
+    setCell(excelRow, 6, eh || 0, { ...numStyle("FFFFF9E7"), v: eh, numFmt: "h:mm" });
+
+    // Col H-K: HE períodos
+    setCell(excelRow, 7,  fmtTime(r.extra1_start)   ?? "", { ...timeStyle("FFFFF9E7") });
+    setCell(excelRow, 8,  fmtTime(r.extra1_end)      ?? "", { ...timeStyle("FFFFF9E7") });
+    setCell(excelRow, 9,  fmtTime(r.extra2_start)   ?? "", { ...timeStyle("FFFFF9E7") });
+    setCell(excelRow, 10, fmtTime(r.extra2_end)      ?? "", { ...timeStyle("FFFFF9E7") });
+
+    // Col L: Motivo TS
+    setCell(excelRow, 11, r.extra_motivo || (r.extra_hours > 0 ? "Motivo Simples" : ""), { ...txtStyle("FFFFF9E7") });
+
+    // Col M: Total Viagem
+    const th = fmtHours(r.travel_hours);
+    setCell(excelRow, 12, th || 0, { ...numStyle("FFF0F9FF"), v: th, numFmt: "h:mm" });
+
+    // Col N-Q: Viagem trajetos
+    setCell(excelRow, 13, fmtTime(r.travel1_start)  ?? "", { ...timeStyle("FFF0F9FF") });
+    setCell(excelRow, 14, fmtTime(r.travel1_end)     ?? "", { ...timeStyle("FFF0F9FF") });
+    setCell(excelRow, 15, fmtTime(r.travel2_start)  ?? "", { ...timeStyle("FFF0F9FF") });
+    setCell(excelRow, 16, fmtTime(r.travel2_end)     ?? "", { ...timeStyle("FFF0F9FF") });
+
+    // Col R: Total Ausência (horas)
+    const ah = fmtHours(r.absence_hours);
+    setCell(excelRow, 17, ah || 0, { ...numStyle(dayBg), v: ah, numFmt: "h:mm" });
+
+    // Col S: Tipo Ausência
+    setCell(excelRow, 18, r.absence_type || "", { ...txtStyle(dayBg), alignment: align("left", "center", true) });
+
+    // Col T, U: ausência de/a (hora início/fim da ausência parcial — deixar vazio)
+    setCell(excelRow, 19, "", { ...timeStyle(dayBg) });
+    setCell(excelRow, 20, "", { ...timeStyle(dayBg) });
+
+    // Col V: Tipo de Dia
+    const dtBg = r.day_type === "Desc. Obrig" ? "FFFDECEA"
+               : r.day_type === "Desc.Comp"   ? "FFFFF9E7"
+               : r.day_type === "Feriado"      ? "FFDFE6FF"
+               : dayBg;
+    setCell(excelRow, 21, r.day_type || "Dia Útil", { ...txtStyle(dtBg) });
+
+    // Col W,X,Y: S.Alim, Prev, Desl
+    setCell(excelRow, 22, r.subsidio_almoco ? "1" : "", { ...ckStyle(dayBg) });
+    setCell(excelRow, 23, r.prevencao       ? "X" : "", { ...ckStyle(dayBg) });
+    setCell(excelRow, 24, r.deslocado       ? "X" : "", { ...ckStyle(dayBg) });
+
+    // Col Z, AA: Local, Motivo Deslocação
+    setCell(excelRow, 25, r.local_deslocacao  || "", { ...txtStyle(dayBg), alignment: align("left") });
+    setCell(excelRow, 26, r.motivo_deslocacao || "", { ...txtStyle(dayBg), alignment: align("left") });
+
+    // Col AB, AC, AD: Nº Projeto, Cliente, Descrição
+    setCell(excelRow, 27, r.project_number      || "", { ...txtStyle(dayBg), font: font(9, true,  RED), alignment: align("center") });
+    setCell(excelRow, 28, r.project_client       || "", { ...txtStyle(dayBg), alignment: align("left") });
+    setCell(excelRow, 29, r.project_description  || "", { ...txtStyle(dayBg), alignment: align("left") });
+
+    // Col AE: Observações
+    setCell(excelRow, 30, r.observacoes || "", { ...txtStyle(dayBg), alignment: align("left") });
+
+    excelRow++;
+  }
+
+  // ── TOTAL row ────────────────────────────────────────────────────────
+  const totNorm  = rows.reduce((a, r) => a + Number(r.normal_hours  || 0), 0);
+  const totExtra = rows.reduce((a, r) => a + Number(r.extra_hours   || 0), 0);
+  const totTravel= rows.reduce((a, r) => a + Number(r.travel_hours  || 0), 0);
+  const totStyle = (c) => ({ font: font(9, true, WHITE), fill: fill(c), alignment: align("center"), border: allBorders(med), numFmt: "h:mm" });
+  const totTxt   = { font: font(10, true, WHITE), fill: fill(BLUE_TOTAL), alignment: align("center"), border: allBorders(med) };
+
+  mergeRange(excelRow, 1, excelRow, 2);
+  setCell(excelRow, 1, "TOTAL", totTxt);
+  setCell(excelRow, 2,  fmtHours(totNorm),   totStyle(BLUE_TOTAL));
+  for (const c of [3, 4, 5]) setCell(excelRow, c, "", totStyle(BLUE_TOTAL));
+  setCell(excelRow, 6,  fmtHours(totExtra),  totStyle(BLUE_TOTAL));
+  for (const c of [7, 8, 9, 10, 11]) setCell(excelRow, c, "", totStyle(BLUE_TOTAL));
+  setCell(excelRow, 12, fmtHours(totTravel), totStyle(BLUE_TOTAL));
+  for (let c = 13; c <= 30; c++) setCell(excelRow, c, "", totStyle(BLUE_TOTAL));
+
+  // ── Summary section ───────────────────────────────────────────────────
+  const sumRow = excelRow + 2;
+  const smLbl = { font: font(8, true, WHITE), fill: fill(GRAY_MID), alignment: align("right"), border: allBorders() };
+  const smVal = { font: font(9, true, "FF1A5276"), alignment: align("center"), border: allBorders() };
+  const sumData = [
+    ["Horas Normais Totais",  fmtHours(totNorm),  "h:mm"],
+    ["Horas Extra Totais",    fmtHours(totExtra), "h:mm"],
+    ["Horas Viagem Totais",   fmtHours(totTravel),"h:mm"],
+    ["Dias Trabalhados",      rows.filter(r => Number(r.normal_hours) > 0).length, "0"],
+    ["Dias de Férias",        rows.filter(r => r.absence_type?.includes("Férias")).length, "0"],
+  ];
+  for (let i = 0; i < sumData.length; i++) {
+    const [lbl, val, fmt] = sumData[i];
+    setCell(sumRow + i, 1, lbl, smLbl);
+    setCell(sumRow + i, 2, val, { ...smVal, numFmt: fmt });
+  }
+
+  // ── Signature block ───────────────────────────────────────────────────
+  const sigRow = sumRow + sumData.length + 2;
+  const sigLbl = { font: font(9, true, WHITE), fill: fill(GRAY_HDR), alignment: align("center"), border: allBorders() };
+  const sigFields = [
+    [1, 6, "Técnico (Colaborador)"],
+    [10, 15, "Encarregado"],
+    [17, 22, "Gestor de Contrato"],
+    [24, 28, "Direção"],
+  ];
+  for (const [cs, ce, lbl] of sigFields) {
+    mergeRange(sigRow, cs, sigRow, ce);
+    setCell(sigRow, cs, lbl, sigLbl);
+    mergeRange(sigRow + 3, cs, sigRow + 3, ce);
+    setCell(sigRow + 3, cs, "___ / ___", { font: font(8, false, GRAY_SUB), alignment: align("center"), border: allBorders() });
+  }
+
+  // ── Sheet range ──────────────────────────────────────────────────────
+  const lastRow = sigRow + 4;
+  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow, c: 30 } });
+
+  // Row heights
+  const ROW_HEIGHTS = {};
+  for (let r = 0; r <= 4; r++) ROW_HEIGHTS[r] = 16;
+  for (let r = 5; r <= 11; r++) ROW_HEIGHTS[r] = 18;
+  ROW_HEIGHTS[12] = 24; ROW_HEIGHTS[13] = 22; ROW_HEIGHTS[14] = 28;
+  for (let r = 15; r < excelRow; r++) ROW_HEIGHTS[r] = 22;
+  ROW_HEIGHTS[excelRow] = 22;
+  ws["!rows"] = Array.from({ length: lastRow + 1 }, (_, i) => ROW_HEIGHTS[i] ? { hpt: ROW_HEIGHTS[i] } : {});
+
   XLSX.utils.book_append_sheet(wb, ws, "TimeSheet");
 
+  // ── Projects sheet ────────────────────────────────────────────────────
   if (projects.length > 0) {
-    const pHeader = ["PROJETO", "Descrição", "Cliente"];
-    const pBody = projects.map((p) => [p.code || "", p.description || "", p.client || ""]);
-    const pws = XLSX.utils.aoa_to_sheet([pHeader, ...pBody]);
-    pws["!cols"] = [{ wch: 18 }, { wch: 60 }, { wch: 35 }];
+    const pws = {};
+    const pH  = (c, lbl) => {
+      const ref = XLSX.utils.encode_cell({ r: 0, c });
+      pws[ref] = { v: lbl, t: "s", s: { font: font(9, true, WHITE), fill: fill(RED), alignment: align("center"), border: allBorders() } };
+    };
+    pH(0, "Nº Projeto"); pH(1, "Cliente"); pH(2, "Descrição");
+    projects.forEach((p, i) => {
+      const r = i + 1;
+      const bg = r % 2 === 0 ? GRAY_LIGHT : WHITE;
+      const base = { font: font(9), fill: fill(bg), border: allBorders(), alignment: align("left") };
+      [[0, p.code], [1, p.client], [2, p.description]].forEach(([c, v]) => {
+        const ref = XLSX.utils.encode_cell({ r, c });
+        pws[ref] = { v: v || "", t: "s", s: base };
+      });
+    });
+    pws["!ref"]  = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: projects.length, c: 2 } });
+    pws["!cols"] = [{ wch: 16 }, { wch: 30 }, { wch: 55 }];
     XLSX.utils.book_append_sheet(wb, pws, "Nº Projetos");
   }
 
-  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array", cellStyles: true });
   return new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
 
