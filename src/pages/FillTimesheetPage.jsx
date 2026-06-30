@@ -15,9 +15,11 @@ import {
   Download,
   Eraser,
   FileSpreadsheet,
+  LayoutGrid,
   Loader2,
   Plane,
   Save,
+  Table as TableIcon,
   TriangleAlert,
   Upload,
   UserSquare2,
@@ -382,6 +384,29 @@ function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCo
         </div>
       </div>
 
+      {/* Travel hours */}
+      <div className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-3">
+        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-cyan-700">✈️ Horas de Viagem</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          <div className="space-y-0.5">
+            <Label className="text-[9px] font-semibold uppercase text-cyan-700">1º Período de</Label>
+            <TimeInput value={row.travel1_start} onChange={(v) => onPatch(index, { travel1_start: v })} />
+          </div>
+          <div className="space-y-0.5">
+            <Label className="text-[9px] font-semibold uppercase text-cyan-700">1º Período a</Label>
+            <TimeInput value={row.travel1_end} onChange={(v) => onPatch(index, { travel1_end: v })} />
+          </div>
+          <div className="space-y-0.5">
+            <Label className="text-[9px] font-semibold uppercase text-cyan-700">2º Período de</Label>
+            <TimeInput value={row.travel2_start} onChange={(v) => onPatch(index, { travel2_start: v })} />
+          </div>
+          <div className="space-y-0.5">
+            <Label className="text-[9px] font-semibold uppercase text-cyan-700">2º Período a</Label>
+            <TimeInput value={row.travel2_end} onChange={(v) => onPatch(index, { travel2_end: v })} />
+          </div>
+        </div>
+      </div>
+
       {/* Project */}
       <div className="space-y-1">
         <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Nº Projeto</Label>
@@ -439,12 +464,88 @@ function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCo
           {Number(row.extra_hours || 0) > 0 && (
             <span> · <span className="font-bold text-amber-700">{formatHours(row.extra_hours)}h</span> extras</span>
           )}
+          {Number(row.travel_hours || 0) > 0 && (
+            <span> · <span className="font-bold text-cyan-700">{formatHours(row.travel_hours)}h</span> viagem</span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <Button type="button" variant="ghost" size="sm" disabled={!canCopyPrev} onClick={onCopyPrev} className="text-[11px] h-8 font-medium">📋 Copiar anterior</Button>
           {canFillDown && <Button type="button" variant="ghost" size="sm" onClick={onFillDown} className="text-[11px] h-8 font-medium"><ArrowDown className="mr-1 h-3.5 w-3.5" />Preencher abaixo</Button>}
           <Button type="button" variant="ghost" size="sm" className="text-[11px] h-8 font-medium text-red-600 hover:bg-red-50" onClick={onClear}><Eraser className="mr-1 h-3.5 w-3.5" />Limpar</Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+const WEEKDAY_PT_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+function CalendarMonthView({ rows, validation, onDayClick }) {
+  if (!rows.length) return null;
+  const leadingBlanks = WEEKDAY_PT_SHORT.indexOf(rows[0].weekday);
+  const cells = [
+    ...Array.from({ length: Math.max(leadingBlanks, 0) }, () => null),
+    ...rows,
+  ];
+
+  return (
+    <div className="p-4">
+      <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+        {WEEKDAY_PT_SHORT.map((d) => (
+          <div key={d} className="text-center text-[11px] font-bold uppercase tracking-wider text-gray-400 py-1">
+            {d}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1.5">
+        {cells.map((row, i) => {
+          if (!row) return <div key={`blank-${i}`} />;
+          const idx = rows.indexOf(row);
+          const v = validation.perRow[idx];
+          const accent = dayTypeAccent(row.day_type);
+          const hasHours = Number(row.normal_hours || 0) > 0;
+          const hasExtra = Number(row.extra_hours || 0) > 0;
+          const hasTravel = Number(row.travel_hours || 0) > 0;
+          return (
+            <button
+              type="button"
+              key={row.date}
+              onClick={() => onDayClick(idx)}
+              className={`group relative flex min-h-[88px] flex-col items-start gap-1 rounded-lg border p-2 text-left transition-all hover:-translate-y-0.5 hover:shadow-md ${
+                row.isWeekend ? "bg-amber-50/40 border-amber-100" : "bg-white border-gray-200"
+              } ${v.errors.length > 0 ? "!border-red-300 !bg-red-50/50" : ""}`}
+            >
+              <div className="flex w-full items-center justify-between">
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${
+                  hasHours ? "bg-emerald-100 text-emerald-800" : "text-gray-500"
+                }`}>
+                  {row.day}
+                </span>
+                <span className={`h-1.5 w-1.5 rounded-full ${accent.dot}`} />
+              </div>
+              <p className="text-[10px] font-medium text-gray-400 truncate w-full">{row.day_type}</p>
+              <div className="mt-auto flex flex-wrap items-center gap-1">
+                {hasHours && (
+                  <span className="rounded bg-emerald-100 px-1 py-0.5 text-[10px] font-bold tabular-nums text-emerald-800">
+                    {formatHours(row.normal_hours)}h
+                  </span>
+                )}
+                {hasExtra && (
+                  <span className="rounded bg-amber-100 px-1 py-0.5 text-[10px] font-bold tabular-nums text-amber-800">
+                    +{formatHours(row.extra_hours)}h
+                  </span>
+                )}
+                {hasTravel && (
+                  <span className="rounded bg-cyan-100 px-1 py-0.5 text-[10px] font-bold tabular-nums text-cyan-800">
+                    ✈ {formatHours(row.travel_hours)}h
+                  </span>
+                )}
+              </div>
+              {v.errors.length > 0 && <AlertCircle className="absolute right-1.5 top-1.5 h-3 w-3 text-red-500" />}
+              {v.errors.length === 0 && v.warnings.length > 0 && <TriangleAlert className="absolute right-1.5 top-1.5 h-3 w-3 text-amber-500" />}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -466,6 +567,8 @@ export default function FillTimesheetPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmInfo, setConfirmInfo] = useState({ period: "", employeeLabel: "" });
   const [activeRowIdx, setActiveRowIdx] = useState(null);
+  const [viewMode, setViewMode] = useState("table"); // "table" | "calendar"
+  const [calendarDayIdx, setCalendarDayIdx] = useState(null);
   const [fillAllOpen, setFillAllOpen] = useState(false);
   const [fillAllConfig, setFillAllConfig] = useState({
     period_start: "08:00",
@@ -1396,6 +1499,28 @@ export default function FillTimesheetPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5 mr-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("table")}
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                    viewMode === "table" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
+                  }`}
+                >
+                  <TableIcon className="h-3.5 w-3.5" />
+                  Tabela
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("calendar")}
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                    viewMode === "calendar" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
+                  }`}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  Calendário
+                </button>
+              </div>
               <Button type="button" variant="ghost" size="sm" className="gap-1.5 h-8 text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50" onClick={() => {
                   // Pre-populate with most used project or first row's data
                   const src = mostUsedProject || rows.find(r => r.project_number);
@@ -1428,7 +1553,9 @@ export default function FillTimesheetPage() {
             </div>
           </div>
 
-          <div className="divide-y divide-border md:hidden">
+          {viewMode === "table" && (
+            <>
+            <div className="divide-y divide-gray-200 md:hidden">
             {rows.map((row, idx) => {
               const v = validation.perRow[idx];
               const accent = dayTypeAccent(row.day_type);
@@ -1446,6 +1573,9 @@ export default function FillTimesheetPage() {
                       <p className="text-sm font-bold tabular-nums text-foreground">{formatHours(row.normal_hours)}h</p>
                       {Number(row.extra_hours || 0) > 0 && (
                         <p className="text-[11px] font-medium tabular-nums text-amber-600">+{formatHours(row.extra_hours)}h extra</p>
+                      )}
+                      {Number(row.travel_hours || 0) > 0 && (
+                        <p className="text-[11px] font-medium tabular-nums text-cyan-600">+{formatHours(row.travel_hours)}h viagem</p>
                       )}
                     </div>
                     {v.errors.length > 0 && <AlertCircle className="h-4 w-4 text-red-500" />}
@@ -1484,10 +1614,10 @@ export default function FillTimesheetPage() {
                     <th className="px-2 py-2.5 text-center w-[75px] border-r border-gray-100">Entrada</th>
                     <th className="px-2 py-2.5 text-center w-[75px] border-r border-gray-100">Saída</th>
                     <th className="px-2 py-2.5 text-center w-[65px] border-r border-gray-200">Pausa</th>
-                    <th className="px-2 py-2.5 text-center w-[70px] bg-amber-50/60 text-amber-700 border-r border-gray-200">Extra</th>
+                    <th className="px-2 py-2.5 text-center w-[115px] bg-amber-50/60 text-amber-700 border-r border-gray-200">Extra</th>
                     <th className="px-2 py-2.5 text-center w-[170px] border-r border-gray-200">Tipo Dia</th>
                     <th className="px-2 py-2.5 text-left w-[170px] border-r border-gray-200">Ausência</th>
-                    <th className="px-2 py-2.5 text-center w-[65px] bg-cyan-50/60 text-cyan-700 border-r border-gray-200">Viagem</th>
+                    <th className="px-2 py-2.5 text-center w-[115px] bg-cyan-50/60 text-cyan-700 border-r border-gray-200">Viagem</th>
                     <th className="px-2 py-2.5 text-left w-[155px] border-r border-gray-100">Nº Projeto</th>
                     <th className="px-2 py-2.5 text-left w-[180px] border-r border-gray-200">Cliente / Descrição</th>
                     <th className="px-2 py-2.5 text-center w-[48px] border-r border-gray-100">S.Al</th>
@@ -1499,7 +1629,7 @@ export default function FillTimesheetPage() {
                 </thead>
 
                 {/* ── Body ── */}
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-200">
                   {rows.map((row, idx) => {
                     const v = validation.perRow[idx];
                     const hasError = v.errors.length > 0;
@@ -1560,18 +1690,16 @@ export default function FillTimesheetPage() {
                         {/* Extra hours */}
                         <td className="px-2 py-3 text-center border-r border-gray-200 bg-amber-50/20">
                           <div className="flex flex-col items-center gap-1">
-                            <span className={`inline-flex items-center justify-center min-w-[48px] h-8 px-2 rounded-md text-sm font-bold tabular-nums transition-colors ${
+                            <span className={`inline-flex items-center justify-center min-w-[48px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
                               hasExtra ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200" : "text-gray-300"
                             }`}>
                               {hasExtra ? formatHours(row.extra_hours) : "—"}
                             </span>
-                            {hasExtra && (
-                              <div className="flex items-center gap-0.5">
-                                <TimeInput value={row.extra1_start} onChange={(v) => patchRow(idx, { extra1_start: v })} className="!h-6 !w-[48px] !text-[10px] !border-amber-200 !rounded-sm" />
-                                <span className="text-[10px] text-gray-400">—</span>
-                                <TimeInput value={row.extra1_end} onChange={(v) => patchRow(idx, { extra1_end: v })} className="!h-6 !w-[48px] !text-[10px] !border-amber-200 !rounded-sm" />
-                              </div>
-                            )}
+                            <div className="flex items-center gap-0.5">
+                              <TimeInput value={row.extra1_start} onChange={(v) => patchRow(idx, { extra1_start: v })} className="!h-6 !w-[48px] !text-[10px] !border-amber-200 !rounded-sm" />
+                              <span className="text-[10px] text-gray-400">—</span>
+                              <TimeInput value={row.extra1_end} onChange={(v) => patchRow(idx, { extra1_end: v })} className="!h-6 !w-[48px] !text-[10px] !border-amber-200 !rounded-sm" />
+                            </div>
                           </div>
                         </td>
 
@@ -1597,11 +1725,18 @@ export default function FillTimesheetPage() {
 
                         {/* Travel hours */}
                         <td className="px-2 py-3 text-center border-r border-gray-200 bg-cyan-50/20">
-                          <span className={`inline-flex items-center justify-center min-w-[48px] h-8 px-2 rounded-md text-sm font-bold tabular-nums transition-colors ${
-                            hasTravel ? "bg-cyan-100 text-cyan-800 ring-1 ring-cyan-200" : "text-gray-300"
-                          }`}>
-                            {hasTravel ? formatHours(row.travel_hours) : "—"}
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className={`inline-flex items-center justify-center min-w-[48px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
+                              hasTravel ? "bg-cyan-100 text-cyan-800 ring-1 ring-cyan-200" : "text-gray-300"
+                            }`}>
+                              {hasTravel ? formatHours(row.travel_hours) : "—"}
+                            </span>
+                            <div className="flex items-center gap-0.5">
+                              <TimeInput value={row.travel1_start} onChange={(v) => patchRow(idx, { travel1_start: v })} className="!h-6 !w-[48px] !text-[10px] !border-cyan-200 !rounded-sm" />
+                              <span className="text-[10px] text-gray-400">—</span>
+                              <TimeInput value={row.travel1_end} onChange={(v) => patchRow(idx, { travel1_end: v })} className="!h-6 !w-[48px] !text-[10px] !border-cyan-200 !rounded-sm" />
+                            </div>
+                          </div>
                         </td>
 
                         {/* Project number */}
@@ -1693,8 +1828,56 @@ export default function FillTimesheetPage() {
               </table>
             </div>
           </div>
+            </>
+          )}
+
+          {viewMode === "calendar" && (
+            <CalendarMonthView
+              rows={rows}
+              validation={validation}
+              onDayClick={(idx) => setCalendarDayIdx(idx)}
+            />
+          )}
         </div>
       )}
+
+      {/* ── Calendar day editor modal ─────────────────────────────────── */}
+      <Dialog open={calendarDayIdx !== null} onOpenChange={(open) => !open && setCalendarDayIdx(null)}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          {calendarDayIdx !== null && rows[calendarDayIdx] && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-sm">
+                  <span className={`h-2.5 w-2.5 rounded-full ${dayTypeAccent(rows[calendarDayIdx].day_type).dot}`} />
+                  {rows[calendarDayIdx].weekday} {String(rows[calendarDayIdx].day).padStart(2, "0")}/{rows[calendarDayIdx].date.slice(5, 7)}/{rows[calendarDayIdx].date.slice(0, 4)}
+                </DialogTitle>
+              </DialogHeader>
+              <RowEditor
+                row={rows[calendarDayIdx]}
+                index={calendarDayIdx}
+                onPatch={patchRow}
+                onClear={() => clearRow(calendarDayIdx)}
+                onCopyPrev={() => copyPreviousRow(calendarDayIdx)}
+                onFillDown={() => fillDownFromRow(calendarDayIdx)}
+                canCopyPrev={calendarDayIdx > 0}
+                canFillDown={calendarDayIdx < rows.length - 1}
+                projectCodes={allProjects}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setCalendarDayIdx(null)}>Fechar</Button>
+                <Button
+                  type="button"
+                  className="bg-gray-900 hover:bg-gray-800 text-white"
+                  disabled={calendarDayIdx >= rows.length - 1}
+                  onClick={() => setCalendarDayIdx((i) => Math.min(i + 1, rows.length - 1))}
+                >
+                  Dia seguinte
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
