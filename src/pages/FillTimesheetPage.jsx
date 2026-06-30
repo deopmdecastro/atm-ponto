@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Clock,
   Copy,
+  Download,
   Eraser,
   FileSpreadsheet,
   Loader2,
@@ -1139,9 +1140,7 @@ export default function FillTimesheetPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  );
-}
+
       {hasGrid && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-1">
           <SummaryCard icon={Clock} label="Total Normais" value={formatHours(totals.normal)} accent="#16A34A" hint={`${totals.worked} dia(s) trabalhado(s)`} />
@@ -1492,3 +1491,6 @@ export default function FillTimesheetPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
