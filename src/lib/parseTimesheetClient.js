@@ -47,6 +47,28 @@ function excelSerialToISO(serial) {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Parses Excel's formatted display text for a date cell, e.g. "Mon 01/ 06/ 2026"
+ * or "Monday, June 01, 2026", extracting day/month/year. Falls back to using
+ * meta's year when the text only contains day/month.
+ */
+function parseFormattedDateText(text, meta) {
+  if (!text) return null;
+  const s = String(text).trim();
+  // Pattern: dd/ mm/ yyyy or dd/mm/yyyy (with optional spaces)
+  const m1 = s.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})/);
+  if (m1) {
+    const day = m1[1].padStart(2, "0");
+    const month = m1[2].padStart(2, "0");
+    const year = m1[3];
+    return `${year}-${month}-${day}`;
+  }
+  // Pattern: yyyy-mm-dd
+  const m2 = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m2) return `${m2[1]}-${m2[2]}-${m2[3]}`;
+  return null;
+}
+
 export function parseDateCell(value) {
   if (value == null || value === "") return null;
   if (value instanceof Date) return value.toISOString().slice(0, 10);
@@ -89,6 +111,15 @@ export function parseHoursCell(value) {
   }
   const n = Number(s.replace(",", "."));
   return Number.isFinite(n) ? truncate2(n) : 0;
+}
+
+/** Interprets cells like "1", "X", "x", true, 1 as checked; everything else as unchecked. */
+export function isTruthyCell(value) {
+  if (value == null || value === "") return false;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  const s = String(value).trim().toLowerCase();
+  return s === "1" || s === "x" || s === "true" || s === "sim" || s === "yes";
 }
 
 export function formatTimeCell(value) {
@@ -171,12 +202,61 @@ function pickBestHeaderRow(matrix, startRow) {
   return bestIdx;
 }
 
-function extractDailyRecords(matrix) {
+function extractDailyRecords(matrix, ws, meta) {
   const dateCol = detectDateColumn(matrix);
   const startRow = detectStartRow(matrix, dateCol);
   const headerRowIdx = pickBestHeaderRow(matrix, startRow);
   const headerRow = matrix[headerRowIdx] || [];
   const headerRow2 = matrix[headerRowIdx + 1] || [];
+
+  // Resolve a reliable "expected first day" using the month/year metadata
+  // (those come from hardcoded header cells, not formulas, so they're
+  // trustworthy even when per-row date formulas have a stale cached value
+  // — which happens often in the ATM template after it's been duplicated
+  // for a new month without a full recalculation).
+  const expectedFirstDate = (() => {
+    if (!meta?.year || !meta?.month) return null;
+    const mIdx = monthIndex(meta.month);
+    if (!mIdx) return null;
+    return new Date(Date.UTC(meta.year, mIdx - 1, 1)); // mIdx is 1-based, Date.UTC needs 0-based
+  })();
+
+  /**
+   * Resolve the ISO date for a data row, preferring:
+   *   1) the worksheet's formatted display text (.w) when the cell is a
+   *      formula — Excel/LibreOffice always renders .w correctly from the
+   *      live formula inputs, even when the cached .v is stale;
+   *   2) the literal cached value otherwise;
+   *   3) a reconstructed date from meta.year/meta.month + row offset, as a
+   *      last-resort fallback when both of the above fail or disagree
+   *      wildly with the expected month.
+   */
+  function resolveRowDate(rowIdx, rawValue, dayOffset) {
+    let iso = null;
+    const addr = ws ? XLSX.utils.encode_cell({ r: rowIdx, c: dateCol }) : null;
+    const cell = addr && ws ? ws[addr] : null;
+    if (cell && cell.f && cell.w) {
+      // Formula cell — trust the formatted text over the (possibly stale) value
+      iso = parseFormattedDateText(cell.w, meta);
+    }
+    if (!iso) iso = parseDateCell(rawValue);
+
+    // Sanity-check against the expected month: if we know the month/year
+    // and the resolved date falls outside a generous +/-2 day window of
+    // where this row should land, reconstruct it directly instead.
+    if (expectedFirstDate) {
+      const expected = new Date(expectedFirstDate);
+      expected.setUTCDate(expected.getUTCDate() + dayOffset);
+      const expectedISO = expected.toISOString().slice(0, 10);
+      if (!iso) {
+        iso = expectedISO;
+      } else {
+        const diffDays = Math.abs((new Date(iso + "T00:00:00Z") - new Date(expectedISO + "T00:00:00Z")) / 86400000);
+        if (diffDays > 2) iso = expectedISO;
+      }
+    }
+    return iso;
+  }
 
   const cols = {
     date: dateCol,
@@ -188,10 +268,16 @@ function extractDailyRecords(matrix) {
     travel_hours: findColIndex(headerRow, ["viagem", "desloc", "travel"]),
     absence_hours: findColIndex(headerRow, ["ausencia", "falta", "absence"]),
     day_type: findColIndex(headerRow, ["tipo", "dia", "day"]),
-    absence_type: findColIndex(headerRow, ["motivo", "justif", "ausencia"]),
+    absence_type: findColIndex(headerRow, ["tipo de ausencia", "ausencia presenca", "tipo ausencia"]),
     project_number: findColIndex(headerRow, ["projeto", "project"]),
     project_client: findColIndex(headerRow, ["cliente", "client"]),
     project_description: findColIndex(headerRow, ["descricao", "description"]),
+    subsidio_almoco: findColIndex(headerRow, ["s.alim", "salim", "subsidio alim", "subalim"]),
+    prevencao: findColIndex(headerRow, ["prevencao", "sub. prevenc", "subprevenc"]),
+    deslocado: findColIndex(headerRow, ["sub. desloc", "subdesloc", "deslocacao"]),
+    local_deslocacao: findColIndex(headerRow, ["local"]),
+    motivo_deslocacao: findColIndex(headerRow, ["motivo deslocacao", "motivo desloc"]),
+    observacoes: findColIndex(headerRow, ["observacoes", "observacao", "obs"]),
     extra1_start: -1,
     extra1_end: -1,
     extra2_start: -1,
@@ -214,6 +300,18 @@ function extractDailyRecords(matrix) {
   if (cols.extra2_start < 0 && h2(dateCol + 8).includes("2") && h2(dateCol + 8).includes("de")) cols.extra2_start = dateCol + 8;
   if (cols.extra2_end < 0 && h2(dateCol + 9).includes("2") && h2(dateCol + 9).includes("a")) cols.extra2_end = dateCol + 9;
   if (cols.extra_motivo < 0 && h1(dateCol + 10).includes("motivo")) cols.extra_motivo = dateCol + 10;
+  // absence_type is in sub-header row (row2): "Tipo de Ausência/Presença"
+  if (cols.absence_type < 0) {
+    for (let i = 0; i < headerRow2.length; i++) {
+      const h = normalizeHeaderCell(headerRow2[i]);
+      if (h.includes("tipo") && (h.includes("ausencia") || h.includes("presenca") || h.includes("ausência"))) {
+        cols.absence_type = i;
+        break;
+      }
+    }
+  }
+  // Fallback: col 18 relative to date col (fixed ATM layout)
+  if (cols.absence_type < 0 && h2(dateCol + 17).includes("ausencia")) cols.absence_type = dateCol + 17;
 
   if (cols.travel_hours >= 0 && h1(cols.travel_hours).includes("viagem")) {
     for (let i = cols.travel_hours; i < Math.min(cols.travel_hours + 12, headerRow.length); i++) {
@@ -266,19 +364,47 @@ function extractDailyRecords(matrix) {
     if (bestScore >= 3) cols.day_type = bestCol;
   }
 
+  // Fixed-offset fallbacks for subsidies / deslocação / observações, relative
+  // to the day_type column, matching the ATM template's fixed layout:
+  // [day_type] [S.Alim] [Sub.Prevenção] [Sub.Deslocação] [Local] [Motivo Desloc] [Nº Projeto] [Cliente] [Descrição] [Observações]
+  if (cols.day_type >= 0) {
+    if (cols.subsidio_almoco < 0 && h1(cols.day_type + 1).includes("s.alim")) cols.subsidio_almoco = cols.day_type + 1;
+    if (cols.prevencao < 0 && h1(cols.day_type + 2).includes("prevenc")) cols.prevencao = cols.day_type + 2;
+    if (cols.deslocado < 0 && h1(cols.day_type + 3).includes("desloc")) cols.deslocado = cols.day_type + 3;
+    if (cols.local_deslocacao < 0 && h1(cols.day_type + 4) === "local") cols.local_deslocacao = cols.day_type + 4;
+    if (cols.motivo_deslocacao < 0 && h1(cols.day_type + 5).includes("motivo")) cols.motivo_deslocacao = cols.day_type + 5;
+    if (cols.project_number < 0 && h1(cols.day_type + 6).includes("projeto")) cols.project_number = cols.day_type + 6;
+    if (cols.project_client < 0 && h1(cols.day_type + 7).includes("cliente")) cols.project_client = cols.day_type + 7;
+    if (cols.project_description < 0 && h1(cols.day_type + 8).includes("descri")) cols.project_description = cols.day_type + 8;
+    if (cols.observacoes < 0 && h1(cols.day_type + 9).includes("observa")) cols.observacoes = cols.day_type + 9;
+  }
+  // Last-resort fallback if header text didn't match but the project columns were found
+  if (cols.subsidio_almoco < 0 && cols.project_number >= 0) cols.subsidio_almoco = cols.project_number - 6;
+  if (cols.prevencao < 0 && cols.project_number >= 0) cols.prevencao = cols.project_number - 5;
+  if (cols.deslocado < 0 && cols.project_number >= 0) cols.deslocado = cols.project_number - 4;
+  if (cols.local_deslocacao < 0 && cols.project_number >= 0) cols.local_deslocacao = cols.project_number - 3;
+  if (cols.motivo_deslocacao < 0 && cols.project_number >= 0) cols.motivo_deslocacao = cols.project_number - 2;
+  if (cols.observacoes < 0 && cols.project_description >= 0) cols.observacoes = cols.project_description + 1;
+
   const records = [];
   let emptyStreak = 0;
+  let dayOffset = 0;
   for (let r = startRow; r < matrix.length; r++) {
     const row = matrix[r] || [];
-    const dateISO = parseDateCell(row[cols.date]);
-    if (!dateISO) {
-      const anyContent = row.some((v) => v != null && String(v).trim() !== "");
-      if (!anyContent) emptyStreak++;
-      else emptyStreak = 0;
+    const rawDateVal = row[cols.date];
+    const hasAnyContent = row.some((v) => v != null && String(v).trim() !== "");
+    const quickCheck = parseDateCell(rawDateVal);
+    if (!quickCheck && !hasAnyContent) {
+      emptyStreak++;
       if (emptyStreak >= 10) break;
       continue;
     }
+    if (!quickCheck) { emptyStreak = 0; continue; }
     emptyStreak = 0;
+
+    const dateISO = resolveRowDate(r, rawDateVal, dayOffset);
+    dayOffset++;
+    if (!dateISO) continue;
 
     const text = (v) => {
       if (v == null || v === "") return "";
@@ -308,7 +434,13 @@ function extractDailyRecords(matrix) {
       travel2_end: travelCols.travel2_end >= 0 ? formatTimeCell(row[travelCols.travel2_end]) : "",
       project_number: cols.project_number >= 0 ? text(row[cols.project_number]) : "",
       project_client: cols.project_client >= 0 ? text(row[cols.project_client]) : "",
-      project_description: cols.project_description >= 0 ? text(row[cols.project_description]) : ""
+      project_description: cols.project_description >= 0 ? text(row[cols.project_description]) : "",
+      subsidio_almoco: cols.subsidio_almoco >= 0 ? isTruthyCell(row[cols.subsidio_almoco]) : false,
+      prevencao: cols.prevencao >= 0 ? isTruthyCell(row[cols.prevencao]) : false,
+      deslocado: cols.deslocado >= 0 ? isTruthyCell(row[cols.deslocado]) : false,
+      local_deslocacao: cols.local_deslocacao >= 0 ? text(row[cols.local_deslocacao]) : "",
+      motivo_deslocacao: cols.motivo_deslocacao >= 0 ? text(row[cols.motivo_deslocacao]) : "",
+      observacoes: cols.observacoes >= 0 ? text(row[cols.observacoes]) : ""
     });
   }
 
@@ -463,8 +595,8 @@ export async function readTimesheetFile(file) {
   const ws = wb.Sheets[sheetName];
   if (!ws) throw new Error("Nenhuma aba TimeSheet encontrada no ficheiro Excel.");
   const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-  const records = extractDailyRecords(matrix);
   const meta = extractMeta(matrix);
+  const records = extractDailyRecords(matrix, ws, meta);
   const projects = extractProjects(wb);
   return { meta, records, projects, sheetName };
 }
