@@ -153,7 +153,7 @@ function TimeInput({ value, onChange, disabled, className, ...rest }) {
       onChange={(e) => onChange(e.target.value)}
       onBlur={(e) => onChange(normalizeHHMM(e.target.value))}
       disabled={disabled}
-      className={`h-9 w-full rounded-md border border-border bg-white px-2 text-center text-sm font-medium tabular-nums text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:bg-muted disabled:text-muted-foreground ${className || ""}`}
+      className={`h-10 w-full rounded-md border border-border bg-white px-2 text-center text-sm font-medium tabular-nums text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:bg-muted disabled:text-muted-foreground ${className || ""}`}
       {...rest}
     />
   );
@@ -175,7 +175,7 @@ function ComboBox({ value, onChange, options, placeholder, className, emptyText,
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className={`h-8 w-full justify-between px-2 text-xs font-normal ${className || ""}`}
+          className={`h-10 w-full justify-between px-2 text-xs font-normal ${className || ""}`}
         >
           <span className={`truncate ${!selected?.label ? "text-muted-foreground" : ""}`}>
             {selected?.label || placeholder || "Selecionar..."}
@@ -245,7 +245,7 @@ function ProjectComboBox({ value, onChange, projects, disabled }) {
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className="h-8 w-full justify-between px-2 font-mono text-[11px] font-normal"
+          className="h-10 w-full justify-between px-2 font-mono text-[11px] font-normal"
         >
           <span className={`truncate ${!selected?.value ? "text-muted-foreground" : ""}`}>
             {selected?.value || "Projeto..."}
@@ -1314,15 +1314,15 @@ export default function FillTimesheetPage() {
                         className={`group transition-all duration-75 hover:bg-blue-50/50 ${rowBg} ${hasError ? "!bg-red-50/60" : ""} ${hasHours ? "" : ""}`}
                       >
                         {/* Day */}
-                        <td className={`sticky left-0 z-10 px-3 py-2 border-r border-gray-200 ${rowBg} ${hasError ? "!bg-red-50/60" : ""}`}>
+                        <td className={`sticky left-0 z-10 px-3 py-3 border-r border-gray-200 ${rowBg} ${hasError ? "!bg-red-50/60" : ""}`}>
                           <div className="flex items-center gap-2">
-                            <span className={`h-2 w-2 flex-shrink-0 rounded-full ${accent.dot} ring-2 ring-offset-1 ${accent.dot === "bg-red-500" ? "ring-red-200" : accent.dot === "bg-amber-500" ? "ring-amber-200" : accent.dot === "bg-purple-500" ? "ring-purple-200" : "ring-emerald-200"}`} />
+                            <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${accent.dot} ring-2 ring-offset-1 ${accent.dot === "bg-red-500" ? "ring-red-200" : accent.dot === "bg-amber-500" ? "ring-amber-200" : accent.dot === "bg-purple-500" ? "ring-purple-200" : "ring-emerald-200"}`} />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-gray-800">{row.weekday}</span>
-                                <span className="text-[11px] font-mono font-semibold text-gray-500">{String(row.day).padStart(2, "0")}/{row.date.slice(5, 7)}</span>
+                                <span className="text-sm font-bold text-gray-800">{row.weekday}</span>
+                                <span className="text-xs font-mono font-semibold text-gray-500">{String(row.day).padStart(2, "0")}/{row.date.slice(5, 7)}</span>
                               </div>
-                              <span className="text-[9px] text-gray-400">{row.date.slice(0, 4)}</span>
+                              <span className="text-[10px] text-gray-400">{row.date.slice(0, 4)}</span>
                             </div>
                             {hasError && <AlertCircle className="h-3.5 w-3.5 text-red-500 flex-shrink-0 ml-auto" />}
                             {!hasError && hasWarn && <TriangleAlert className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 ml-auto" />}
@@ -1330,8 +1330,8 @@ export default function FillTimesheetPage() {
                         </td>
 
                         {/* Hours (normal) */}
-                        <td className="px-2 py-2 text-center border-r border-gray-100">
-                          <span className={`inline-flex items-center justify-center min-w-[44px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
+                        <td className="px-2 py-3 text-center border-r border-gray-100">
+                          <span className={`inline-flex items-center justify-center min-w-[48px] h-8 px-2 rounded-md text-sm font-bold tabular-nums transition-colors ${
                             hasHours ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200" : "text-gray-300"
                           }`}>
                             {hasHours ? formatHours(row.normal_hours) : "—"}
@@ -1339,40 +1339,40 @@ export default function FillTimesheetPage() {
                         </td>
 
                         {/* Entry */}
-                        <td className="px-1.5 py-2 border-r border-gray-100">
+                        <td className="px-1.5 py-3 border-r border-gray-100">
                           <TimeInput value={row.period_start} onChange={(v) => patchRow(idx, { period_start: v })} />
                         </td>
 
                         {/* Exit */}
-                        <td className="px-1.5 py-2 border-r border-gray-100">
+                        <td className="px-1.5 py-3 border-r border-gray-100">
                           <TimeInput value={row.period_end} onChange={(v) => patchRow(idx, { period_end: v })} />
                         </td>
 
                         {/* Pause */}
-                        <td className="px-1.5 py-2 border-r border-gray-200">
+                        <td className="px-1.5 py-3 border-r border-gray-200">
                           <TimeInput value={row.pause_hours ? formatHHMMFromHours(row.pause_hours) : ""} onChange={(v) => patchRow(idx, { pause_hours: parseHHMMOrNumber(v) })} />
                         </td>
 
                         {/* Extra hours */}
-                        <td className="px-2 py-2 text-center border-r border-gray-200 bg-amber-50/20">
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className={`inline-flex items-center justify-center min-w-[44px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
+                        <td className="px-2 py-3 text-center border-r border-gray-200 bg-amber-50/20">
+                          <div className="flex flex-col items-center gap-1">
+                            <span className={`inline-flex items-center justify-center min-w-[48px] h-8 px-2 rounded-md text-sm font-bold tabular-nums transition-colors ${
                               hasExtra ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200" : "text-gray-300"
                             }`}>
                               {hasExtra ? formatHours(row.extra_hours) : "—"}
                             </span>
                             {hasExtra && (
                               <div className="flex items-center gap-0.5">
-                                <TimeInput value={row.extra1_start} onChange={(v) => patchRow(idx, { extra1_start: v })} className="!h-5 !w-[46px] !text-[9px] !border-amber-200 !rounded-sm" />
-                                <span className="text-[9px] text-gray-400">—</span>
-                                <TimeInput value={row.extra1_end} onChange={(v) => patchRow(idx, { extra1_end: v })} className="!h-5 !w-[46px] !text-[9px] !border-amber-200 !rounded-sm" />
+                                <TimeInput value={row.extra1_start} onChange={(v) => patchRow(idx, { extra1_start: v })} className="!h-6 !w-[48px] !text-[10px] !border-amber-200 !rounded-sm" />
+                                <span className="text-[10px] text-gray-400">—</span>
+                                <TimeInput value={row.extra1_end} onChange={(v) => patchRow(idx, { extra1_end: v })} className="!h-6 !w-[48px] !text-[10px] !border-amber-200 !rounded-sm" />
                               </div>
                             )}
                           </div>
                         </td>
 
                         {/* Day type */}
-                        <td className="px-1.5 py-2 border-r border-gray-200">
+                        <td className="px-1.5 py-3 border-r border-gray-200">
                           <ComboBox
                             value={row.day_type || "Dia Útil"}
                             onChange={(v) => patchRow(idx, { day_type: v }, { skipRecompute: true })}
@@ -1382,7 +1382,7 @@ export default function FillTimesheetPage() {
                         </td>
 
                         {/* Absence type */}
-                        <td className="px-1.5 py-2 border-r border-gray-200">
+                        <td className="px-1.5 py-3 border-r border-gray-200">
                           <ComboBox
                             value={row.absence_type || ""}
                             onChange={(v) => patchRow(idx, { absence_type: v }, { skipRecompute: true })}
@@ -1392,8 +1392,8 @@ export default function FillTimesheetPage() {
                         </td>
 
                         {/* Travel hours */}
-                        <td className="px-2 py-2 text-center border-r border-gray-200 bg-cyan-50/20">
-                          <span className={`inline-flex items-center justify-center min-w-[44px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
+                        <td className="px-2 py-3 text-center border-r border-gray-200 bg-cyan-50/20">
+                          <span className={`inline-flex items-center justify-center min-w-[48px] h-8 px-2 rounded-md text-sm font-bold tabular-nums transition-colors ${
                             hasTravel ? "bg-cyan-100 text-cyan-800 ring-1 ring-cyan-200" : "text-gray-300"
                           }`}>
                             {hasTravel ? formatHours(row.travel_hours) : "—"}
@@ -1401,7 +1401,7 @@ export default function FillTimesheetPage() {
                         </td>
 
                         {/* Project number */}
-                        <td className="px-1.5 py-2 border-r border-gray-100">
+                        <td className="px-1.5 py-3 border-r border-gray-100">
                           <ProjectComboBox
                             value={row.project_number || ""}
                             onChange={(code, info) => patchRow(idx, { project_number: code, project_client: info?.client || "", project_description: info?.description || "" })}
@@ -1410,59 +1410,59 @@ export default function FillTimesheetPage() {
                         </td>
 
                         {/* Client + Description merged */}
-                        <td className="px-1.5 py-2 border-r border-gray-200">
-                          <div className="flex flex-col gap-0.5">
+                        <td className="px-1.5 py-3 border-r border-gray-200">
+                          <div className="flex flex-col gap-1">
                             <input
                               value={row.project_client || ""}
                               onChange={(e) => patchRow(idx, { project_client: e.target.value }, { skipRecompute: true })}
                               placeholder="Cliente"
-                              className="h-6 w-full rounded border border-gray-200 bg-transparent px-1.5 text-[10px] font-medium text-gray-700 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
+                              className="h-8 w-full rounded border border-gray-200 bg-transparent px-2 text-xs font-medium text-gray-700 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
                             />
                             <input
                               value={row.project_description || ""}
                               onChange={(e) => patchRow(idx, { project_description: e.target.value }, { skipRecompute: true })}
                               placeholder="Descrição"
-                              className="h-6 w-full rounded border border-gray-200 bg-transparent px-1.5 text-[10px] text-gray-500 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
+                              className="h-8 w-full rounded border border-gray-200 bg-transparent px-2 text-xs text-gray-500 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
                             />
                           </div>
                         </td>
 
                         {/* Subsidio almoco */}
-                        <td className="px-1 py-2 text-center border-r border-gray-100">
+                        <td className="px-1 py-3 text-center border-r border-gray-100">
                           <input type="checkbox" checked={!!row.subsidio_almoco} onChange={(e) => patchRow(idx, { subsidio_almoco: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
                         </td>
 
                         {/* Prevencao */}
-                        <td className="px-1 py-2 text-center border-r border-gray-100">
+                        <td className="px-1 py-3 text-center border-r border-gray-100">
                           <input type="checkbox" checked={!!row.prevencao} onChange={(e) => patchRow(idx, { prevencao: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer" />
                         </td>
 
                         {/* Deslocado */}
-                        <td className="px-1 py-2 text-center border-r border-gray-200">
+                        <td className="px-1 py-3 text-center border-r border-gray-200">
                           <input type="checkbox" checked={!!row.deslocado} onChange={(e) => patchRow(idx, { deslocado: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer" />
                         </td>
 
                         {/* Observations */}
-                        <td className="px-1.5 py-2 border-r border-gray-200">
+                        <td className="px-1.5 py-3 border-r border-gray-200">
                           <input
                             value={row.observacoes || ""}
                             onChange={(e) => patchRow(idx, { observacoes: e.target.value }, { skipRecompute: true })}
                             placeholder="..."
-                            className="h-6 w-full rounded border border-gray-200 bg-transparent px-1.5 text-[10px] text-gray-500 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
+                            className="h-8 w-full rounded border border-gray-200 bg-transparent px-2 text-xs text-gray-500 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
                           />
                         </td>
 
                         {/* Actions */}
-                        <td className="px-1 py-2">
+                        <td className="px-1 py-3">
                           <div className="flex items-center justify-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                            <button type="button" disabled={idx === 0} onClick={() => copyPreviousRow(idx)} className="p-1 rounded hover:bg-gray-100 disabled:opacity-20" title="Copiar anterior">
-                              <Copy className="h-3.5 w-3.5 text-gray-400 hover:text-gray-600" />
+                            <button type="button" disabled={idx === 0} onClick={() => copyPreviousRow(idx)} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-20" title="Copiar anterior">
+                              <Copy className="h-4 w-4 text-gray-400 hover:text-gray-600" />
                             </button>
-                            <button type="button" onClick={() => fillDownFromRow(idx)} className="p-1 rounded hover:bg-blue-50" title="Preencher abaixo">
-                              <ArrowDown className="h-3.5 w-3.5 text-blue-400 hover:text-blue-600" />
+                            <button type="button" onClick={() => fillDownFromRow(idx)} className="p-1.5 rounded hover:bg-blue-50" title="Preencher abaixo">
+                              <ArrowDown className="h-4 w-4 text-blue-400 hover:text-blue-600" />
                             </button>
-                            <button type="button" onClick={() => clearRow(idx)} className="p-1 rounded hover:bg-red-50" title="Limpar">
-                              <Eraser className="h-3.5 w-3.5 text-gray-400 hover:text-red-500" />
+                            <button type="button" onClick={() => clearRow(idx)} className="p-1.5 rounded hover:bg-red-50" title="Limpar">
+                              <Eraser className="h-4 w-4 text-gray-400 hover:text-red-500" />
                             </button>
                           </div>
                         </td>
