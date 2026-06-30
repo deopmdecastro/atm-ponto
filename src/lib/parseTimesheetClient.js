@@ -591,13 +591,24 @@ export function recomputeRow(row) {
   if (t1s != null && t1e != null && t1e > t1s) travel += t1e - t1s;
   if (t2s != null && t2e != null && t2e > t2s) travel += t2e - t2s;
 
+  // If recalculation produced zero but the row already has a parsed value
+  // (e.g. from an Excel file that stores totals but not entry/exit times),
+  // keep the existing value so imported data is not wiped out.
+  const parsedNormal = Number(row.normal_hours || 0);
+  const parsedExtra = Number(row.extra_hours || 0);
+  const parsedTravel = Number(row.travel_hours || 0);
+
+  const finalNormal = normal > 0 ? truncate2(normal) : truncate2(parsedNormal);
+  const finalExtra = extra > 0 ? truncate2(extra) : truncate2(parsedExtra);
+  const finalTravel = travel > 0 ? truncate2(travel) : truncate2(parsedTravel);
+
   return {
     ...row,
-    normal_hours: truncate2(normal),
-    extra_hours: truncate2(extra),
-    travel_hours: truncate2(travel),
+    normal_hours: finalNormal,
+    extra_hours: finalExtra,
+    travel_hours: finalTravel,
     pause_hours: Number.isFinite(pause) ? truncate2(pause) : 0,
-    extra_motivo: extra > 0 && !String(row.extra_motivo || "").trim() ? "Motivo Simples" : row.extra_motivo
+    extra_motivo: finalExtra > 0 && !String(row.extra_motivo || "").trim() ? "Motivo Simples" : row.extra_motivo
   };
 }
 
