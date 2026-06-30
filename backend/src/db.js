@@ -116,6 +116,14 @@ export async function initDb() {
       month text,
       year integer,
       department text,
+      funcao text,
+      direcao text,
+      centro_custo text,
+      cct text,
+      horario text,
+      email_remetente text,
+      email_nivel1 text,
+      email_nivel2 text,
       source_filename text,
       source_file_url text,
       total_compensation_hours double precision NOT NULL DEFAULT 0,
@@ -194,6 +202,19 @@ export async function initDb() {
   await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS source_file_url text;`);
   await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS total_compensation_hours double precision NOT NULL DEFAULT 0;`);
   await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS total_descanso_compensatorio_hours double precision NOT NULL DEFAULT 0;`);
+  // Employee profile columns added to timesheets
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS funcao text;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS direcao text;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS centro_custo text;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS cct text;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS horario text;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS email_remetente text;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS email_nivel1 text;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS email_nivel2 text;`);
+  // Default project stored on timesheet for "Preencher todos" quick-fill
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS default_project_number text;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS default_project_client text;`);
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS default_project_description text;`);
 
   await query(prisma, `
     DO $$

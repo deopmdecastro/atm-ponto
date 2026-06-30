@@ -40,6 +40,13 @@ import {
   AlertDialogTitle
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger
@@ -459,6 +466,16 @@ export default function FillTimesheetPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmInfo, setConfirmInfo] = useState({ period: "", employeeLabel: "" });
   const [activeRowIdx, setActiveRowIdx] = useState(null);
+  const [fillAllOpen, setFillAllOpen] = useState(false);
+  const [fillAllConfig, setFillAllConfig] = useState({
+    period_start: "08:00",
+    period_end: "17:00",
+    pause_hours: "01:00",
+    project_number: "",
+    project_client: "",
+    project_description: "",
+    overwrite: false,
+  });
 
   const projectsQuery = useQuery({
     queryKey: ["timesheet-config"],
@@ -486,7 +503,11 @@ export default function FillTimesheetPage() {
 
   const previousEmployees = useMemo(() => {
     const map = new Map();
-    previousTimesheets.forEach((ts) => {
+    // Sort by most recent first so the most complete/recent profile wins
+    const sorted = [...previousTimesheets].sort((a, b) =>
+      new Date(b.created_date || 0) - new Date(a.created_date || 0)
+    );
+    sorted.forEach((ts) => {
       const name = clean(ts.employee_name);
       if (!name) return;
       const key = name.toLowerCase();
@@ -498,7 +519,24 @@ export default function FillTimesheetPage() {
           funcao: clean(ts.funcao),
           direcao: clean(ts.direcao),
           centro_custo: clean(ts.centro_custo),
+          cct: clean(ts.cct),
+          horario: clean(ts.horario),
+          email_remetente: clean(ts.email_remetente),
+          email_nivel1: clean(ts.email_nivel1),
+          email_nivel2: clean(ts.email_nivel2),
+          // Most recent project from this employee's timesheets
+          default_project_number: clean(ts.default_project_number),
+          default_project_client: clean(ts.default_project_client),
+          default_project_description: clean(ts.default_project_description),
         });
+      } else {
+        // Merge: fill in any empty fields from older timesheets
+        const existing = map.get(key);
+        const merged = { ...existing };
+        for (const k of Object.keys(merged)) {
+          if (!merged[k] && ts[k]) merged[k] = clean(ts[k]);
+        }
+        map.set(key, merged);
       }
     });
     return Array.from(map.values());
@@ -527,26 +565,52 @@ export default function FillTimesheetPage() {
     return map;
   }, [allProjects]);
 
-  // Auto-fill employee data from last selected timesheet
+  // Auto-fill employee data from previous timesheets
   useEffect(() => {
+    if (meta.employee_name) return; // already set (e.g. from uploaded file)
     try {
+      // 1) Try to restore from the last selected timesheet
       const lastTsId = localStorage.getItem("atm.selectedTimesheetId");
-      if (lastTsId && previousTimesheets.length > 0 && !meta.employee_name) {
+      if (lastTsId && previousTimesheets.length > 0) {
         const ts = previousTimesheets.find((t) => t.id === lastTsId);
-        if (ts) {
+        if (ts && clean(ts.employee_name)) {
           setMeta((m) => ({
             ...m,
-            employee_name: clean(ts.employee_name) || m.employee_name,
-            employee_number: clean(ts.employee_number) || m.employee_number,
-            department: clean(ts.department) || m.department,
-            funcao: clean(ts.funcao) || m.funcao,
-            direcao: clean(ts.direcao) || m.direcao,
-            centro_custo: clean(ts.centro_custo) || m.centro_custo,
+            employee_name:        clean(ts.employee_name)        || m.employee_name,
+            employee_number:      clean(ts.employee_number)      || m.employee_number,
+            department:           clean(ts.department)           || m.department,
+            funcao:               clean(ts.funcao)               || m.funcao,
+            direcao:              clean(ts.direcao)              || m.direcao,
+            centro_custo:         clean(ts.centro_custo)         || m.centro_custo,
+            cct:                  clean(ts.cct)                  || m.cct,
+            horario:              clean(ts.horario)              || m.horario,
+            email_remetente:      clean(ts.email_remetente)      || m.email_remetente,
+            email_nivel1:         clean(ts.email_nivel1)         || m.email_nivel1,
+            email_nivel2:         clean(ts.email_nivel2)         || m.email_nivel2,
           }));
+          return;
         }
       }
+      // 2) If only one employee exists in history, auto-select them
+      if (previousEmployees.length === 1) {
+        const emp = previousEmployees[0];
+        setMeta((m) => ({
+          ...m,
+          employee_name:        emp.employee_name        || m.employee_name,
+          employee_number:      emp.employee_number      || m.employee_number,
+          department:           emp.department           || m.department,
+          funcao:               emp.funcao               || m.funcao,
+          direcao:              emp.direcao              || m.direcao,
+          centro_custo:         emp.centro_custo         || m.centro_custo,
+          cct:                  emp.cct                  || m.cct,
+          horario:              emp.horario              || m.horario,
+          email_remetente:      emp.email_remetente      || m.email_remetente,
+          email_nivel1:         emp.email_nivel1         || m.email_nivel1,
+          email_nivel2:         emp.email_nivel2         || m.email_nivel2,
+        }));
+      }
     } catch { /* ignore */ }
-  }, [previousTimesheets]);
+  }, [previousTimesheets, previousEmployees]);
 
   useEffect(() => {
     if (!meta.month || !meta.year) return;
@@ -723,6 +787,44 @@ export default function FillTimesheetPage() {
     toast({ title: "Preenchimento automático", description: "Horário e projeto copiados para os dias úteis seguintes." });
   }
 
+  function applyFillAll(cfg) {
+    setRows((prev) => {
+      return prev.map((slot) => {
+        // Skip weekends, public holidays, Desc.Obrig, Desc.Comp
+        const skipType = ["Desc. Obrig", "Desc.Comp", "Feriado"].includes(slot.day_type);
+        if (slot.isWeekend || skipType) return slot;
+        // Skip rows that already have hours unless overwrite is set
+        if (!cfg.overwrite && slot.period_start) return slot;
+        return recomputeRow({
+          ...slot,
+          period_start:        cfg.period_start,
+          period_end:          cfg.period_end,
+          pause_hours:         cfg.pause_hours,
+          project_number:      cfg.project_number      || slot.project_number,
+          project_client:      cfg.project_client      || slot.project_client,
+          project_description: cfg.project_description || slot.project_description,
+        });
+      });
+    });
+    toast({ title: "Preenchimento automático", description: "Horário e projeto aplicados a todos os dias úteis." });
+  }
+
+  /** Derive the most-used project in current rows, to pre-populate the modal */
+  const mostUsedProject = useMemo(() => {
+    const count = new Map();
+    rows.forEach((r) => {
+      if (!r.project_number) return;
+      const key = r.project_number;
+      count.set(key, (count.get(key) || { n: 0, row: r }));
+      count.get(key).n++;
+      count.get(key).row = r;
+    });
+    let best = null;
+    count.forEach((v) => { if (!best || v.n > best.n) best = v; });
+    return best?.row ?? null;
+  }, [rows]);
+
+
   function clearMonth() {
     setRows((prev) =>
       prev.map((slot) => ({
@@ -839,15 +941,27 @@ export default function FillTimesheetPage() {
       } catch (e) { /* non-critical */ }
 
       const timesheetPayload = {
-        employee_name: meta.employee_name,
-        employee_number: meta.employee_number || "",
-        month: meta.month,
-        year: Number(meta.year) || new Date().getFullYear(),
-        department: meta.department || "",
-        source_filename: sourceFile?.name || `${meta.month}-${meta.year}-preenchido.xlsx`,
-        source_file_url: "",
-        total_compensation_hours: totals.extra,
-        total_descanso_compensatorio_hours: 0
+        employee_name:        meta.employee_name,
+        employee_number:      meta.employee_number      || "",
+        month:                meta.month,
+        year:                 Number(meta.year) || new Date().getFullYear(),
+        department:           meta.department           || "",
+        funcao:               meta.funcao               || "",
+        direcao:              meta.direcao              || "",
+        centro_custo:         meta.centro_custo         || "",
+        cct:                  meta.cct                  || "",
+        horario:              meta.horario              || "",
+        email_remetente:      meta.email_remetente      || "",
+        email_nivel1:         meta.email_nivel1         || "",
+        email_nivel2:         meta.email_nivel2         || "",
+        // Store the most-used project as the default for future auto-fill
+        default_project_number:      mostUsedProject?.project_number      || "",
+        default_project_client:      mostUsedProject?.project_client      || "",
+        default_project_description: mostUsedProject?.project_description || "",
+        source_filename:      sourceFile?.name || `${meta.month}-${meta.year}-preenchido.xlsx`,
+        source_file_url:      "",
+        total_compensation_hours:            totals.extra,
+        total_descanso_compensatorio_hours:  0
       };
 
       const records = rows.map((r) => ({
@@ -1049,20 +1163,26 @@ export default function FillTimesheetPage() {
                                 onSelect={() => {
                                   setMeta((m) => ({
                                     ...m,
-                                    employee_name: emp.employee_name,
+                                    employee_name:   emp.employee_name,
                                     employee_number: emp.employee_number,
-                                    department: emp.department,
-                                    funcao: emp.funcao,
-                                    direcao: emp.direcao,
-                                    centro_custo: emp.centro_custo,
+                                    department:      emp.department,
+                                    funcao:          emp.funcao,
+                                    direcao:         emp.direcao,
+                                    centro_custo:    emp.centro_custo,
+                                    cct:             emp.cct,
+                                    horario:         emp.horario,
+                                    email_remetente: emp.email_remetente,
+                                    email_nivel1:    emp.email_nivel1,
+                                    email_nivel2:    emp.email_nivel2,
                                   }));
                                 }}
                                 className="flex flex-col items-start py-2"
                               >
                                 <span className="text-sm font-semibold">{emp.employee_name}</span>
                                 <span className="text-[11px] font-medium text-gray-600">
-                                  Nº {emp.employee_number} · {emp.department}
+                                  Nº {emp.employee_number} · {emp.funcao || emp.department}
                                 </span>
+                                {emp.cct && <span className="text-[10px] text-gray-400">CCT: {emp.cct} · {emp.horario}</span>}
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -1113,6 +1233,82 @@ export default function FillTimesheetPage() {
           </div>
         </div>
       )}
+
+      {/* ── Preencher todos modal ─────────────────────────────────────── */}
+      <Dialog open={fillAllOpen} onOpenChange={setFillAllOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowDown className="h-4 w-4 text-blue-500" />
+              Preencher todos os dias úteis
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-gray-500">
+              Aplica o horário e projeto a todos os dias úteis. Fins-de-semana, feriados e Desc.Obrig são ignorados.
+            </p>
+            {/* Horário */}
+            <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Horário</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Entrada</Label>
+                  <Input value={fillAllConfig.period_start} onChange={(e) => setFillAllConfig(c => ({ ...c, period_start: e.target.value }))} placeholder="08:00" className="h-9 text-center font-mono" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Saída</Label>
+                  <Input value={fillAllConfig.period_end} onChange={(e) => setFillAllConfig(c => ({ ...c, period_end: e.target.value }))} placeholder="17:00" className="h-9 text-center font-mono" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Pausa</Label>
+                  <Input value={fillAllConfig.pause_hours} onChange={(e) => setFillAllConfig(c => ({ ...c, pause_hours: e.target.value }))} placeholder="01:00" className="h-9 text-center font-mono" />
+                </div>
+              </div>
+            </div>
+            {/* Projeto */}
+            <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Projeto (opcional)</p>
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-gray-500">Nº Projeto</Label>
+                  <ProjectComboBox
+                    value={fillAllConfig.project_number}
+                    onChange={(code, info) => setFillAllConfig(c => ({
+                      ...c,
+                      project_number:      code,
+                      project_client:      info?.client      || c.project_client,
+                      project_description: info?.description || c.project_description,
+                    }))}
+                    projects={allProjects}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-gray-500">Cliente</Label>
+                    <Input value={fillAllConfig.project_client} onChange={(e) => setFillAllConfig(c => ({ ...c, project_client: e.target.value }))} placeholder="(automático)" className="h-8 text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-gray-500">Descrição</Label>
+                    <Input value={fillAllConfig.project_description} onChange={(e) => setFillAllConfig(c => ({ ...c, project_description: e.target.value }))} placeholder="(automático)" className="h-8 text-xs" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Overwrite toggle */}
+            <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+              <input type="checkbox" checked={fillAllConfig.overwrite} onChange={(e) => setFillAllConfig(c => ({ ...c, overwrite: e.target.checked }))} className="h-3.5 w-3.5 rounded border-gray-300 accent-blue-600" />
+              Sobrescrever dias já preenchidos
+            </label>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setFillAllOpen(false)}>Cancelar</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => { applyFillAll(fillAllConfig); setFillAllOpen(false); }}>
+              <ArrowDown className="h-4 w-4 mr-1.5" />
+              Aplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={confirmOpen}
@@ -1201,11 +1397,19 @@ export default function FillTimesheetPage() {
             </div>
             <div className="flex items-center gap-2">
               <Button type="button" variant="ghost" size="sm" className="gap-1.5 h-8 text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50" onClick={() => {
-                  if (rows.length > 0 && rows[0].period_start) {
-                    fillDownFromRow(0);
-                  } else {
-                    toast({ title: "Sem dados", description: "Preencha o primeiro dia primeiro." });
-                  }
+                  // Pre-populate with most used project or first row's data
+                  const src = mostUsedProject || rows.find(r => r.project_number);
+                  const firstFilled = rows.find(r => r.period_start);
+                  setFillAllConfig(prev => ({
+                    ...prev,
+                    period_start:        firstFilled?.period_start        || "08:00",
+                    period_end:          firstFilled?.period_end          || "17:00",
+                    pause_hours:         firstFilled?.pause_hours ? String(Math.floor(firstFilled.pause_hours)).padStart(2,"0") + ":00" : "01:00",
+                    project_number:      src?.project_number      || prev.project_number,
+                    project_client:      src?.project_client       || prev.project_client,
+                    project_description: src?.project_description  || prev.project_description,
+                  }));
+                  setFillAllOpen(true);
                 }}>
                 <ArrowDown className="h-3.5 w-3.5" />
                 Preencher todos
