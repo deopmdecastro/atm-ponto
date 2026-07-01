@@ -256,7 +256,7 @@ export default function HistoryTable({ history, onToggleCompensate }) {
         <table className="w-full min-w-[1100px] border-collapse text-xs">
           <thead>
             <tr>
-              <th rowSpan={2} className={cn(groupHeadCell, "sticky left-0 z-20 text-left min-w-[120px]")}>
+              <th rowSpan={2} className={cn(groupHeadCell, "sticky left-0 z-20 bg-secondary text-left min-w-[120px]")}>
                 Dia
               </th>
               <th colSpan={4} className={groupHeadCell}>
@@ -393,7 +393,7 @@ export default function HistoryTable({ history, onToggleCompensate }) {
           {totals && (
             <tfoot>
               <tr className="bg-secondary/40 font-bold">
-                <td className="sticky left-0 z-10 bg-secondary/40 px-3 py-2.5 border border-border text-left">
+                <td className="sticky left-0 z-10 bg-secondary px-3 py-2.5 border border-border text-left">
                   TOTAL
                 </td>
                 <td className="px-3 py-2.5 border border-border text-right tabular-nums">

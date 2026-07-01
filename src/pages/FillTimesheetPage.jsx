@@ -1610,7 +1610,7 @@ export default function FillTimesheetPage() {
                     <th rowSpan={4} className="sticky left-0 z-30 bg-slate-100 border border-slate-300 px-2 py-1 align-middle min-w-[100px] text-left">
                       <span className="flex items-center gap-1.5"><CalendarIcon className="h-3 w-3 text-red-500" />Dia</span>
                     </th>
-                    <th colSpan={5} className="border border-slate-300 px-2 py-1 bg-slate-200 text-slate-700">NORMAIS</th>
+                    <th colSpan={4} className="border border-slate-300 px-2 py-1 bg-slate-200 text-slate-700">NORMAIS</th>
                     <th colSpan={11} className="border border-slate-300 px-2 py-1 bg-amber-50 text-amber-800">EXTRAORDINÁRIAS</th>
                     <th colSpan={3} className="border border-slate-300 px-2 py-1 bg-slate-200 text-slate-700">AUSÊNCIAS / PRESENÇAS</th>
                     <th rowSpan={3} className="border border-slate-300 px-2 py-1 align-middle min-w-[90px] bg-slate-100">TIPO DIA</th>
@@ -1660,7 +1660,7 @@ export default function FillTimesheetPage() {
 
                   {/* Row 4 — column numbers */}
                   <tr className="text-slate-400 font-normal text-[10px]">
-                    {["(2)","(3)","(4)","(5)","(6)","(7)","(8)","(9)","(10)","(11)","(12)","(13)","(14)","(15)","(16)","(17)","(18)","(19)","(20)","(21)","(22)","(23)","(24)","(25)","(26)","(27)","(28)","(29)","(30)"].map((n, i) => (
+                    {["(2)","(3)","(4)","(5)","(6)","(7)","(8)","(9)","(10)","(11)","(12)","(13)","(14)","(15)","(16)","(18)","(19)","(20)","(21)","(22)","(23)","(24)","(25)","(26)","(27)","(28)","(29)"].map((n, i) => (
                       <th key={i} className="border border-slate-300 px-1 py-0.5 bg-slate-50">{n}</th>
                     ))}
                   </tr>
@@ -1685,6 +1685,15 @@ export default function FillTimesheetPage() {
                                 : isDescObrig ? "bg-slate-50/60"
                                 : idx % 2 === 0 ? "bg-white" : "bg-slate-50/40";
 
+                    // Sticky column needs a fully opaque background — any alpha here
+                    // lets the non-sticky cells scrolling underneath show through as
+                    // a "ghost" (e.g. the hh:mm placeholder bleeding behind the date).
+                    const solidBg = hasError    ? "bg-red-50"
+                                : isFeriado      ? "bg-blue-50"
+                                : isWknd         ? "bg-amber-50"
+                                : isDescObrig    ? "bg-slate-50"
+                                : idx % 2 === 0  ? "bg-white" : "bg-slate-50";
+
                     const td = (extra = "") => `border border-slate-200 px-1 py-1 align-middle ${extra}`;
                     const ti = (val, onChange) => <TimeInput value={val} onChange={onChange} />;
 
@@ -1692,7 +1701,7 @@ export default function FillTimesheetPage() {
                       <tr key={row.date} className={`group hover:bg-sky-50/60 transition-colors ${rowBg}`}>
 
                         {/* (1) Dia — sticky */}
-                        <td className={`sticky left-0 z-10 border border-slate-200 px-2 py-1.5 align-middle min-w-[100px] ${rowBg} ${hasError ? "!bg-red-50" : ""}`}>
+                        <td className={`sticky left-0 z-10 border border-slate-200 px-2 py-1.5 align-middle min-w-[100px] ${solidBg}`}>
                           <div className="flex items-center gap-1.5">
                             <span className={`h-2 w-2 flex-shrink-0 rounded-full ${isWknd || isFeriado ? "bg-red-400" : isDescObrig ? "bg-orange-400" : "bg-emerald-400"}`} />
                             <div>
