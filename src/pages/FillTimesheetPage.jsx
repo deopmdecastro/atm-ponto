@@ -1598,210 +1598,206 @@ export default function FillTimesheetPage() {
           </div>
 
           <div className="hidden md:block">
-            {/* Excel-style table */}
-            <div className="overflow-auto rounded-lg border border-border bg-card shadow-sm" style={{ maxHeight: "calc(100vh - 250px)" }}>
-              <table className="w-full border-collapse">
-                {/* ── Header ── */}
-                <thead className="sticky top-0 z-20">
-                  <tr className="bg-secondary/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b-2 border-border">
-                    <th className="sticky left-0 z-30 bg-secondary/50 px-3 py-2.5 text-left w-[120px] border-r border-border">
-                      <span className="flex items-center gap-2">
-                        <CalendarIcon className="h-3.5 w-3.5 text-red-500" />
-                        Dia
-                      </span>
+            {/* ── ATM-style table with grouped headers ── */}
+            <div className="overflow-auto rounded-lg border border-slate-300 bg-white shadow-sm" style={{ maxHeight: "calc(100vh - 260px)" }}>
+              <table className="border-collapse text-[11px]" style={{ minWidth: "max-content" }}>
+
+                {/* ══════════ THEAD — 4 rows ══════════ */}
+                <thead className="sticky top-0 z-20 text-center font-semibold text-slate-700 bg-slate-100">
+
+                  {/* Row 1 — group labels */}
+                  <tr>
+                    <th rowSpan={4} className="sticky left-0 z-30 bg-slate-100 border border-slate-300 px-2 py-1 align-middle min-w-[100px] text-left">
+                      <span className="flex items-center gap-1.5"><CalendarIcon className="h-3 w-3 text-red-500" />Dia</span>
                     </th>
-                    <th className="px-2 py-2.5 text-center w-[70px] border-r border-border">Horas</th>
-                    <th className="px-2 py-2.5 text-center w-[75px] border-r border-border">Entrada</th>
-                    <th className="px-2 py-2.5 text-center w-[75px] border-r border-border">Saída</th>
-                    <th className="px-2 py-2.5 text-center w-[65px] border-r border-border">Pausa</th>
-                    <th className="px-2 py-2.5 text-center w-[115px] bg-amber-50/60 text-amber-700 border-r border-border">Extra</th>
-                    <th className="px-2 py-2.5 text-center w-[170px] border-r border-border">Tipo Dia</th>
-                    <th className="px-2 py-2.5 text-left w-[170px] border-r border-border">Ausência</th>
-                    <th className="px-2 py-2.5 text-center w-[115px] bg-cyan-50/60 text-cyan-700 border-r border-border">Viagem</th>
-                    <th className="px-2 py-2.5 text-left w-[155px] border-r border-border">Nº Projeto</th>
-                    <th className="px-2 py-2.5 text-left w-[180px] border-r border-border">Cliente / Descrição</th>
-                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-border">S.Al</th>
-                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-border">Prev</th>
-                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-border">Desl</th>
-                    <th className="px-2 py-2.5 text-left w-[130px] border-r border-border">Observações</th>
-                    <th className="px-2 py-2.5 text-center w-[120px]">Ações</th>
+                    <th colSpan={5} className="border border-slate-300 px-2 py-1 bg-slate-200 text-slate-700">NORMAIS</th>
+                    <th colSpan={11} className="border border-slate-300 px-2 py-1 bg-amber-50 text-amber-800">EXTRAORDINÁRIAS</th>
+                    <th colSpan={3} className="border border-slate-300 px-2 py-1 bg-slate-200 text-slate-700">AUSÊNCIAS / PRESENÇAS</th>
+                    <th rowSpan={3} className="border border-slate-300 px-2 py-1 align-middle min-w-[90px] bg-slate-100">TIPO DIA</th>
+                    <th colSpan={5} className="border border-slate-300 px-2 py-1 bg-slate-200 text-slate-700">SUBSÍDIOS</th>
+                    <th colSpan={3} className="border border-slate-300 px-2 py-1 bg-red-50 text-red-800">IMPUTAÇÃO</th>
+                    <th rowSpan={4} className="border border-slate-300 px-2 py-1 align-middle min-w-[120px] bg-slate-100">OBSERVAÇÕES</th>
+                    <th rowSpan={4} className="border border-slate-300 px-1 py-1 align-middle w-[90px] bg-slate-100">AÇÕES</th>
+                  </tr>
+
+                  {/* Row 2 — subgroup labels */}
+                  <tr>
+                    <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle w-[62px] bg-emerald-50 text-emerald-800">Total</th>
+                    <th colSpan={3} className="border border-slate-300 px-2 py-1 bg-slate-100">PERÍODO</th>
+                    <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle w-[62px] bg-amber-50 text-amber-800">Total Extra</th>
+                    <th colSpan={5} className="border border-slate-300 px-2 py-1 bg-amber-50/60 text-amber-700">Suplementares</th>
+                    <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle w-[62px] bg-cyan-50 text-cyan-800">Total Viagem</th>
+                    <th colSpan={4} className="border border-slate-300 px-2 py-1 bg-cyan-50/60 text-cyan-700">HORAS DE VIAGEM</th>
+                    <th colSpan={3} className="border border-slate-300 px-2 py-1 bg-slate-100">Horas de Ausência/Presença</th>
+                    <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle w-[52px] bg-slate-100">S.Alim.</th>
+                    <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle w-[52px] bg-slate-100">Prev.</th>
+                    <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle w-[52px] bg-slate-100">Desl.</th>
+                    <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle min-w-[90px] bg-slate-100">Local</th>
+                    <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle min-w-[100px] bg-slate-100">Motivo Desl.</th>
+                    <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle min-w-[100px] bg-red-50 text-red-700">Nº Projeto</th>
+                    <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle min-w-[200px] bg-red-50 text-red-700">Cliente de Projeto</th>
+                    <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle min-w-[200px] bg-red-50 text-red-700">Descrição de Projeto</th>
+                  </tr>
+
+                  {/* Row 3 — detail column labels */}
+                  <tr>
+                    <th className="border border-slate-300 px-1 py-1 w-[68px] bg-slate-50">de</th>
+                    <th className="border border-slate-300 px-1 py-1 w-[68px] bg-slate-50">a</th>
+                    <th className="border border-slate-300 px-1 py-1 w-[60px] bg-slate-50">Pausa</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50/40">1º HE de</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50/40">1º HE a</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50/40">2º HE de</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50/40">2º HE a</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[100px] bg-amber-50/40">Motivo TS</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50/40">Ida Início</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50/40">Ida Fim</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50/40">Volta Início</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50/40">Volta Fim</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[140px] bg-slate-50">Tipo de Ausência/Presença</th>
+                    <th className="border border-slate-300 px-1 py-1 w-[60px] bg-slate-50">de</th>
+                    <th className="border border-slate-300 px-1 py-1 w-[60px] bg-slate-50">a</th>
+                  </tr>
+
+                  {/* Row 4 — column numbers */}
+                  <tr className="text-slate-400 font-normal text-[10px]">
+                    {["(2)","(3)","(4)","(5)","(6)","(7)","(8)","(9)","(10)","(11)","(12)","(13)","(14)","(15)","(16)","(17)","(18)","(19)","(20)","(21)","(22)","(23)","(24)","(25)","(26)","(27)","(28)","(29)","(30)"].map((n, i) => (
+                      <th key={i} className="border border-slate-300 px-1 py-0.5 bg-slate-50">{n}</th>
+                    ))}
                   </tr>
                 </thead>
 
-                {/* ── Body ── */}
-                <tbody className="divide-y divide-border">
+                {/* ══════════ TBODY ══════════ */}
+                <tbody>
                   {rows.map((row, idx) => {
                     const v = validation.perRow[idx];
                     const hasError = v.errors.length > 0;
-                    const hasWarn = v.warnings.length > 0;
-                    const accent = dayTypeAccent(row.day_type);
-                    const isWeekend = row.isWeekend;
-                    const dayTypeOpts = DAY_TYPES.map((d) => ({ value: d, label: d }));
-                    const rowBg = isWeekend ? "bg-amber-50/40" : (idx % 2 === 0 ? "bg-card" : "bg-muted/40");
-                    const hasHours = Number(row.normal_hours || 0) > 0;
-                    const hasExtra = Number(row.extra_hours || 0) > 0;
-                    const hasTravel = Number(row.travel_hours || 0) > 0;
+                    const hasWarn  = v.warnings.length > 0;
+                    const isWknd   = row.isWeekend;
+                    const isFeriado = row.day_type === "Feriado";
+                    const isDescObrig = row.day_type === "Desc. Obrig" || row.day_type === "Desc.Obrig";
+                    const hasHours  = Number(row.normal_hours  || 0) > 0;
+                    const hasExtra  = Number(row.extra_hours   || 0) > 0;
+                    const hasTravel = Number(row.travel_hours  || 0) > 0;
+
+                    const rowBg = hasError   ? "bg-red-50"
+                                : isFeriado  ? "bg-blue-50/40"
+                                : isWknd     ? "bg-amber-50/30"
+                                : isDescObrig ? "bg-slate-50/60"
+                                : idx % 2 === 0 ? "bg-white" : "bg-slate-50/40";
+
+                    const td = (extra = "") => `border border-slate-200 px-1 py-1 align-middle ${extra}`;
+                    const ti = (val, onChange) => <TimeInput value={val} onChange={onChange} />;
 
                     return (
-                      <tr
-                        key={row.date}
-                        className={`group transition-all duration-75 hover:bg-blue-50/50 ${rowBg} ${hasError ? "!bg-red-50/60" : ""} ${hasHours ? "" : ""}`}
-                      >
-                        {/* Day */}
-                        <td className={`sticky left-0 z-10 px-3 py-3 border-r border-border ${rowBg} ${hasError ? "!bg-red-50/60" : ""}`}>
-                          <div className="flex items-center gap-2">
-                            <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${accent.dot}`} />
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-sm font-bold text-foreground">{row.weekday}</span>
-                                <span className="text-xs font-mono font-semibold text-muted-foreground">{String(row.day).padStart(2, "0")}/{row.date.slice(5, 7)}</span>
+                      <tr key={row.date} className={`group hover:bg-sky-50/60 transition-colors ${rowBg}`}>
+
+                        {/* (1) Dia — sticky */}
+                        <td className={`sticky left-0 z-10 border border-slate-200 px-2 py-1.5 align-middle min-w-[100px] ${rowBg} ${hasError ? "!bg-red-50" : ""}`}>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`h-2 w-2 flex-shrink-0 rounded-full ${isWknd || isFeriado ? "bg-red-400" : isDescObrig ? "bg-orange-400" : "bg-emerald-400"}`} />
+                            <div>
+                              <div className={`font-bold text-[11px] ${isWknd ? "text-red-600" : "text-blue-700"}`}>
+                                {row.weekday} {String(row.day).padStart(2,"0")}/{row.date.slice(5,7)}
                               </div>
-                              <span className="text-[10px] text-muted-foreground">{row.date.slice(0, 4)}</span>
+                              <div className="text-[9px] text-slate-400">{row.date.slice(0,4)}</div>
                             </div>
-                            {hasError && <AlertCircle className="h-3.5 w-3.5 text-red-500 flex-shrink-0 ml-auto" />}
-                            {!hasError && hasWarn && <TriangleAlert className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 ml-auto" />}
+                            {hasError && <AlertCircle className="h-3 w-3 text-red-500 ml-auto flex-shrink-0" />}
+                            {!hasError && hasWarn && <TriangleAlert className="h-3 w-3 text-amber-500 ml-auto flex-shrink-0" />}
                           </div>
                         </td>
 
-                        {/* Hours (normal) */}
-                        <td className="px-2 py-3 text-center border-r border-border">
-                          <span className={`inline-flex items-center justify-center min-w-[48px] h-8 px-2 rounded-md text-sm font-bold tabular-nums transition-colors ${
-                            hasHours ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200" : "text-muted-foreground"
-                          }`}>
+                        {/* (2) Total Normais */}
+                        <td className={td("text-center w-[62px] bg-emerald-50/40")}>
+                          <span className={`font-bold tabular-nums ${hasHours ? "text-emerald-700" : "text-slate-300"}`}>
                             {hasHours ? formatHours(row.normal_hours) : "—"}
                           </span>
                         </td>
+                        {/* (3-5) Entrada/Saída/Pausa */}
+                        <td className={td("w-[68px]")}>{ti(row.period_start, v => patchRow(idx, { period_start: v }))}</td>
+                        <td className={td("w-[68px]")}>{ti(row.period_end, v => patchRow(idx, { period_end: v }))}</td>
+                        <td className={td("w-[60px]")}>{ti(row.pause_hours ? formatHHMMFromHours(row.pause_hours) : "", v => patchRow(idx, { pause_hours: parseHHMMOrNumber(v) }))}</td>
 
-                        {/* Entry */}
-                        <td className="px-1.5 py-3 border-r border-border">
-                          <TimeInput value={row.period_start} onChange={(v) => patchRow(idx, { period_start: v })} />
+                        {/* (6) Total Extra */}
+                        <td className={td("text-center w-[62px] bg-amber-50/60")}>
+                          <span className={`font-bold tabular-nums ${hasExtra ? "underline text-amber-700" : "text-slate-300"}`}>
+                            {hasExtra ? formatHours(row.extra_hours) : "—"}
+                          </span>
                         </td>
-
-                        {/* Exit */}
-                        <td className="px-1.5 py-3 border-r border-border">
-                          <TimeInput value={row.period_end} onChange={(v) => patchRow(idx, { period_end: v })} />
+                        {/* (7-10) HE períodos */}
+                        <td className={td("min-w-[80px] bg-amber-50/20")}>{ti(row.extra1_start, v => patchRow(idx, { extra1_start: v }))}</td>
+                        <td className={td("min-w-[80px] bg-amber-50/20")}>{ti(row.extra1_end,   v => patchRow(idx, { extra1_end:   v }))}</td>
+                        <td className={td("min-w-[80px] bg-amber-50/20")}>{ti(row.extra2_start, v => patchRow(idx, { extra2_start: v }))}</td>
+                        <td className={td("min-w-[80px] bg-amber-50/20")}>{ti(row.extra2_end,   v => patchRow(idx, { extra2_end:   v }))}</td>
+                        {/* (11) Motivo TS */}
+                        <td className={td("min-w-[100px] bg-amber-50/20")}>
+                          <input value={row.extra_motivo || ""} onChange={e => patchRow(idx, { extra_motivo: e.target.value }, { skipRecompute: true })} placeholder="—" className="w-full bg-transparent text-[11px] italic text-blue-600 placeholder:text-slate-300 outline-none focus:bg-white focus:ring-1 focus:ring-amber-300 rounded px-1 py-0.5" />
                         </td>
-
-                        {/* Pause */}
-                        <td className="px-1.5 py-3 border-r border-border">
-                          <TimeInput value={row.pause_hours ? formatHHMMFromHours(row.pause_hours) : ""} onChange={(v) => patchRow(idx, { pause_hours: parseHHMMOrNumber(v) })} />
+                        {/* (12) Total Viagem */}
+                        <td className={td("text-center w-[62px] bg-cyan-50/40")}>
+                          <span className={`font-bold tabular-nums ${hasTravel ? "text-cyan-700" : "text-slate-300"}`}>
+                            {hasTravel ? formatHours(row.travel_hours) : "—"}
+                          </span>
                         </td>
-
-                        {/* Extra hours */}
-                        <td className="px-2 py-3 text-center border-r border-border bg-amber-50/20">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className={`inline-flex items-center justify-center min-w-[48px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
-                              hasExtra ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200" : "text-muted-foreground"
-                            }`}>
-                              {hasExtra ? formatHours(row.extra_hours) : "—"}
-                            </span>
-                            <div className="flex items-center gap-0.5">
-                              <TimeInput value={row.extra1_start} onChange={(v) => patchRow(idx, { extra1_start: v })} className="!h-6 !w-[48px] !text-[10px] !border-amber-200 !rounded-sm" />
-                              <span className="text-[10px] text-muted-foreground">—</span>
-                              <TimeInput value={row.extra1_end} onChange={(v) => patchRow(idx, { extra1_end: v })} className="!h-6 !w-[48px] !text-[10px] !border-amber-200 !rounded-sm" />
-                            </div>
-                          </div>
+                        {/* (13-16) Viagem */}
+                        <td className={td("min-w-[80px] bg-cyan-50/20")}>{ti(row.travel1_start, v => patchRow(idx, { travel1_start: v }))}</td>
+                        <td className={td("min-w-[80px] bg-cyan-50/20")}>{ti(row.travel1_end,   v => patchRow(idx, { travel1_end:   v }))}</td>
+                        <td className={td("min-w-[80px] bg-cyan-50/20")}>{ti(row.travel2_start, v => patchRow(idx, { travel2_start: v }))}</td>
+                        <td className={td("min-w-[80px] bg-cyan-50/20")}>{ti(row.travel2_end,   v => patchRow(idx, { travel2_end:   v }))}</td>
+                        {/* (18) Tipo Ausência */}
+                        <td className={td("min-w-[140px]")}>
+                          <ComboBox value={row.absence_type || ""} onChange={v => patchRow(idx, { absence_type: v }, { skipRecompute: true })} options={ABSENCE_TYPES} placeholder="— Nenhuma —" />
                         </td>
-
-                        {/* Day type */}
-                        <td className="px-1.5 py-3 border-r border-border">
-                          <ComboBox
-                            value={row.day_type || "Dia Útil"}
-                            onChange={(v) => patchRow(idx, { day_type: v }, { skipRecompute: true })}
-                            options={dayTypeOpts}
-                            placeholder="Dia Útil"
-                          />
+                        {/* (19-20) Ausência de/a */}
+                        <td className={td("w-[60px]")}>{ti(row.absence_start || "", v => patchRow(idx, { absence_start: v }, { skipRecompute: true }))}</td>
+                        <td className={td("w-[60px]")}>{ti(row.absence_end   || "", v => patchRow(idx, { absence_end:   v }, { skipRecompute: true }))}</td>
+                        {/* (21) Tipo Dia */}
+                        <td className={td("min-w-[90px]")}>
+                          <ComboBox value={row.day_type || "Dia Útil"} onChange={v => patchRow(idx, { day_type: v }, { skipRecompute: true })} options={DAY_TYPES.map(d => ({ value: d, label: d }))} placeholder="Dia Útil" />
                         </td>
-
-                        {/* Absence type */}
-                        <td className="px-1.5 py-3 border-r border-border">
-                          <ComboBox
-                            value={row.absence_type || ""}
-                            onChange={(v) => patchRow(idx, { absence_type: v }, { skipRecompute: true })}
-                            options={ABSENCE_TYPES}
-                            placeholder="—"
-                          />
+                        {/* (22-24) Subsídios */}
+                        <td className={td("text-center w-[52px]")}>
+                          <input type="checkbox" checked={!!row.subsidio_almoco} onChange={e => patchRow(idx, { subsidio_almoco: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 cursor-pointer accent-emerald-600" />
                         </td>
-
-                        {/* Travel hours */}
-                        <td className="px-2 py-3 text-center border-r border-border bg-cyan-50/20">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className={`inline-flex items-center justify-center min-w-[48px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
-                              hasTravel ? "bg-cyan-100 text-cyan-800 ring-1 ring-cyan-200" : "text-muted-foreground"
-                            }`}>
-                              {hasTravel ? formatHours(row.travel_hours) : "—"}
-                            </span>
-                            <div className="flex items-center gap-0.5">
-                              <TimeInput value={row.travel1_start} onChange={(v) => patchRow(idx, { travel1_start: v })} className="!h-6 !w-[48px] !text-[10px] !border-cyan-200 !rounded-sm" />
-                              <span className="text-[10px] text-muted-foreground">—</span>
-                              <TimeInput value={row.travel1_end} onChange={(v) => patchRow(idx, { travel1_end: v })} className="!h-6 !w-[48px] !text-[10px] !border-cyan-200 !rounded-sm" />
-                            </div>
-                          </div>
+                        <td className={td("text-center w-[52px]")}>
+                          <input type="checkbox" checked={!!row.prevencao} onChange={e => patchRow(idx, { prevencao: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 cursor-pointer accent-amber-600" />
                         </td>
-
-                        {/* Project number */}
-                        <td className="px-1.5 py-3 border-r border-border">
-                          <ProjectComboBox
-                            value={row.project_number || ""}
-                            onChange={(code, info) => patchRow(idx, { project_number: code, project_client: info?.client || "", project_description: info?.description || "" })}
-                            projects={allProjects}
-                          />
+                        <td className={td("text-center w-[52px]")}>
+                          <input type="checkbox" checked={!!row.deslocado} onChange={e => patchRow(idx, { deslocado: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 cursor-pointer accent-purple-600" />
                         </td>
-
-                        {/* Client + Description merged */}
-                        <td className="px-1.5 py-3 border-r border-border">
-                          <div className="flex flex-col gap-1">
-                            <input
-                              value={row.project_client || ""}
-                              onChange={(e) => patchRow(idx, { project_client: e.target.value }, { skipRecompute: true })}
-                              placeholder="Cliente"
-                              className="h-8 w-full rounded border border-border bg-transparent px-2 text-xs font-medium text-muted-foreground placeholder:text-muted-foreground focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
-                            />
-                            <input
-                              value={row.project_description || ""}
-                              onChange={(e) => patchRow(idx, { project_description: e.target.value }, { skipRecompute: true })}
-                              placeholder="Descrição"
-                              className="h-8 w-full rounded border border-border bg-transparent px-2 text-xs text-muted-foreground placeholder:text-muted-foreground focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
-                            />
-                          </div>
+                        {/* (25-26) Local / Motivo Deslocação */}
+                        <td className={td("min-w-[90px]")}>
+                          <input value={row.local_deslocacao || ""} onChange={e => patchRow(idx, { local_deslocacao: e.target.value }, { skipRecompute: true })} placeholder="—" className="w-full bg-transparent text-[11px] text-slate-600 placeholder:text-slate-300 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5" />
                         </td>
-
-                        {/* Subsidio almoco */}
-                        <td className="px-1 py-3 text-center border-r border-border">
-                          <input type="checkbox" checked={!!row.subsidio_almoco} onChange={(e) => patchRow(idx, { subsidio_almoco: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                        <td className={td("min-w-[100px]")}>
+                          <input value={row.motivo_deslocacao || ""} onChange={e => patchRow(idx, { motivo_deslocacao: e.target.value }, { skipRecompute: true })} placeholder="—" className="w-full bg-transparent text-[11px] text-slate-600 placeholder:text-slate-300 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5" />
                         </td>
-
-                        {/* Prevencao */}
-                        <td className="px-1 py-3 text-center border-r border-border">
-                          <input type="checkbox" checked={!!row.prevencao} onChange={(e) => patchRow(idx, { prevencao: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-border text-amber-600 focus:ring-amber-500 cursor-pointer" />
+                        {/* (27) Nº Projeto */}
+                        <td className={td("min-w-[100px] bg-red-50/20")}>
+                          <ProjectComboBox value={row.project_number || ""} onChange={(code, info) => patchRow(idx, { project_number: code, project_client: info?.client || "", project_description: info?.description || "" })} projects={allProjects} />
                         </td>
-
-                        {/* Deslocado */}
-                        <td className="px-1 py-3 text-center border-r border-border">
-                          <input type="checkbox" checked={!!row.deslocado} onChange={(e) => patchRow(idx, { deslocado: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-border text-purple-600 focus:ring-purple-500 cursor-pointer" />
+                        {/* (28) Cliente */}
+                        <td className={td("min-w-[200px] bg-red-50/20")}>
+                          <input value={row.project_client || ""} onChange={e => patchRow(idx, { project_client: e.target.value }, { skipRecompute: true })} placeholder="Cliente" className="w-full bg-transparent text-[11px] text-slate-700 font-medium placeholder:text-slate-300 outline-none focus:bg-white focus:ring-1 focus:ring-red-200 rounded px-1 py-0.5" />
                         </td>
-
-                        {/* Observations */}
-                        <td className="px-1.5 py-3 border-r border-border">
-                          <input
-                            value={row.observacoes || ""}
-                            onChange={(e) => patchRow(idx, { observacoes: e.target.value }, { skipRecompute: true })}
-                            placeholder="..."
-                            className="h-8 w-full rounded border border-border bg-transparent px-2 text-xs text-muted-foreground placeholder:text-muted-foreground focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
-                          />
+                        {/* (29) Descrição */}
+                        <td className={td("min-w-[200px] bg-red-50/20")}>
+                          <input value={row.project_description || ""} onChange={e => patchRow(idx, { project_description: e.target.value }, { skipRecompute: true })} placeholder="Descrição" className="w-full bg-transparent text-[11px] text-slate-600 placeholder:text-slate-300 outline-none focus:bg-white focus:ring-1 focus:ring-red-200 rounded px-1 py-0.5" />
                         </td>
-
-                        {/* Actions */}
-                        <td className="px-1 py-3">
-                          <div className="flex items-center justify-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                            <button type="button" disabled={idx === 0} onClick={() => copyPreviousRow(idx)} className="p-1.5 rounded hover:bg-secondary disabled:opacity-20" title="Copiar anterior">
-                              <Copy className="h-4 w-4 text-muted-foreground hover:text-muted-foreground" />
+                        {/* (30) Observações */}
+                        <td className={td("min-w-[120px]")}>
+                          <input value={row.observacoes || ""} onChange={e => patchRow(idx, { observacoes: e.target.value }, { skipRecompute: true })} placeholder="..." className="w-full bg-transparent text-[11px] text-slate-500 placeholder:text-slate-300 outline-none focus:bg-white focus:ring-1 focus:ring-blue-200 rounded px-1 py-0.5" />
+                        </td>
+                        {/* Ações */}
+                        <td className="border border-slate-200 px-1 py-1 text-center align-middle w-[90px]">
+                          <div className="flex items-center justify-center gap-0.5 opacity-30 group-hover:opacity-100 transition-opacity">
+                            <button type="button" disabled={idx === 0} onClick={() => copyPreviousRow(idx)} className="p-1 rounded hover:bg-gray-100 disabled:opacity-20" title="Copiar anterior">
+                              <Copy className="h-3.5 w-3.5 text-gray-400" />
                             </button>
-                            <button type="button" onClick={() => fillDownFromRow(idx)} className="p-1.5 rounded hover:bg-blue-50" title="Preencher abaixo">
-                              <ArrowDown className="h-4 w-4 text-blue-400 hover:text-blue-600" />
+                            <button type="button" onClick={() => fillDownFromRow(idx)} className="p-1 rounded hover:bg-blue-50" title="Preencher abaixo">
+                              <ArrowDown className="h-3.5 w-3.5 text-blue-400" />
                             </button>
-                            <button type="button" onClick={() => clearRow(idx)} className="p-1.5 rounded hover:bg-red-50" title="Limpar">
-                              <Eraser className="h-4 w-4 text-muted-foreground hover:text-red-500" />
+                            <button type="button" onClick={() => clearRow(idx)} className="p-1 rounded hover:bg-red-50" title="Limpar">
+                              <Eraser className="h-3.5 w-3.5 text-gray-400" />
                             </button>
                           </div>
                         </td>
@@ -1810,19 +1806,18 @@ export default function FillTimesheetPage() {
                   })}
                 </tbody>
 
-                {/* ── Footer ── */}
+                {/* ══════════ TFOOT ══════════ */}
                 <tfoot>
-                  <tr className="sticky bottom-0 z-20 bg-secondary/70 border-t-2 border-border text-xs font-bold">
-                    <td className="sticky left-0 z-30 bg-secondary/70 px-3 py-2.5 text-muted-foreground border-r border-border">
-                      <span className="flex items-center gap-2">
-                        <ClipboardList className="h-3.5 w-3.5 text-red-500" />
-                        TOTAL
-                      </span>
+                  <tr className="sticky bottom-0 z-20 bg-slate-100 border-t-2 border-slate-300 font-bold text-[11px]">
+                    <td className="sticky left-0 z-30 bg-slate-100 border border-slate-300 px-2 py-1.5 text-slate-700">
+                      <span className="flex items-center gap-1.5"><ClipboardList className="h-3.5 w-3.5 text-red-500" />TOTAL</span>
                     </td>
-                    <td className="px-2 py-2.5 text-center tabular-nums text-emerald-700 border-r border-border">{formatHours(totals.normal)}</td>
-                    <td className="border-r border-border" colSpan={3} />
-                    <td className="px-2 py-2.5 text-center tabular-nums text-amber-700 border-r border-border">{formatHours(totals.extra)}</td>
-                    <td className="border-r border-border" colSpan={9} />
+                    <td className="border border-slate-300 px-2 py-1.5 text-center text-emerald-700 tabular-nums">{formatHours(totals.normal)}</td>
+                    <td className="border border-slate-300" colSpan={3} />
+                    <td className="border border-slate-300 px-2 py-1.5 text-center text-amber-700 tabular-nums">{formatHours(totals.extra)}</td>
+                    <td className="border border-slate-300" colSpan={5} />
+                    <td className="border border-slate-300 px-2 py-1.5 text-center text-cyan-700 tabular-nums">{formatHours(totals.travel ?? 0)}</td>
+                    <td className="border border-slate-300" colSpan={19} />
                   </tr>
                 </tfoot>
               </table>
