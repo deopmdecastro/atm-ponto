@@ -1625,9 +1625,9 @@ export default function FillTimesheetPage() {
                     <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle w-[62px] bg-emerald-50 text-emerald-800">Total</th>
                     <th colSpan={3} className="border border-slate-300 px-2 py-1 bg-slate-100">PERÍODO</th>
                     <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle w-[62px] bg-amber-50 text-amber-800">Total Extra</th>
-                    <th colSpan={5} className="border border-slate-300 px-2 py-1 bg-amber-50/60 text-amber-700">Suplementares</th>
+                    <th colSpan={5} className="border border-slate-300 px-2 py-1 bg-amber-50 text-amber-700">Suplementares</th>
                     <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle w-[62px] bg-cyan-50 text-cyan-800">Total Viagem</th>
-                    <th colSpan={4} className="border border-slate-300 px-2 py-1 bg-cyan-50/60 text-cyan-700">HORAS DE VIAGEM</th>
+                    <th colSpan={4} className="border border-slate-300 px-2 py-1 bg-cyan-50 text-cyan-700">HORAS DE VIAGEM</th>
                     <th colSpan={3} className="border border-slate-300 px-2 py-1 bg-slate-100">Horas de Ausência/Presença</th>
                     <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle w-[52px] bg-slate-100">S.Alim.</th>
                     <th rowSpan={2} className="border border-slate-300 px-2 py-1 align-middle w-[52px] bg-slate-100">Prev.</th>
@@ -1644,15 +1644,15 @@ export default function FillTimesheetPage() {
                     <th className="border border-slate-300 px-1 py-1 w-[68px] bg-slate-50">de</th>
                     <th className="border border-slate-300 px-1 py-1 w-[68px] bg-slate-50">a</th>
                     <th className="border border-slate-300 px-1 py-1 w-[60px] bg-slate-50">Pausa</th>
-                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50/40">1º HE de</th>
-                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50/40">1º HE a</th>
-                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50/40">2º HE de</th>
-                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50/40">2º HE a</th>
-                    <th className="border border-slate-300 px-1 py-1 min-w-[100px] bg-amber-50/40">Motivo TS</th>
-                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50/40">Ida Início</th>
-                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50/40">Ida Fim</th>
-                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50/40">Volta Início</th>
-                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50/40">Volta Fim</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50">1º HE de</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50">1º HE a</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50">2º HE de</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-amber-50">2º HE a</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[100px] bg-amber-50">Motivo TS</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50">Ida Início</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50">Ida Fim</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50">Volta Início</th>
+                    <th className="border border-slate-300 px-1 py-1 min-w-[80px] bg-cyan-50">Volta Fim</th>
                     <th className="border border-slate-300 px-1 py-1 min-w-[140px] bg-slate-50">Tipo de Ausência/Presença</th>
                     <th className="border border-slate-300 px-1 py-1 w-[60px] bg-slate-50">de</th>
                     <th className="border border-slate-300 px-1 py-1 w-[60px] bg-slate-50">a</th>
