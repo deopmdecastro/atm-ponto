@@ -1031,17 +1031,46 @@ export default function FillTimesheetPage() {
     if (!canSave) return;
     setSaving(true);
     try {
-      // Download Excel
+      // Gera o Excel, descarrega-o localmente para o utilizador e também o
+      // envia para o servidor (mesma rota usada no Upload), para que o
+      // Histórico consiga sempre oferecer o download do ficheiro original,
+      // mesmo quando a folha foi criada diretamente no site (sem upload prévio).
+      const safeName = clean(meta.employee_name).replace(/[^\p{L}\p{N}\s._-]+/gu, "").replace(/\s+/g, "_").slice(0, 60) || "Colaborador";
+      const safeMonth = clean(meta.month) || "Mes";
+      const filename = safeName + "_TimeSheet_" + safeMonth + "_" + (meta.year || "") + ".xlsx";
+
+      let uploadedFileUrl = "";
+      let excelBlob = null;
       try {
-        const blob = exportTimesheetToExcel({ meta, rows, projects: allProjects });
-        const safeName = clean(meta.employee_name).replace(/[^\p{L}\p{N}\s._-]+/gu, "").replace(/\s+/g, "_").slice(0, 60) || "Colaborador";
-        const safeMonth = clean(meta.month) || "Mes";
-        const filename = safeName + "_TimeSheet_" + safeMonth + "_" + (meta.year || "") + ".xlsx";
-        const url2 = URL.createObjectURL(blob);
-        const a2 = document.createElement("a"); a2.href = url2; a2.download = filename;
-        document.body.appendChild(a2); a2.click(); a2.remove();
-        URL.revokeObjectURL(url2);
-      } catch (e) { /* non-critical */ }
+        excelBlob = exportTimesheetToExcel({ meta, rows, projects: allProjects });
+      } catch (e) { /* non-critical: se falhar a geração, seguimos sem o ficheiro */ }
+
+      if (excelBlob) {
+        // Download local imediato (comportamento já existente)
+        try {
+          const url2 = URL.createObjectURL(excelBlob);
+          const a2 = document.createElement("a"); a2.href = url2; a2.download = filename;
+          document.body.appendChild(a2); a2.click(); a2.remove();
+          URL.revokeObjectURL(url2);
+        } catch (e) { /* non-critical */ }
+
+        // Envio para o servidor, para o Histórico poder oferecer o download depois
+        try {
+          const excelFile = new File([excelBlob], filename, {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          });
+          const { file_url } = await base44.integrations.Core.UploadFile({ file: excelFile });
+          uploadedFileUrl = file_url || "";
+        } catch (e) {
+          // Não bloqueia o guardar da folha — apenas o download original ficará indisponível.
+          console.error("Falha ao guardar o Excel original no servidor:", e);
+          toast({
+            variant: "destructive",
+            title: "Aviso: ficheiro original não guardado no servidor",
+            description: "A folha foi guardada e o Excel foi descarregado para o seu computador, mas não foi possível enviá-lo ao servidor — o botão 'Baixar' no Histórico não estará disponível para esta folha."
+          });
+        }
+      }
 
       const timesheetPayload = {
         employee_name:        meta.employee_name,
@@ -1061,8 +1090,8 @@ export default function FillTimesheetPage() {
         default_project_number:      mostUsedProject?.project_number      || "",
         default_project_client:      mostUsedProject?.project_client      || "",
         default_project_description: mostUsedProject?.project_description || "",
-        source_filename:      sourceFile?.name || `${meta.month}-${meta.year}-preenchido.xlsx`,
-        source_file_url:      "",
+        source_filename:      sourceFile?.name || filename,
+        source_file_url:      uploadedFileUrl,
         total_compensation_hours:            totals.extra,
         total_descanso_compensatorio_hours:  0
       };
