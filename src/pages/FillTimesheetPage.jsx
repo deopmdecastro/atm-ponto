@@ -134,7 +134,7 @@ function dayTypeAccent(type) {
     case "Desc.Comp":
       return { dot: "bg-amber-500" };
     case "Feriado":
-      return { dot: "bg-purple-500" };
+      return { dot: "bg-violet-500" };
     default:
       return { dot: "bg-emerald-500" };
   }
@@ -1650,7 +1650,7 @@ export default function FillTimesheetPage() {
                         {/* Day */}
                         <td className={`sticky left-0 z-10 px-3 py-3 border-r border-border ${rowBg} ${hasError ? "!bg-red-50/60" : ""}`}>
                           <div className="flex items-center gap-2">
-                            <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${accent.dot} ring-2 ring-offset-1 ${accent.dot === "bg-red-500" ? "ring-red-200" : accent.dot === "bg-amber-500" ? "ring-amber-200" : accent.dot === "bg-purple-500" ? "ring-purple-200" : "ring-emerald-200"}`} />
+                            <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${accent.dot}`} />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-sm font-bold text-foreground">{row.weekday}</span>

@@ -30,6 +30,40 @@ const DAY_TYPE_STYLES = {
   Feriado: "bg-violet-50 text-violet-700 border-violet-200",
 };
 
+// Same color mapping already used elsewhere in the app (calendar view of
+// "Preencher") so the day-type colour language stays consistent everywhere.
+function dayDotColor(dayType) {
+  switch (dayType) {
+    case "Desc. Obrig":
+      return "bg-red-500";
+    case "Desc.Comp":
+      return "bg-amber-500";
+    case "Feriado":
+      return "bg-violet-500";
+    default:
+      return "bg-emerald-500";
+  }
+}
+
+/**
+ * Date badge: coloured status dot + weekday/date on top, year below.
+ */
+function DateBadge({ date, dayType, className }) {
+  const m = moment(date);
+  return (
+    <div className={cn("flex items-start gap-2", className)}>
+      <span className={cn("mt-[5px] h-2 w-2 shrink-0 rounded-full", dayDotColor(dayType))} />
+      <div className="leading-tight">
+        <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+          <span className="text-[13px] font-bold capitalize text-foreground">{m.format("ddd")}</span>
+          <span className="text-xs font-semibold text-muted-foreground">{m.format("DD/MM")}</span>
+        </div>
+        <div className="text-[11px] text-muted-foreground/70">{m.format("YYYY")}</div>
+      </div>
+    </div>
+  );
+}
+
 const STATUS_STYLES = {
   Disponível: "bg-primary text-primary-foreground border-transparent",
   Gozado: "bg-secondary text-secondary-foreground border-transparent",
@@ -54,8 +88,6 @@ function fmtText(value) {
  * desktop table, grouped into the same sections, but stacked for readability.
  */
 function DayCard({ row, onToggleCompensate }) {
-  const dateStr = moment(row.date).format("DD/MM/YYYY");
-  const weekday = moment(row.date).format("ddd");
   const isRestDay = row.day_type === "Desc.Comp" || row.day_type === "Desc. Obrig";
   const hasProject = row.project_number || row.project_client || row.project_description;
 
@@ -68,31 +100,25 @@ function DayCard({ row, onToggleCompensate }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg bg-secondary/60 text-secondary-foreground">
-            <span className="text-[10px] font-medium uppercase leading-none text-muted-foreground">
-              {weekday}
-            </span>
-            <span className="text-sm font-bold leading-tight">{moment(row.date).format("DD")}</span>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">{dateStr}</p>
-            <span
-              className={cn(
-                "mt-1 inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                DAY_TYPE_STYLES[row.day_type] || "border-border bg-secondary text-secondary-foreground"
-              )}
-            >
-              {fmtText(row.day_type)}
-            </span>
-          </div>
+          <DateBadge date={row.date} dayType={row.day_type} />
         </div>
-        <Badge
-          className={cn("cursor-pointer text-[10px]", STATUS_STYLES[row.bankStatus] || "")}
-          variant="outline"
-          onClick={() => onToggleCompensate && onToggleCompensate(row)}
-        >
-          {row.bankStatus || "-"}
-        </Badge>
+        <div className="flex flex-col items-end gap-1.5">
+          <Badge
+            className={cn("cursor-pointer text-[10px]", STATUS_STYLES[row.bankStatus] || "")}
+            variant="outline"
+            onClick={() => onToggleCompensate && onToggleCompensate(row)}
+          >
+            {row.bankStatus || "-"}
+          </Badge>
+          <span
+            className={cn(
+              "inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium",
+              DAY_TYPE_STYLES[row.day_type] || "border-border bg-secondary text-secondary-foreground"
+            )}
+          >
+            {fmtText(row.day_type)}
+          </span>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -274,8 +300,6 @@ export default function HistoryTable({ history, onToggleCompensate }) {
           </thead>
           <tbody>
             {paged.map((row, i) => {
-              const dateStr = moment(row.date).format("DD/MM/YYYY");
-              const weekday = moment(row.date).format("ddd");
               const isRestDay = row.day_type === "Desc.Comp" || row.day_type === "Desc. Obrig";
               const cell = "px-3 py-2 border border-border align-middle";
 
@@ -284,9 +308,8 @@ export default function HistoryTable({ history, onToggleCompensate }) {
                   key={i}
                   className={cn("transition-colors hover:bg-secondary/20", isRestDay && "bg-muted/30")}
                 >
-                  <td className={cn(cell, "sticky left-0 z-10 bg-card text-left font-medium")}>
-                    <span className="text-foreground">{dateStr}</span>
-                    <span className="ml-1.5 capitalize text-muted-foreground">{weekday}</span>
+                  <td className={cn(cell, "sticky left-0 z-10 bg-card text-left")}>
+                    <DateBadge date={row.date} dayType={row.day_type} />
                   </td>
 
                   <td className={cn(cell, "text-right tabular-nums font-semibold text-foreground")}>
