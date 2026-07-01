@@ -215,6 +215,25 @@ export async function initDb() {
   await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS default_project_number text;`);
   await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS default_project_client text;`);
   await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS default_project_description text;`);
+  // Full "Preencher" model fields — previously only kept in the browser and
+  // baked into the exported Excel, never persisted. Needed so the Histórico
+  // detail view can show the exact same table as Preencher with real data.
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS extra1_start text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS extra1_end text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS extra2_start text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS extra2_end text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS extra_motivo text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS travel1_start text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS travel1_end text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS travel2_start text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS travel2_end text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS absence_start text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS absence_end text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS subsidio_almoco boolean NOT NULL DEFAULT false;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS prevencao boolean NOT NULL DEFAULT false;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS deslocado boolean NOT NULL DEFAULT false;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS local_deslocacao text;`);
+  await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS motivo_deslocacao text;`);
 
   await query(prisma, `
     DO $$

@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import HistoryTable from "../components/dashboard/HistoryTable";
+import FullTimesheetTable from "../components/dashboard/FullTimesheetTable";
 import { buildHourBankHistory } from "../lib/parseTimesheet";
 import { formatHours } from "../lib/formatHours";
 
@@ -129,7 +130,12 @@ export default function TimesheetDetailPage() {
           <p className="text-sm text-muted-foreground">{timesheet?.employee_name || ""}</p>
         </div>
       </div>
-      <HistoryTable history={history} onToggleCompensate={handleToggleCompensate} />
+      <div className="hidden md:block">
+        <FullTimesheetTable records={sorted} onToggleCompensate={handleToggleCompensate} />
+      </div>
+      <div className="md:hidden">
+        <HistoryTable history={history} onToggleCompensate={handleToggleCompensate} />
+      </div>
     </div>
   );
 }

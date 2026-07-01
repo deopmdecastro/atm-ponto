@@ -95,6 +95,22 @@ model TimesheetRecord {
   pause_hours         Float?   @db.DoublePrecision
   status              String?  @db.Text
   observations        String?  @db.Text
+  extra1_start        String?  @db.Text
+  extra1_end          String?  @db.Text
+  extra2_start        String?  @db.Text
+  extra2_end          String?  @db.Text
+  extra_motivo        String?  @db.Text
+  travel1_start       String?  @db.Text
+  travel1_end         String?  @db.Text
+  travel2_start       String?  @db.Text
+  travel2_end         String?  @db.Text
+  absence_start       String?  @db.Text
+  absence_end         String?  @db.Text
+  subsidio_almoco     Boolean  @default(false)
+  prevencao           Boolean  @default(false)
+  deslocado           Boolean  @default(false)
+  local_deslocacao    String?  @db.Text
+  motivo_deslocacao   String?  @db.Text
 
   @@map("timesheet_records")
 }

@@ -906,11 +906,19 @@ app.post(
       INSERT INTO timesheet_records
         (id, user_id, timesheet_id, employee_name, employee_number, month, year, date, normal_hours, extra_hours, travel_hours, absence_hours,
          day_type, absence_type, project_number, project_client, project_description, compensated, period_start, period_end,
-         pause_hours, status, observations)
+         pause_hours, status, observations,
+         extra1_start, extra1_end, extra2_start, extra2_end, extra_motivo,
+         travel1_start, travel1_end, travel2_start, travel2_end,
+         absence_start, absence_end,
+         subsidio_almoco, prevencao, deslocado, local_deslocacao, motivo_deslocacao)
       VALUES
         ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
          $13,$14,$15,$16,$17,$18,$19,$20,
-         $21,$22,$23)
+         $21,$22,$23,
+         $24,$25,$26,$27,$28,
+         $29,$30,$31,$32,
+         $33,$34,
+         $35,$36,$37,$38,$39)
       RETURNING *;
       `,
       [
@@ -936,7 +944,23 @@ app.post(
         data.period_end || "",
         Number(data.pause_hours || 0),
         data.status || "normal",
-        data.observations || ""
+        data.observations || "",
+        data.extra1_start || "",
+        data.extra1_end || "",
+        data.extra2_start || "",
+        data.extra2_end || "",
+        data.extra_motivo || "",
+        data.travel1_start || "",
+        data.travel1_end || "",
+        data.travel2_start || "",
+        data.travel2_end || "",
+        data.absence_start || "",
+        data.absence_end || "",
+        Boolean(data.subsidio_almoco),
+        Boolean(data.prevencao),
+        Boolean(data.deslocado),
+        data.local_deslocacao || "",
+        data.motivo_deslocacao || ""
       ]
     );
     const row = rows[0];
@@ -973,11 +997,19 @@ app.post(
           INSERT INTO timesheet_records
             (id, user_id, timesheet_id, employee_name, employee_number, month, year, date, normal_hours, extra_hours, travel_hours, absence_hours,
              day_type, absence_type, project_number, project_client, project_description, compensated, period_start, period_end,
-             pause_hours, status, observations)
+             pause_hours, status, observations,
+             extra1_start, extra1_end, extra2_start, extra2_end, extra_motivo,
+             travel1_start, travel1_end, travel2_start, travel2_end,
+             absence_start, absence_end,
+             subsidio_almoco, prevencao, deslocado, local_deslocacao, motivo_deslocacao)
           VALUES
             ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
              $13,$14,$15,$16,$17,$18,$19,$20,
-             $21,$22,$23)
+             $21,$22,$23,
+             $24,$25,$26,$27,$28,
+             $29,$30,$31,$32,
+             $33,$34,
+             $35,$36,$37,$38,$39)
           RETURNING *;
           `,
           [
@@ -1003,7 +1035,23 @@ app.post(
             item.period_end || "",
             Number(item.pause_hours || 0),
             item.status || "normal",
-            item.observations || ""
+            item.observations || "",
+            item.extra1_start || "",
+            item.extra1_end || "",
+            item.extra2_start || "",
+            item.extra2_end || "",
+            item.extra_motivo || "",
+            item.travel1_start || "",
+            item.travel1_end || "",
+            item.travel2_start || "",
+            item.travel2_end || "",
+            item.absence_start || "",
+            item.absence_end || "",
+            Boolean(item.subsidio_almoco),
+            Boolean(item.prevencao),
+            Boolean(item.deslocado),
+            item.local_deslocacao || "",
+            item.motivo_deslocacao || ""
           ]
         );
         results.push(rows[0]);
@@ -1428,7 +1476,23 @@ app.put(
         period_end = COALESCE($18, period_end),
         pause_hours = COALESCE($19, pause_hours),
         status = COALESCE($20, status),
-        observations = COALESCE($21, observations)
+        observations = COALESCE($21, observations),
+        extra1_start = COALESCE($23, extra1_start),
+        extra1_end = COALESCE($24, extra1_end),
+        extra2_start = COALESCE($25, extra2_start),
+        extra2_end = COALESCE($26, extra2_end),
+        extra_motivo = COALESCE($27, extra_motivo),
+        travel1_start = COALESCE($28, travel1_start),
+        travel1_end = COALESCE($29, travel1_end),
+        travel2_start = COALESCE($30, travel2_start),
+        travel2_end = COALESCE($31, travel2_end),
+        absence_start = COALESCE($32, absence_start),
+        absence_end = COALESCE($33, absence_end),
+        subsidio_almoco = COALESCE($34, subsidio_almoco),
+        prevencao = COALESCE($35, prevencao),
+        deslocado = COALESCE($36, deslocado),
+        local_deslocacao = COALESCE($37, local_deslocacao),
+        motivo_deslocacao = COALESCE($38, motivo_deslocacao)
       WHERE id = $1 AND user_id = $22
       RETURNING *;
       `,
@@ -1454,7 +1518,23 @@ app.put(
         data.pause_hours != null ? Number(data.pause_hours) : null,
         data.status ?? null,
         data.observations ?? null,
-        req.user.id
+        req.user.id,
+        data.extra1_start ?? null,
+        data.extra1_end ?? null,
+        data.extra2_start ?? null,
+        data.extra2_end ?? null,
+        data.extra_motivo ?? null,
+        data.travel1_start ?? null,
+        data.travel1_end ?? null,
+        data.travel2_start ?? null,
+        data.travel2_end ?? null,
+        data.absence_start ?? null,
+        data.absence_end ?? null,
+        typeof data.subsidio_almoco === "boolean" ? data.subsidio_almoco : null,
+        typeof data.prevencao === "boolean" ? data.prevencao : null,
+        typeof data.deslocado === "boolean" ? data.deslocado : null,
+        data.local_deslocacao ?? null,
+        data.motivo_deslocacao ?? null
       ]
     );
     if (!rows[0]) throw httpError(404, "timesheet record not found");

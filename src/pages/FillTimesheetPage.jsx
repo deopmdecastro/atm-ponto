@@ -1116,7 +1116,23 @@ export default function FillTimesheetPage() {
         period_end: r.period_end || "",
         pause_hours: Number(r.pause_hours || 0),
         status: "normal",
-        observations: meta.department || ""
+        observations: r.observacoes || "",
+        extra1_start: r.extra1_start || "",
+        extra1_end: r.extra1_end || "",
+        extra2_start: r.extra2_start || "",
+        extra2_end: r.extra2_end || "",
+        extra_motivo: r.extra_motivo || "",
+        travel1_start: r.travel1_start || "",
+        travel1_end: r.travel1_end || "",
+        travel2_start: r.travel2_start || "",
+        travel2_end: r.travel2_end || "",
+        absence_start: r.absence_start || "",
+        absence_end: r.absence_end || "",
+        subsidio_almoco: Boolean(r.subsidio_almoco),
+        prevencao: Boolean(r.prevencao),
+        deslocado: Boolean(r.deslocado),
+        local_deslocacao: r.local_deslocacao || "",
+        motivo_deslocacao: r.motivo_deslocacao || ""
       }));
 
       await saveMutation.mutateAsync({ timesheetPayload, records });
