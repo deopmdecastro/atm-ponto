@@ -162,7 +162,7 @@ function TimeInput({ value, onChange, disabled, className, ...rest }) {
       onChange={(e) => onChange(e.target.value)}
       onBlur={(e) => onChange(normalizeHHMM(e.target.value))}
       disabled={disabled}
-      className={`h-10 w-full rounded-md border border-border bg-white px-2 text-center text-sm font-medium tabular-nums text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:bg-muted disabled:text-muted-foreground ${className || ""}`}
+      className={`h-10 w-full rounded-md border border-border bg-card px-2 text-center text-sm font-medium tabular-nums text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:bg-muted disabled:text-muted-foreground ${className || ""}`}
       {...rest}
     />
   );
@@ -309,8 +309,8 @@ function SummaryCard({ icon: Icon, label, value, accent, hint }) {
         </div>
         <span className="text-2xl font-bold tabular-nums text-foreground">{value}</span>
       </div>
-      <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">{label}</p>
-      {hint && <p className="mt-1 text-[11px] font-medium text-gray-600">{hint}</p>}
+      <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      {hint && <p className="mt-1 text-[11px] font-medium text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -341,22 +341,22 @@ function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCo
   const dayTypeOpts = DAY_TYPES.map((d) => ({ value: d, label: d }));
   const accent = dayTypeAccent(row.day_type);
   return (
-    <div className="space-y-3 bg-gray-50/80 px-5 py-4 border-t border-gray-100">
+    <div className="space-y-3 bg-muted/40 px-5 py-4 border-t border-border">
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Entrada</Label>
+          <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Entrada</Label>
           <TimeInput value={row.period_start} onChange={(v) => onPatch(index, { period_start: v })} />
         </div>
         <div className="space-y-1">
-          <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Saída</Label>
+          <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Saída</Label>
           <TimeInput value={row.period_end} onChange={(v) => onPatch(index, { period_end: v })} />
         </div>
         <div className="space-y-1">
-          <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Pausa (hh:mm)</Label>
+          <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Pausa (hh:mm)</Label>
           <TimeInput value={row.pause_hours ? formatHHMMFromHours(row.pause_hours) : ""} onChange={(v) => onPatch(index, { pause_hours: parseHHMMOrNumber(v) })} />
         </div>
         <div className="space-y-1">
-          <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Tipo de Dia</Label>
+          <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo de Dia</Label>
           <ComboBox value={row.day_type || "Dia Útil"} onChange={(v) => onPatch(index, { day_type: v }, { skipRecompute: true })} options={dayTypeOpts} placeholder="Dia Útil" />
         </div>
       </div>
@@ -409,7 +409,7 @@ function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCo
 
       {/* Project */}
       <div className="space-y-1">
-        <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Nº Projeto</Label>
+        <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Nº Projeto</Label>
         <ProjectComboBox
           value={row.project_number || ""}
           onChange={(code, info) => onPatch(index, { project_number: code, project_client: info?.client || "", project_description: info?.description || "" })}
@@ -431,21 +431,21 @@ function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCo
 
       {/* Absence */}
       <div className="space-y-1">
-        <Label className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Ausência</Label>
+        <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Ausência</Label>
         <ComboBox value={row.absence_type || ""} onChange={(v) => onPatch(index, { absence_type: v }, { skipRecompute: true })} options={ABSENCE_TYPES} placeholder="Sem ausência" />
       </div>
 
       {/* Checkboxes */}
       <div className="flex items-center gap-4">
-        <label className="flex items-center gap-1.5 text-[11px] font-medium text-gray-600">
+        <label className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
           <input type="checkbox" checked={!!row.subsidio_almoco} onChange={(e) => onPatch(index, { subsidio_almoco: e.target.checked }, { skipRecompute: true })} className="h-3.5 w-3.5 rounded border-border accent-emerald-600" />
           S.Alim.
         </label>
-        <label className="flex items-center gap-1.5 text-[11px] font-medium text-gray-600">
+        <label className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
           <input type="checkbox" checked={!!row.prevencao} onChange={(e) => onPatch(index, { prevencao: e.target.checked }, { skipRecompute: true })} className="h-3.5 w-3.5 rounded border-border accent-amber-600" />
           Prevenção
         </label>
-        <label className="flex items-center gap-1.5 text-[11px] font-medium text-gray-600">
+        <label className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
           <input type="checkbox" checked={!!row.deslocado} onChange={(e) => onPatch(index, { deslocado: e.target.checked }, { skipRecompute: true })} className="h-3.5 w-3.5 rounded border-border accent-purple-600" />
           Deslocado
         </label>
@@ -459,8 +459,8 @@ function RowEditor({ row, index, onPatch, onClear, onCopyPrev, onFillDown, canCo
 
       {/* Calculated + Actions */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <div className="text-[11px] font-medium text-gray-600">
-          Calculado: <span className="font-bold text-gray-900">{formatHours(row.normal_hours)}h</span> normais
+        <div className="text-[11px] font-medium text-muted-foreground">
+          Calculado: <span className="font-bold text-foreground">{formatHours(row.normal_hours)}h</span> normais
           {Number(row.extra_hours || 0) > 0 && (
             <span> · <span className="font-bold text-amber-700">{formatHours(row.extra_hours)}h</span> extras</span>
           )}
@@ -492,7 +492,7 @@ function CalendarMonthView({ rows, validation, onDayClick }) {
     <div className="p-4">
       <div className="grid grid-cols-7 gap-1.5 mb-1.5">
         {WEEKDAY_PT_SHORT.map((d) => (
-          <div key={d} className="text-center text-[11px] font-bold uppercase tracking-wider text-gray-400 py-1">
+          <div key={d} className="text-center text-[11px] font-bold uppercase tracking-wider text-muted-foreground py-1">
             {d}
           </div>
         ))}
@@ -512,18 +512,18 @@ function CalendarMonthView({ rows, validation, onDayClick }) {
               key={row.date}
               onClick={() => onDayClick(idx)}
               className={`group relative flex min-h-[88px] flex-col items-start gap-1 rounded-lg border p-2 text-left transition-all hover:-translate-y-0.5 hover:shadow-md ${
-                row.isWeekend ? "bg-amber-50/40 border-amber-100" : "bg-white border-gray-200"
+                row.isWeekend ? "bg-amber-50/40 border-amber-100" : "bg-card border-border"
               } ${v.errors.length > 0 ? "!border-red-300 !bg-red-50/50" : ""}`}
             >
               <div className="flex w-full items-center justify-between">
                 <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold ${
-                  hasHours ? "bg-emerald-100 text-emerald-800" : "text-gray-500"
+                  hasHours ? "bg-emerald-100 text-emerald-800" : "text-muted-foreground"
                 }`}>
                   {row.day}
                 </span>
                 <span className={`h-1.5 w-1.5 rounded-full ${accent.dot}`} />
               </div>
-              <p className="text-[10px] font-medium text-gray-400 truncate w-full">{row.day_type}</p>
+              <p className="text-[10px] font-medium text-muted-foreground truncate w-full">{row.day_type}</p>
               <div className="mt-auto flex flex-wrap items-center gap-1">
                 {hasHours && (
                   <span className="rounded bg-emerald-100 px-1 py-0.5 text-[10px] font-bold tabular-nums text-emerald-800">
@@ -1142,15 +1142,15 @@ export default function FillTimesheetPage() {
               e.target.value = "";
             }}
           />
-          <Button type="button" variant="outline" size="sm" className="gap-1.5 h-9 text-xs font-medium border-gray-200 hover:bg-gray-50 hover:border-gray-300" onClick={() => fileInputRef.current?.click()} disabled={parsing}>
+          <Button type="button" variant="outline" size="sm" className="gap-1.5 h-9 text-xs font-medium border-border hover:bg-muted/40 hover:border-border" onClick={() => fileInputRef.current?.click()} disabled={parsing}>
             {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             Carregar Excel
           </Button>
-          <Button type="button" variant="outline" size="sm" className="gap-1.5 h-9 text-xs font-medium border-gray-200 hover:bg-gray-50 hover:border-gray-300" onClick={handleExport} disabled={!hasGrid || exporting}>
+          <Button type="button" variant="outline" size="sm" className="gap-1.5 h-9 text-xs font-medium border-border hover:bg-muted/40 hover:border-border" onClick={handleExport} disabled={!hasGrid || exporting}>
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Exportar Excel
           </Button>
-          <Button type="button" size="sm" className="gap-1.5 h-9 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white" onClick={handleSave} disabled={!canSave || saving}>
+          <Button type="button" size="sm" className="gap-1.5 h-9 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handleSave} disabled={!canSave || saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Guardar & Exportar
           </Button>
@@ -1171,24 +1171,24 @@ export default function FillTimesheetPage() {
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
-          className="cursor-pointer rounded-xl border-2 border-dashed border-gray-200 bg-white p-10 text-center transition-all hover:border-red-300 hover:bg-red-50/30"
+          className="cursor-pointer rounded-xl border-2 border-dashed border-border bg-card p-10 text-center transition-all hover:border-red-300 hover:bg-red-50/30"
           onClick={() => fileInputRef.current?.click()}
         >
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary">
             {parsing ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />}
           </div>
-          <p className="mt-4 text-sm font-bold text-gray-900">
+          <p className="mt-4 text-sm font-bold text-foreground">
             Arraste o Excel aqui ou clique para selecionar
           </p>
-          <p className="mt-1 text-[11px] font-medium text-gray-600">
+          <p className="mt-1 text-[11px] font-medium text-muted-foreground">
             O ficheiro é lido localmente no browser — os dados só são gravados quando carregar em "Guardar & Exportar".
           </p>
-          <div className="mt-4 flex items-center justify-center gap-2 text-[11px] font-medium text-gray-600">
+          <div className="mt-4 flex items-center justify-center gap-2 text-[11px] font-medium text-muted-foreground">
             <span>ou</span>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
             <Select value={meta.month} onValueChange={(v) => setMeta((m) => ({ ...m, month: v }))}>
-              <SelectTrigger className="w-[160px] bg-white" onClick={(e) => e.stopPropagation()}>
+              <SelectTrigger className="w-[160px] bg-card" onClick={(e) => e.stopPropagation()}>
                 <SelectValue placeholder="Mês" />
               </SelectTrigger>
               <SelectContent>
@@ -1204,7 +1204,7 @@ export default function FillTimesheetPage() {
               value={meta.year || ""}
               onClick={(e) => e.stopPropagation()}
               onChange={(e) => setMeta((m) => ({ ...m, year: Number(e.target.value) || m.year }))}
-              className="w-[110px] bg-white"
+              className="w-[110px] bg-card"
               placeholder="Ano"
             />
             <Button
@@ -1227,25 +1227,25 @@ export default function FillTimesheetPage() {
       )}
 
       {hasGrid && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50">
-              <UserSquare2 className="h-4 w-4 text-red-600" />
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+              <UserSquare2 className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">Identificação do Colaborador</h3>
-              <p className="text-[11px] text-gray-500">Dados para a folha de imputação</p>
+              <h3 className="text-sm font-semibold text-foreground">Identificação do Colaborador</h3>
+              <p className="text-[11px] text-muted-foreground">Dados para a folha de imputação</p>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Nº Colaborador</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Nº Colaborador</Label>
               <Input value={meta.employee_number} onChange={(e) => setMeta((m) => ({ ...m, employee_number: e.target.value }))} placeholder="63001366" />
             </div>
             <div className="space-y-1 lg:col-span-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Nome</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Nome</Label>
               <div className="flex gap-1.5">
-                <Input value={meta.employee_name} onChange={(e) => setMeta((m) => ({ ...m, employee_name: e.target.value }))} placeholder="Nome do colaborador" className="flex-1 bg-gray-50 border-gray-200 focus:bg-white" />
+                <Input value={meta.employee_name} onChange={(e) => setMeta((m) => ({ ...m, employee_name: e.target.value }))} placeholder="Nome do colaborador" className="flex-1 bg-muted/40 border-border focus:bg-card" />
                 {previousEmployees.length > 0 && (
                   <Popover>
                     <PopoverTrigger asChild>
@@ -1282,10 +1282,10 @@ export default function FillTimesheetPage() {
                                 className="flex flex-col items-start py-2"
                               >
                                 <span className="text-sm font-semibold">{emp.employee_name}</span>
-                                <span className="text-[11px] font-medium text-gray-600">
+                                <span className="text-[11px] font-medium text-muted-foreground">
                                   Nº {emp.employee_number} · {emp.funcao || emp.department}
                                 </span>
-                                {emp.cct && <span className="text-[10px] text-gray-400">CCT: {emp.cct} · {emp.horario}</span>}
+                                {emp.cct && <span className="text-[10px] text-muted-foreground">CCT: {emp.cct} · {emp.horario}</span>}
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -1297,23 +1297,23 @@ export default function FillTimesheetPage() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Função</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Função</Label>
               <Input value={meta.funcao} onChange={(e) => setMeta((m) => ({ ...m, funcao: e.target.value }))} placeholder="Assistente de Manutenção" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Departamento</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Departamento</Label>
               <Input value={meta.department} onChange={(e) => setMeta((m) => ({ ...m, department: e.target.value }))} placeholder="Equipas Móveis Serviços Norte" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Direção / ACE</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Direção / ACE</Label>
               <Input value={meta.direcao} onChange={(e) => setMeta((m) => ({ ...m, direcao: e.target.value }))} placeholder="Serviços" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Centro de Custo</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Centro de Custo</Label>
               <Input value={meta.centro_custo} onChange={(e) => setMeta((m) => ({ ...m, centro_custo: e.target.value }))} placeholder="003SER04" />
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Mês</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Mês</Label>
               <Select value={meta.month} onValueChange={(v) => setMeta((m) => ({ ...m, month: v }))}>
                 <SelectTrigger><SelectValue placeholder="Mês" /></SelectTrigger>
                 <SelectContent>
@@ -1324,7 +1324,7 @@ export default function FillTimesheetPage() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Ano</Label>
+              <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Ano</Label>
               <Input
                 type="number"
                 min={2020}
@@ -1347,33 +1347,33 @@ export default function FillTimesheetPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               Aplica o horário e projeto a todos os dias úteis. Fins-de-semana, feriados e Desc.Obrig são ignorados.
             </p>
             {/* Horário */}
-            <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Horário</p>
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Horário</p>
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-500">Entrada</Label>
+                  <Label className="text-xs text-muted-foreground">Entrada</Label>
                   <Input value={fillAllConfig.period_start} onChange={(e) => setFillAllConfig(c => ({ ...c, period_start: e.target.value }))} placeholder="08:00" className="h-9 text-center font-mono" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-500">Saída</Label>
+                  <Label className="text-xs text-muted-foreground">Saída</Label>
                   <Input value={fillAllConfig.period_end} onChange={(e) => setFillAllConfig(c => ({ ...c, period_end: e.target.value }))} placeholder="17:00" className="h-9 text-center font-mono" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-500">Pausa</Label>
+                  <Label className="text-xs text-muted-foreground">Pausa</Label>
                   <Input value={fillAllConfig.pause_hours} onChange={(e) => setFillAllConfig(c => ({ ...c, pause_hours: e.target.value }))} placeholder="01:00" className="h-9 text-center font-mono" />
                 </div>
               </div>
             </div>
             {/* Projeto */}
-            <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Projeto (opcional)</p>
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Projeto (opcional)</p>
               <div className="space-y-2">
                 <div className="space-y-1">
-                  <Label className="text-xs text-gray-500">Nº Projeto</Label>
+                  <Label className="text-xs text-muted-foreground">Nº Projeto</Label>
                   <ProjectComboBox
                     value={fillAllConfig.project_number}
                     onChange={(code, info) => setFillAllConfig(c => ({
@@ -1387,25 +1387,25 @@ export default function FillTimesheetPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs text-gray-500">Cliente</Label>
+                    <Label className="text-xs text-muted-foreground">Cliente</Label>
                     <Input value={fillAllConfig.project_client} onChange={(e) => setFillAllConfig(c => ({ ...c, project_client: e.target.value }))} placeholder="(automático)" className="h-8 text-xs" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs text-gray-500">Descrição</Label>
+                    <Label className="text-xs text-muted-foreground">Descrição</Label>
                     <Input value={fillAllConfig.project_description} onChange={(e) => setFillAllConfig(c => ({ ...c, project_description: e.target.value }))} placeholder="(automático)" className="h-8 text-xs" />
                   </div>
                 </div>
               </div>
             </div>
             {/* Overwrite toggle */}
-            <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
-              <input type="checkbox" checked={fillAllConfig.overwrite} onChange={(e) => setFillAllConfig(c => ({ ...c, overwrite: e.target.checked }))} className="h-3.5 w-3.5 rounded border-gray-300 accent-blue-600" />
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+              <input type="checkbox" checked={fillAllConfig.overwrite} onChange={(e) => setFillAllConfig(c => ({ ...c, overwrite: e.target.checked }))} className="h-3.5 w-3.5 rounded border-border accent-blue-600" />
               Sobrescrever dias já preenchidos
             </label>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setFillAllOpen(false)}>Cancelar</Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => { applyFillAll(fillAllConfig); setFillAllOpen(false); }}>
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => { applyFillAll(fillAllConfig); setFillAllOpen(false); }}>
               <ArrowDown className="h-4 w-4 mr-1.5" />
               Aplicar
             </Button>
@@ -1433,7 +1433,7 @@ export default function FillTimesheetPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => resolveReplaceConfirmation(false)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => resolveReplaceConfirmation(true)}>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90 text-destructive-foreground" onClick={() => resolveReplaceConfirmation(true)}>
               Substituir
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1487,24 +1487,24 @@ export default function FillTimesheetPage() {
       )}
 
       {hasGrid && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="flex flex-col gap-2 border-b border-gray-100 px-5 py-3 sm:flex-row sm:items-center sm:justify-between bg-gray-50/50">
+        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+          <div className="flex flex-col gap-2 border-b border-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between bg-muted/40">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50">
-                <FileSpreadsheet className="h-4 w-4 text-red-600" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                <FileSpreadsheet className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-gray-900">Registos diários — {meta.month} {meta.year}</h3>
-                <p className="text-[11px] text-gray-500">{rows.length} dia(s) · {allProjects.length} projeto(s) no catálogo</p>
+                <h3 className="text-sm font-semibold text-foreground">Registos diários — {meta.month} {meta.year}</h3>
+                <p className="text-[11px] text-muted-foreground">{rows.length} dia(s) · {allProjects.length} projeto(s) no catálogo</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5 mr-1">
+              <div className="flex items-center rounded-lg border border-border bg-card p-0.5 mr-1">
                 <button
                   type="button"
                   onClick={() => setViewMode("table")}
                   className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-                    viewMode === "table" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
+                    viewMode === "table" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"
                   }`}
                 >
                   <TableIcon className="h-3.5 w-3.5" />
@@ -1514,7 +1514,7 @@ export default function FillTimesheetPage() {
                   type="button"
                   onClick={() => setViewMode("calendar")}
                   className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-                    viewMode === "calendar" ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
+                    viewMode === "calendar" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"
                   }`}
                 >
                   <LayoutGrid className="h-3.5 w-3.5" />
@@ -1546,7 +1546,7 @@ export default function FillTimesheetPage() {
             <Check className="h-3.5 w-3.5" />
             S.Alim. todos
           </Button>
-          <Button type="button" variant="ghost" size="sm" className="gap-2 h-8 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50" onClick={clearMonth}>
+          <Button type="button" variant="ghost" size="sm" className="gap-2 h-8 text-xs text-muted-foreground hover:text-red-600 hover:bg-red-50" onClick={clearMonth}>
             <Eraser className="h-3.5 w-3.5" />
             Limpar mês
           </Button>
@@ -1555,7 +1555,7 @@ export default function FillTimesheetPage() {
 
           {viewMode === "table" && (
             <>
-            <div className="divide-y divide-gray-200 md:hidden">
+            <div className="divide-y divide-border md:hidden">
             {rows.map((row, idx) => {
               const v = validation.perRow[idx];
               const accent = dayTypeAccent(row.day_type);
@@ -1564,10 +1564,10 @@ export default function FillTimesheetPage() {
                   <summary className="flex cursor-pointer items-center gap-3 px-5 py-3.5 hover:bg-secondary/30">
                     <span className={`h-2 w-2 flex-shrink-0 rounded-full ${accent.dot}`} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-gray-900">
+                      <p className="text-sm font-bold text-foreground">
                         {row.weekday} {String(row.day).padStart(2, "0")}/{row.date.slice(5, 7)}
                       </p>
-                      <p className="truncate text-[11px] font-medium text-gray-600">{row.day_type}{row.project_client ? ` · ${row.project_client}` : ""}</p>
+                      <p className="truncate text-[11px] font-medium text-muted-foreground">{row.day_type}{row.project_client ? ` · ${row.project_client}` : ""}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold tabular-nums text-foreground">{formatHours(row.normal_hours)}h</p>
@@ -1599,37 +1599,37 @@ export default function FillTimesheetPage() {
 
           <div className="hidden md:block">
             {/* Excel-style table */}
-            <div className="overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm" style={{ maxHeight: "calc(100vh - 250px)" }}>
+            <div className="overflow-auto rounded-lg border border-border bg-card shadow-sm" style={{ maxHeight: "calc(100vh - 250px)" }}>
               <table className="w-full border-collapse">
                 {/* ── Header ── */}
                 <thead className="sticky top-0 z-20">
-                  <tr className="bg-gradient-to-b from-gray-50 to-gray-100 text-[10px] font-bold uppercase tracking-wider text-gray-500 border-b-2 border-gray-200">
-                    <th className="sticky left-0 z-30 bg-gradient-to-b from-gray-50 to-gray-100 px-3 py-2.5 text-left w-[120px] border-r border-gray-200">
+                  <tr className="bg-secondary/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b-2 border-border">
+                    <th className="sticky left-0 z-30 bg-secondary/50 px-3 py-2.5 text-left w-[120px] border-r border-border">
                       <span className="flex items-center gap-2">
                         <CalendarIcon className="h-3.5 w-3.5 text-red-500" />
                         Dia
                       </span>
                     </th>
-                    <th className="px-2 py-2.5 text-center w-[70px] border-r border-gray-100">Horas</th>
-                    <th className="px-2 py-2.5 text-center w-[75px] border-r border-gray-100">Entrada</th>
-                    <th className="px-2 py-2.5 text-center w-[75px] border-r border-gray-100">Saída</th>
-                    <th className="px-2 py-2.5 text-center w-[65px] border-r border-gray-200">Pausa</th>
-                    <th className="px-2 py-2.5 text-center w-[115px] bg-amber-50/60 text-amber-700 border-r border-gray-200">Extra</th>
-                    <th className="px-2 py-2.5 text-center w-[170px] border-r border-gray-200">Tipo Dia</th>
-                    <th className="px-2 py-2.5 text-left w-[170px] border-r border-gray-200">Ausência</th>
-                    <th className="px-2 py-2.5 text-center w-[115px] bg-cyan-50/60 text-cyan-700 border-r border-gray-200">Viagem</th>
-                    <th className="px-2 py-2.5 text-left w-[155px] border-r border-gray-100">Nº Projeto</th>
-                    <th className="px-2 py-2.5 text-left w-[180px] border-r border-gray-200">Cliente / Descrição</th>
-                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-gray-100">S.Al</th>
-                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-gray-100">Prev</th>
-                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-gray-200">Desl</th>
-                    <th className="px-2 py-2.5 text-left w-[130px] border-r border-gray-200">Observações</th>
+                    <th className="px-2 py-2.5 text-center w-[70px] border-r border-border">Horas</th>
+                    <th className="px-2 py-2.5 text-center w-[75px] border-r border-border">Entrada</th>
+                    <th className="px-2 py-2.5 text-center w-[75px] border-r border-border">Saída</th>
+                    <th className="px-2 py-2.5 text-center w-[65px] border-r border-border">Pausa</th>
+                    <th className="px-2 py-2.5 text-center w-[115px] bg-amber-50/60 text-amber-700 border-r border-border">Extra</th>
+                    <th className="px-2 py-2.5 text-center w-[170px] border-r border-border">Tipo Dia</th>
+                    <th className="px-2 py-2.5 text-left w-[170px] border-r border-border">Ausência</th>
+                    <th className="px-2 py-2.5 text-center w-[115px] bg-cyan-50/60 text-cyan-700 border-r border-border">Viagem</th>
+                    <th className="px-2 py-2.5 text-left w-[155px] border-r border-border">Nº Projeto</th>
+                    <th className="px-2 py-2.5 text-left w-[180px] border-r border-border">Cliente / Descrição</th>
+                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-border">S.Al</th>
+                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-border">Prev</th>
+                    <th className="px-2 py-2.5 text-center w-[48px] border-r border-border">Desl</th>
+                    <th className="px-2 py-2.5 text-left w-[130px] border-r border-border">Observações</th>
                     <th className="px-2 py-2.5 text-center w-[120px]">Ações</th>
                   </tr>
                 </thead>
 
                 {/* ── Body ── */}
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-border">
                   {rows.map((row, idx) => {
                     const v = validation.perRow[idx];
                     const hasError = v.errors.length > 0;
@@ -1637,7 +1637,7 @@ export default function FillTimesheetPage() {
                     const accent = dayTypeAccent(row.day_type);
                     const isWeekend = row.isWeekend;
                     const dayTypeOpts = DAY_TYPES.map((d) => ({ value: d, label: d }));
-                    const rowBg = isWeekend ? "bg-amber-50/40" : (idx % 2 === 0 ? "bg-white" : "bg-gray-50/30");
+                    const rowBg = isWeekend ? "bg-amber-50/40" : (idx % 2 === 0 ? "bg-card" : "bg-muted/40");
                     const hasHours = Number(row.normal_hours || 0) > 0;
                     const hasExtra = Number(row.extra_hours || 0) > 0;
                     const hasTravel = Number(row.travel_hours || 0) > 0;
@@ -1648,15 +1648,15 @@ export default function FillTimesheetPage() {
                         className={`group transition-all duration-75 hover:bg-blue-50/50 ${rowBg} ${hasError ? "!bg-red-50/60" : ""} ${hasHours ? "" : ""}`}
                       >
                         {/* Day */}
-                        <td className={`sticky left-0 z-10 px-3 py-3 border-r border-gray-200 ${rowBg} ${hasError ? "!bg-red-50/60" : ""}`}>
+                        <td className={`sticky left-0 z-10 px-3 py-3 border-r border-border ${rowBg} ${hasError ? "!bg-red-50/60" : ""}`}>
                           <div className="flex items-center gap-2">
                             <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${accent.dot} ring-2 ring-offset-1 ${accent.dot === "bg-red-500" ? "ring-red-200" : accent.dot === "bg-amber-500" ? "ring-amber-200" : accent.dot === "bg-purple-500" ? "ring-purple-200" : "ring-emerald-200"}`} />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="text-sm font-bold text-gray-800">{row.weekday}</span>
-                                <span className="text-xs font-mono font-semibold text-gray-500">{String(row.day).padStart(2, "0")}/{row.date.slice(5, 7)}</span>
+                                <span className="text-sm font-bold text-foreground">{row.weekday}</span>
+                                <span className="text-xs font-mono font-semibold text-muted-foreground">{String(row.day).padStart(2, "0")}/{row.date.slice(5, 7)}</span>
                               </div>
-                              <span className="text-[10px] text-gray-400">{row.date.slice(0, 4)}</span>
+                              <span className="text-[10px] text-muted-foreground">{row.date.slice(0, 4)}</span>
                             </div>
                             {hasError && <AlertCircle className="h-3.5 w-3.5 text-red-500 flex-shrink-0 ml-auto" />}
                             {!hasError && hasWarn && <TriangleAlert className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 ml-auto" />}
@@ -1664,47 +1664,47 @@ export default function FillTimesheetPage() {
                         </td>
 
                         {/* Hours (normal) */}
-                        <td className="px-2 py-3 text-center border-r border-gray-100">
+                        <td className="px-2 py-3 text-center border-r border-border">
                           <span className={`inline-flex items-center justify-center min-w-[48px] h-8 px-2 rounded-md text-sm font-bold tabular-nums transition-colors ${
-                            hasHours ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200" : "text-gray-300"
+                            hasHours ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200" : "text-muted-foreground"
                           }`}>
                             {hasHours ? formatHours(row.normal_hours) : "—"}
                           </span>
                         </td>
 
                         {/* Entry */}
-                        <td className="px-1.5 py-3 border-r border-gray-100">
+                        <td className="px-1.5 py-3 border-r border-border">
                           <TimeInput value={row.period_start} onChange={(v) => patchRow(idx, { period_start: v })} />
                         </td>
 
                         {/* Exit */}
-                        <td className="px-1.5 py-3 border-r border-gray-100">
+                        <td className="px-1.5 py-3 border-r border-border">
                           <TimeInput value={row.period_end} onChange={(v) => patchRow(idx, { period_end: v })} />
                         </td>
 
                         {/* Pause */}
-                        <td className="px-1.5 py-3 border-r border-gray-200">
+                        <td className="px-1.5 py-3 border-r border-border">
                           <TimeInput value={row.pause_hours ? formatHHMMFromHours(row.pause_hours) : ""} onChange={(v) => patchRow(idx, { pause_hours: parseHHMMOrNumber(v) })} />
                         </td>
 
                         {/* Extra hours */}
-                        <td className="px-2 py-3 text-center border-r border-gray-200 bg-amber-50/20">
+                        <td className="px-2 py-3 text-center border-r border-border bg-amber-50/20">
                           <div className="flex flex-col items-center gap-1">
                             <span className={`inline-flex items-center justify-center min-w-[48px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
-                              hasExtra ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200" : "text-gray-300"
+                              hasExtra ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200" : "text-muted-foreground"
                             }`}>
                               {hasExtra ? formatHours(row.extra_hours) : "—"}
                             </span>
                             <div className="flex items-center gap-0.5">
                               <TimeInput value={row.extra1_start} onChange={(v) => patchRow(idx, { extra1_start: v })} className="!h-6 !w-[48px] !text-[10px] !border-amber-200 !rounded-sm" />
-                              <span className="text-[10px] text-gray-400">—</span>
+                              <span className="text-[10px] text-muted-foreground">—</span>
                               <TimeInput value={row.extra1_end} onChange={(v) => patchRow(idx, { extra1_end: v })} className="!h-6 !w-[48px] !text-[10px] !border-amber-200 !rounded-sm" />
                             </div>
                           </div>
                         </td>
 
                         {/* Day type */}
-                        <td className="px-1.5 py-3 border-r border-gray-200">
+                        <td className="px-1.5 py-3 border-r border-border">
                           <ComboBox
                             value={row.day_type || "Dia Útil"}
                             onChange={(v) => patchRow(idx, { day_type: v }, { skipRecompute: true })}
@@ -1714,7 +1714,7 @@ export default function FillTimesheetPage() {
                         </td>
 
                         {/* Absence type */}
-                        <td className="px-1.5 py-3 border-r border-gray-200">
+                        <td className="px-1.5 py-3 border-r border-border">
                           <ComboBox
                             value={row.absence_type || ""}
                             onChange={(v) => patchRow(idx, { absence_type: v }, { skipRecompute: true })}
@@ -1724,23 +1724,23 @@ export default function FillTimesheetPage() {
                         </td>
 
                         {/* Travel hours */}
-                        <td className="px-2 py-3 text-center border-r border-gray-200 bg-cyan-50/20">
+                        <td className="px-2 py-3 text-center border-r border-border bg-cyan-50/20">
                           <div className="flex flex-col items-center gap-1">
                             <span className={`inline-flex items-center justify-center min-w-[48px] h-7 px-2 rounded-md text-xs font-bold tabular-nums transition-colors ${
-                              hasTravel ? "bg-cyan-100 text-cyan-800 ring-1 ring-cyan-200" : "text-gray-300"
+                              hasTravel ? "bg-cyan-100 text-cyan-800 ring-1 ring-cyan-200" : "text-muted-foreground"
                             }`}>
                               {hasTravel ? formatHours(row.travel_hours) : "—"}
                             </span>
                             <div className="flex items-center gap-0.5">
                               <TimeInput value={row.travel1_start} onChange={(v) => patchRow(idx, { travel1_start: v })} className="!h-6 !w-[48px] !text-[10px] !border-cyan-200 !rounded-sm" />
-                              <span className="text-[10px] text-gray-400">—</span>
+                              <span className="text-[10px] text-muted-foreground">—</span>
                               <TimeInput value={row.travel1_end} onChange={(v) => patchRow(idx, { travel1_end: v })} className="!h-6 !w-[48px] !text-[10px] !border-cyan-200 !rounded-sm" />
                             </div>
                           </div>
                         </td>
 
                         {/* Project number */}
-                        <td className="px-1.5 py-3 border-r border-gray-100">
+                        <td className="px-1.5 py-3 border-r border-border">
                           <ProjectComboBox
                             value={row.project_number || ""}
                             onChange={(code, info) => patchRow(idx, { project_number: code, project_client: info?.client || "", project_description: info?.description || "" })}
@@ -1749,59 +1749,59 @@ export default function FillTimesheetPage() {
                         </td>
 
                         {/* Client + Description merged */}
-                        <td className="px-1.5 py-3 border-r border-gray-200">
+                        <td className="px-1.5 py-3 border-r border-border">
                           <div className="flex flex-col gap-1">
                             <input
                               value={row.project_client || ""}
                               onChange={(e) => patchRow(idx, { project_client: e.target.value }, { skipRecompute: true })}
                               placeholder="Cliente"
-                              className="h-8 w-full rounded border border-gray-200 bg-transparent px-2 text-xs font-medium text-gray-700 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
+                              className="h-8 w-full rounded border border-border bg-transparent px-2 text-xs font-medium text-muted-foreground placeholder:text-muted-foreground focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
                             />
                             <input
                               value={row.project_description || ""}
                               onChange={(e) => patchRow(idx, { project_description: e.target.value }, { skipRecompute: true })}
                               placeholder="Descrição"
-                              className="h-8 w-full rounded border border-gray-200 bg-transparent px-2 text-xs text-gray-500 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
+                              className="h-8 w-full rounded border border-border bg-transparent px-2 text-xs text-muted-foreground placeholder:text-muted-foreground focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
                             />
                           </div>
                         </td>
 
                         {/* Subsidio almoco */}
-                        <td className="px-1 py-3 text-center border-r border-gray-100">
-                          <input type="checkbox" checked={!!row.subsidio_almoco} onChange={(e) => patchRow(idx, { subsidio_almoco: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                        <td className="px-1 py-3 text-center border-r border-border">
+                          <input type="checkbox" checked={!!row.subsidio_almoco} onChange={(e) => patchRow(idx, { subsidio_almoco: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
                         </td>
 
                         {/* Prevencao */}
-                        <td className="px-1 py-3 text-center border-r border-gray-100">
-                          <input type="checkbox" checked={!!row.prevencao} onChange={(e) => patchRow(idx, { prevencao: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer" />
+                        <td className="px-1 py-3 text-center border-r border-border">
+                          <input type="checkbox" checked={!!row.prevencao} onChange={(e) => patchRow(idx, { prevencao: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-border text-amber-600 focus:ring-amber-500 cursor-pointer" />
                         </td>
 
                         {/* Deslocado */}
-                        <td className="px-1 py-3 text-center border-r border-gray-200">
-                          <input type="checkbox" checked={!!row.deslocado} onChange={(e) => patchRow(idx, { deslocado: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer" />
+                        <td className="px-1 py-3 text-center border-r border-border">
+                          <input type="checkbox" checked={!!row.deslocado} onChange={(e) => patchRow(idx, { deslocado: e.target.checked }, { skipRecompute: true })} className="h-4 w-4 rounded border-border text-purple-600 focus:ring-purple-500 cursor-pointer" />
                         </td>
 
                         {/* Observations */}
-                        <td className="px-1.5 py-3 border-r border-gray-200">
+                        <td className="px-1.5 py-3 border-r border-border">
                           <input
                             value={row.observacoes || ""}
                             onChange={(e) => patchRow(idx, { observacoes: e.target.value }, { skipRecompute: true })}
                             placeholder="..."
-                            className="h-8 w-full rounded border border-gray-200 bg-transparent px-2 text-xs text-gray-500 placeholder:text-gray-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
+                            className="h-8 w-full rounded border border-border bg-transparent px-2 text-xs text-muted-foreground placeholder:text-muted-foreground focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200"
                           />
                         </td>
 
                         {/* Actions */}
                         <td className="px-1 py-3">
                           <div className="flex items-center justify-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                            <button type="button" disabled={idx === 0} onClick={() => copyPreviousRow(idx)} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-20" title="Copiar anterior">
-                              <Copy className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                            <button type="button" disabled={idx === 0} onClick={() => copyPreviousRow(idx)} className="p-1.5 rounded hover:bg-secondary disabled:opacity-20" title="Copiar anterior">
+                              <Copy className="h-4 w-4 text-muted-foreground hover:text-muted-foreground" />
                             </button>
                             <button type="button" onClick={() => fillDownFromRow(idx)} className="p-1.5 rounded hover:bg-blue-50" title="Preencher abaixo">
                               <ArrowDown className="h-4 w-4 text-blue-400 hover:text-blue-600" />
                             </button>
                             <button type="button" onClick={() => clearRow(idx)} className="p-1.5 rounded hover:bg-red-50" title="Limpar">
-                              <Eraser className="h-4 w-4 text-gray-400 hover:text-red-500" />
+                              <Eraser className="h-4 w-4 text-muted-foreground hover:text-red-500" />
                             </button>
                           </div>
                         </td>
@@ -1812,17 +1812,17 @@ export default function FillTimesheetPage() {
 
                 {/* ── Footer ── */}
                 <tfoot>
-                  <tr className="sticky bottom-0 z-20 bg-gradient-to-b from-gray-100 to-gray-200 border-t-2 border-gray-300 text-xs font-bold">
-                    <td className="sticky left-0 z-30 bg-gradient-to-b from-gray-100 to-gray-200 px-3 py-2.5 text-gray-700 border-r border-gray-200">
+                  <tr className="sticky bottom-0 z-20 bg-secondary/70 border-t-2 border-border text-xs font-bold">
+                    <td className="sticky left-0 z-30 bg-secondary/70 px-3 py-2.5 text-muted-foreground border-r border-border">
                       <span className="flex items-center gap-2">
                         <ClipboardList className="h-3.5 w-3.5 text-red-500" />
                         TOTAL
                       </span>
                     </td>
-                    <td className="px-2 py-2.5 text-center tabular-nums text-emerald-700 border-r border-gray-100">{formatHours(totals.normal)}</td>
-                    <td className="border-r border-gray-100" colSpan={3} />
-                    <td className="px-2 py-2.5 text-center tabular-nums text-amber-700 border-r border-gray-200">{formatHours(totals.extra)}</td>
-                    <td className="border-r border-gray-200" colSpan={9} />
+                    <td className="px-2 py-2.5 text-center tabular-nums text-emerald-700 border-r border-border">{formatHours(totals.normal)}</td>
+                    <td className="border-r border-border" colSpan={3} />
+                    <td className="px-2 py-2.5 text-center tabular-nums text-amber-700 border-r border-border">{formatHours(totals.extra)}</td>
+                    <td className="border-r border-border" colSpan={9} />
                   </tr>
                 </tfoot>
               </table>
@@ -1867,7 +1867,7 @@ export default function FillTimesheetPage() {
                 <Button type="button" variant="outline" onClick={() => setCalendarDayIdx(null)}>Fechar</Button>
                 <Button
                   type="button"
-                  className="bg-gray-900 hover:bg-gray-800 text-white"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
                   disabled={calendarDayIdx >= rows.length - 1}
                   onClick={() => setCalendarDayIdx((i) => Math.min(i + 1, rows.length - 1))}
                 >
