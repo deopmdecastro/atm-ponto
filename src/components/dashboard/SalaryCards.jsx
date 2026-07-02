@@ -33,7 +33,10 @@ export default function SalaryCards({ summary }) {
     {
       key: "irsAmount",
       label: "IRS",
-      sublabel: `${formatPercent(irsPercent)} retido`,
+      sublabel:
+        Number(summary.extraHoursAmount || 0) > 0 && summary.overtimeIrsRatePercent !== undefined
+          ? `${formatPercent(irsPercent)} retido · horas extra a ${formatPercent(summary.overtimeIrsRatePercent)}`
+          : `${formatPercent(irsPercent)} retido`,
       icon: Percent,
       value: irsAmount,
       negative: true

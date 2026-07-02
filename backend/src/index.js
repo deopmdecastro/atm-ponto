@@ -14,6 +14,24 @@ import { generateCompensationSummaryXlsx } from "./reports/compensationSummaryXl
 
 loadEnv();
 
+// `date` (and other DATE-typed) columns now come back from pg as plain
+// "YYYY-MM-DD" strings (see db.js) instead of JS Date objects, so no
+// timezone-sensitive conversion is needed. This helper stays defensive in
+// case a value ever arrives as a Date object (e.g. from a different code
+// path) — it extracts the calendar date using UTC fields, never local time,
+// so the result can never drift by a day depending on server timezone.
+function toISODateString(value) {
+  if (!value) return value;
+  if (typeof value === "string") return value.slice(0, 10);
+  if (value instanceof Date) {
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(value.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return value;
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = (() => {
   const envDir = process.env.UPLOADS_DIR;
@@ -961,7 +979,7 @@ app.get(
     res.json(
       rows.map((r) => ({
         ...r,
-        date: r.date ? r.date.toISOString().slice(0, 10) : r.date
+        date: toISODateString(r.date)
       }))
     );
   })
@@ -1038,7 +1056,7 @@ app.post(
       ]
     );
     const row = rows[0];
-    res.status(201).json({ ...row, date: row.date.toISOString().slice(0, 10) });
+    res.status(201).json({ ...row, date: toISODateString(row.date) });
   })
 );
 
@@ -1136,7 +1154,7 @@ app.post(
     res.status(201).json(
       created.map((r) => ({
         ...r,
-        date: r.date ? r.date.toISOString().slice(0, 10) : r.date
+        date: toISODateString(r.date)
       }))
     );
   })
@@ -1177,8 +1195,8 @@ app.get(
     res.json(
       rows.map((r) => ({
         ...r,
-        period_start: r.period_start ? r.period_start.toISOString().slice(0, 10) : null,
-        period_end: r.period_end ? r.period_end.toISOString().slice(0, 10) : null
+        period_start: toISODateString(r.period_start),
+        period_end: toISODateString(r.period_end)
       }))
     );
   })
@@ -1506,7 +1524,7 @@ app.get(
     res.json(
       rows.map((r) => ({
         ...r,
-        enjoy_date: r.enjoy_date ? r.enjoy_date.toISOString().slice(0, 10) : r.enjoy_date
+        enjoy_date: toISODateString(r.enjoy_date)
       }))
     );
   })
@@ -1536,7 +1554,7 @@ app.post(
     const row = rows[0];
     res.status(201).json({
       ...row,
-      enjoy_date: row.enjoy_date ? row.enjoy_date.toISOString().slice(0, 10) : row.enjoy_date
+      enjoy_date: toISODateString(row.enjoy_date)
     });
   })
 );
@@ -1661,7 +1679,7 @@ app.put(
     );
     if (!rows[0]) throw httpError(404, "timesheet record not found");
     const row = rows[0];
-    res.json({ ...row, date: row.date ? row.date.toISOString().slice(0, 10) : row.date });
+    res.json({ ...row, date: toISODateString(row.date) });
   })
 );
 

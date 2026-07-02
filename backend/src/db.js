@@ -1,4 +1,17 @@
-﻿import { Pool } from "pg";
+﻿import { Pool, types } from "pg";
+
+// Postgres `date` columns (OID 1082) are parsed by node-postgres into JS Date
+// objects using `new Date(year, month-1, day)` — i.e. LOCAL server time. When
+// that Date is later serialized with `.toISOString()` it gets re-expressed in
+// UTC, which silently shifts the calendar date backwards (or, in some edge
+// timezones, forwards) whenever the server's timezone offset isn't exactly 0.
+// This is what caused the weekday shown for a given day (e.g. "18 Abril") to
+// be wrong depending on where/when the backend process runs.
+//
+// Since our `date` columns never carry time-of-day information anyway, we
+// disable that conversion entirely and always work with the raw "YYYY-MM-DD"
+// string Postgres returns. This makes date handling 100% timezone-independent.
+types.setTypeParser(1082, (value) => value);
 
 let pool = null;
 

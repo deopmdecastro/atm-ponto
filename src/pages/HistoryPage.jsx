@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
 import { Link } from "react-router-dom";
-import { Calendar, Clock, DownloadCloud, Eye, Trash2, Upload, User, Wallet } from "lucide-react";
+import { Calendar, Clock, DownloadCloud, Eye, Pencil, Trash2, Upload, User, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
@@ -334,6 +334,11 @@ export default function HistoryPage() {
                       <Button variant="default" size="sm" asChild>
                         <Link to={`/historico/${ts.id}`}>
                           <Eye className="h-4 w-4 mr-1" /> Ver
+                        </Link>
+                      </Button>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link to={`/historico/${ts.id}/editar`}>
+                          <Pencil className="h-4 w-4 mr-1" /> Editar
                         </Link>
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => handleView(ts)} disabled={downloadPending}>

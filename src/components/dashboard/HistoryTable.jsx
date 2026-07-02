@@ -1,8 +1,6 @@
  
 
 import { useMemo, useState } from "react";
-import moment from "moment";
-import "moment/locale/pt";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,8 +16,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatHours } from "@/lib/formatHours";
-
-moment.locale("pt");
 
 const PAGE_SIZE = 15;
 
@@ -45,20 +41,54 @@ function dayDotColor(dayType) {
   }
 }
 
+// "date" is always a plain "YYYY-MM-DD" string (no time-of-day, no timezone).
+// We must NEVER run it through a Date/moment parse-then-format cycle in the
+// browser's local timezone, because "YYYY-MM-DD" is parsed as UTC midnight
+// by both `Date` and `moment`, and formatting that back out in a non-UTC
+// local timezone can push the displayed date one day forward or backward —
+// which is exactly what caused e.g. "18 Abril" to show up as "Domingo"
+// instead of "Sábado". Parsing the components directly and using
+// Date.UTC/getUTCDay() keeps this 100% independent of the viewer's timezone.
+const WEEKDAY_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+function splitISODate(date) {
+  const s = String(date || "").slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return { year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) };
+}
+
+function weekdayPt(date) {
+  const parts = splitISODate(date);
+  if (!parts) return "";
+  const dow = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+  return WEEKDAY_PT[dow];
+}
+
+function formatDDMM(date) {
+  const parts = splitISODate(date);
+  if (!parts) return "";
+  return `${String(parts.day).padStart(2, "0")}/${String(parts.month).padStart(2, "0")}`;
+}
+
+function formatYYYY(date) {
+  const parts = splitISODate(date);
+  return parts ? String(parts.year) : "";
+}
+
 /**
  * Date badge: coloured status dot + weekday/date on top, year below.
  */
 function DateBadge({ date, dayType, className }) {
-  const m = moment(date);
   return (
     <div className={cn("flex items-start gap-2", className)}>
       <span className={cn("mt-[5px] h-2 w-2 shrink-0 rounded-full", dayDotColor(dayType))} />
       <div className="leading-tight">
         <div className="flex items-baseline gap-1.5 whitespace-nowrap">
-          <span className="text-[13px] font-bold capitalize text-foreground">{m.format("ddd")}</span>
-          <span className="text-xs font-semibold text-muted-foreground">{m.format("DD/MM")}</span>
+          <span className="text-[13px] font-bold capitalize text-foreground">{weekdayPt(date)}</span>
+          <span className="text-xs font-semibold text-muted-foreground">{formatDDMM(date)}</span>
         </div>
-        <div className="text-[11px] text-muted-foreground/70">{m.format("YYYY")}</div>
+        <div className="text-[11px] text-muted-foreground/70">{formatYYYY(date)}</div>
       </div>
     </div>
   );
