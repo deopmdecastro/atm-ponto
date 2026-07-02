@@ -372,6 +372,74 @@ export async function initDb() {
       AND m.rn = 1;
   `);
 
+  // Best-effort repair for legacy imports where Excel formula cache dates were
+  // stale (for example rows stored as 2022 while the timesheet month/year is
+  // 2026). When a timesheet has exactly one record per day of its month but
+  // most record dates fall outside that month, rebuild the dates sequentially.
+  await query(prisma, `
+    WITH timesheet_months AS (
+      SELECT
+        t.id AS timesheet_id,
+        t.year AS target_year,
+        CASE
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'jan%' THEN 1
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'fev%' THEN 2
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'mar%' THEN 3
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'abr%' THEN 4
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'mai%' THEN 5
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'jun%' THEN 6
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'jul%' THEN 7
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'ago%' THEN 8
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'set%' THEN 9
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'out%' THEN 10
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'nov%' THEN 11
+          WHEN lower(translate(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g'), 'áàãâäéèêëíìîïóòõôöúùûüçÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC')) LIKE 'dez%' THEN 12
+          ELSE NULL
+        END AS target_month
+      FROM timesheets t
+      WHERE t.year IS NOT NULL
+    ),
+    candidate_timesheets AS (
+      SELECT
+        tm.timesheet_id,
+        tm.target_year,
+        tm.target_month,
+        COUNT(r.id)::int AS record_count,
+        COUNT(*) FILTER (
+          WHERE EXTRACT(YEAR FROM r.date)::int = tm.target_year
+            AND EXTRACT(MONTH FROM r.date)::int = tm.target_month
+        )::int AS matching_count,
+        EXTRACT(DAY FROM (make_date(tm.target_year, tm.target_month, 1) + INTERVAL '1 month - 1 day'))::int AS expected_days
+      FROM timesheet_months tm
+      JOIN timesheet_records r ON r.timesheet_id = tm.timesheet_id
+      WHERE tm.target_month IS NOT NULL
+      GROUP BY tm.timesheet_id, tm.target_year, tm.target_month
+    ),
+    fixable_timesheets AS (
+      SELECT *
+      FROM candidate_timesheets
+      WHERE record_count = expected_days
+        AND matching_count < CEIL(record_count * 0.6)
+    ),
+    ranked_records AS (
+      SELECT
+        r.id AS record_id,
+        f.target_year,
+        f.target_month,
+        ROW_NUMBER() OVER (
+          PARTITION BY r.timesheet_id
+          ORDER BY r.date ASC, r.created_date ASC, r.id ASC
+        ) AS day_index
+      FROM timesheet_records r
+      JOIN fixable_timesheets f ON f.timesheet_id = r.timesheet_id
+    )
+    UPDATE timesheet_records r
+    SET date = make_date(rr.target_year, rr.target_month, 1) + (rr.day_index - 1)
+    FROM ranked_records rr
+    WHERE r.id = rr.record_id
+      AND r.date <> (make_date(rr.target_year, rr.target_month, 1) + (rr.day_index - 1));
+  `);
+
   await query(prisma, `CREATE INDEX IF NOT EXISTS idx_timesheet_records_timesheet_id ON timesheet_records(timesheet_id);`);
   await query(prisma, `CREATE INDEX IF NOT EXISTS idx_timesheet_records_user_id ON timesheet_records(user_id);`);
   await query(prisma, `CREATE INDEX IF NOT EXISTS idx_timesheets_user_id ON timesheets(user_id);`);

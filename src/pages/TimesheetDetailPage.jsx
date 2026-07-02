@@ -8,6 +8,7 @@ import HistoryTable from "../components/dashboard/HistoryTable";
 import FullTimesheetTable from "../components/dashboard/FullTimesheetTable";
 import { buildHourBankHistory } from "../lib/parseTimesheet";
 import { formatHours } from "../lib/formatHours";
+import { alignRecordsToMonthGrid } from "../lib/alignTimesheetRecords";
 
 export default function TimesheetDetailPage() {
   const { timesheetId, employeeName, year, month } = useParams();
@@ -102,7 +103,8 @@ export default function TimesheetDetailPage() {
     );
   }
 
-  const sorted = [...records].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const normalizedRecords = alignRecordsToMonthGrid(records, timesheet?.month, Number(timesheet?.year));
+  const sorted = [...normalizedRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
   const rawTotalComp = Number(timesheet?.total_compensation_hours || 0);
   const rawManualUsed = Number(timesheet?.total_descanso_compensatorio_hours || 0);
   const recordsUsed = sorted.reduce((acc, r) => acc + (r?.compensated ? Number(r?.normal_hours || 0) : 0), 0);

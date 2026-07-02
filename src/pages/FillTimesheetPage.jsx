@@ -64,6 +64,7 @@ import {
 } from "@/components/ui/command";
 import { queryClientInstance } from "@/lib/query-client";
 import { formatHours } from "@/lib/formatHours";
+import { alignRecordsToMonthGrid } from "@/lib/alignTimesheetRecords";
 import {
   MONTH_NAMES_PT,
   buildMonthGrid,
@@ -847,7 +848,8 @@ export default function FillTimesheetPage() {
         if (cancelled) return;
 
         const grid = buildMonthGrid(newMeta.month, Number(newMeta.year));
-        const byDate = new Map((Array.isArray(recordsData) ? recordsData : []).map((r) => [r.date, r]));
+        const alignedRecords = alignRecordsToMonthGrid(recordsData, newMeta.month, Number(newMeta.year));
+        const byDate = new Map((Array.isArray(alignedRecords) ? alignedRecords : []).map((r) => [r.date, r]));
         const merged = grid.map((slot) => {
           const r = byDate.get(slot.date);
           if (!r) return slot;
