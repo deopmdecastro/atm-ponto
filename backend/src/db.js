@@ -333,6 +333,45 @@ export async function initDb() {
     WHERE user_id IS NULL AND (SELECT n FROM counts) = 1;
   `);
 
+  // Best-effort backfill for legacy imports created before `timesheet_id` was
+  // persisted on each daily record. This restores edit/history joins by linking
+  // rows to the matching month/year/employee timesheet of the same user.
+  await query(prisma, `
+    WITH ranked_matches AS (
+      SELECT
+        r.id AS record_id,
+        t.id AS timesheet_id,
+        ROW_NUMBER() OVER (
+          PARTITION BY r.id
+          ORDER BY t.created_date DESC, t.id DESC
+        ) AS rn
+      FROM timesheet_records r
+      JOIN timesheets t
+        ON t.user_id = r.user_id
+       AND t.year = r.year
+       AND lower(regexp_replace(btrim(COALESCE(t.month, '')), '\\s+', ' ', 'g')) =
+           lower(regexp_replace(btrim(COALESCE(r.month, '')), '\\s+', ' ', 'g'))
+       AND (
+         regexp_replace(btrim(COALESCE(t.employee_number, '')), '\\s+', '', 'g') <> ''
+         AND regexp_replace(btrim(COALESCE(t.employee_number, '')), '\\s+', '', 'g') =
+             regexp_replace(btrim(COALESCE(r.employee_number, '')), '\\s+', '', 'g')
+         OR (
+           regexp_replace(btrim(COALESCE(t.employee_number, '')), '\\s+', '', 'g') = ''
+           AND regexp_replace(btrim(COALESCE(r.employee_number, '')), '\\s+', '', 'g') = ''
+           AND lower(regexp_replace(btrim(COALESCE(t.employee_name, '')), '\\s+', ' ', 'g')) =
+               lower(regexp_replace(btrim(COALESCE(r.employee_name, '')), '\\s+', ' ', 'g'))
+         )
+       )
+      WHERE r.timesheet_id IS NULL
+        AND r.user_id IS NOT NULL
+    )
+    UPDATE timesheet_records r
+    SET timesheet_id = m.timesheet_id
+    FROM ranked_matches m
+    WHERE r.id = m.record_id
+      AND m.rn = 1;
+  `);
+
   await query(prisma, `CREATE INDEX IF NOT EXISTS idx_timesheet_records_timesheet_id ON timesheet_records(timesheet_id);`);
   await query(prisma, `CREATE INDEX IF NOT EXISTS idx_timesheet_records_user_id ON timesheet_records(user_id);`);
   await query(prisma, `CREATE INDEX IF NOT EXISTS idx_timesheets_user_id ON timesheets(user_id);`);

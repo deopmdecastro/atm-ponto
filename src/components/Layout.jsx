@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Upload, Clock, AlertTriangle, Users, Settings, LogOut,
-  FolderKanban, Menu, X, PenLine, ChevronRight, User, Bell
+  FolderKanban, Menu, X, PenLine, User, Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";

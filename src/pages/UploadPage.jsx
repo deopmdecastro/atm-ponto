@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { queryClientInstance } from "@/lib/query-client";
+import { MONTH_NAMES_PT, monthIndex, readTimesheetFile } from "@/lib/parseTimesheetClient";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +18,14 @@ import {
   AlertDialogTitle
 } from "@/components/ui/alert-dialog";
 
-const useLocalBackend = import.meta.env.VITE_USE_LOCAL_BACKEND === "true";
+function clean(value) {
+  return String(value ?? "").trim();
+}
+
+function normalizeMonthLabel(value) {
+  const idx = monthIndex(value);
+  return idx > 0 ? MONTH_NAMES_PT[idx - 1] : clean(value);
+}
 
 export default function UploadPage() {
   const [file, setFile] = useState(null);
@@ -59,219 +67,157 @@ export default function UploadPage() {
     if (!file) return;
 
     try {
-      setStatus("uploading");
-      setProgress("A fazer upload do ficheiro...");
-
-      // 1. Upload file
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-
       setStatus("extracting");
-      setProgress("A ler as linhas da folha de ponto...");
+      setProgress("A ler o ficheiro Excel...");
 
-    // 2. Extract raw rows from TimeSheet tab
-    const rawResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
-      file_url,
-      json_schema: {
-        type: "object",
-        properties: {
-          rows: {
-            type: "array",
-            description: "All rows from the TimeSheet sheet as raw key-value pairs",
-            items: { type: "object" }
-          }
-        }
+      const { meta: importedMeta, records: parsedRecords, projects } = await readTimesheetFile(file);
+      const dailyRecords = Array.isArray(parsedRecords) ? parsedRecords : [];
+
+      if (dailyRecords.length === 0) {
+        setStatus("error");
+        setError("Não foram encontrados registos diários no ficheiro. Verifica se o ficheiro é uma Folha de Imputação ATM válida com a aba 'TimeSheet' preenchida.");
+        return;
       }
-    });
 
-    if (rawResult.status === "error") {
-      setStatus("error");
-      setError(`Não foi possível ler o ficheiro Excel. Verifica se o ficheiro não está corrompido e tenta novamente. Detalhe técnico: ${rawResult.details}`);
-      return;
-    }
+      const firstDate = dailyRecords.find((r) => r?.date)?.date || "";
+      const dateMonth = firstDate.slice(5, 7);
+      const dateYear = firstDate.slice(0, 4);
+      const parsedMonth = normalizeMonthLabel(importedMeta?.month);
+      const finalMonth = parsedMonth || (dateMonth ? MONTH_NAMES_PT[Number(dateMonth) - 1] : "");
+      const finalYear = Number(importedMeta?.year) || (dateYear ? Number(dateYear) : new Date().getFullYear());
+      const employeeName = clean(importedMeta?.employee_name) || "Desconhecido";
+      const employeeNumber = clean(importedMeta?.employee_number);
 
-    setProgress("A interpretar os dados da folha de ponto ATM...");
-
-    const rawRows = rawResult.output?.rows || rawResult.output || [];
-
-    const extracted = useLocalBackend
-      ? {
-          ...(rawResult.output?.meta || {}),
-          projects: rawResult.output?.projects || [],
-          daily_records: rawRows
-        }
-      : await base44.integrations.Core.InvokeLLM({
-      prompt: `Tens os dados brutos de uma folha de imputação ATM exportada de Excel. Os dados são linhas/colunas com chaves genéricas (col_0, col_1, Mês, Abr, etc).
-
-Dados brutos:
-${JSON.stringify(rawRows).substring(0, 60000)}
-
-A folha tem:
-- Linha com "Inicio" -> data de início do período
-- Linha com "Fim" -> data de fim do período  
-- Nome do colaborador (campo "Nome" ou similar nos primeiros rows)
-- Número pessoal (campo "Nº" ou similar)
-- Mês e Ano do período
-- Linhas diárias com datas e horas a partir de uma certa linha
-
-Extrai:
-1. Dados do colaborador (nome, número, mês, ano, direção/departamento)
-2. Para cada dia do mês (mesmo fins de semana/feriados sem horas):
-   - date: YYYY-MM-DD
-   - normal_hours: horas normais (número, 0 se nenhuma)
-   - extra_hours: horas extraordinárias (número, 0 se nenhuma)
-   - travel_hours: horas de viagem (número, 0 se nenhuma)
-   - absence_hours: horas de ausência (número, 0 se nenhuma)
-   - day_type: "Dia Útil", "Desc.Comp", "Desc. Obrig", ou "Feriado"
-   - absence_type: motivo ausência ou ""
-   - period_start: hora entrada HH:MM ou ""
-   - period_end: hora saída HH:MM ou ""
-   - pause_hours: pausa/almoço (número)
-   - project_number: nº projeto ou ""
-   - project_client: cliente ou ""
-   - project_description: descrição ou ""
-
-Ignora linhas de totais/cabeçalhos sem data. Devolve só o JSON.`,
-      response_json_schema: {
-        type: "object",
-        properties: {
-          employee_name: { type: "string" },
-          employee_number: { type: "string" },
-          month: { type: "string" },
-          year: { type: "number" },
-          department: { type: "string" },
-          daily_records: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                date: { type: "string" },
-                normal_hours: { type: "number" },
-                extra_hours: { type: "number" },
-                travel_hours: { type: "number" },
-                absence_hours: { type: "number" },
-                day_type: { type: "string" },
-                absence_type: { type: "string" },
-                period_start: { type: "string" },
-                period_end: { type: "string" },
-                pause_hours: { type: "number" },
-                project_number: { type: "string" },
-                project_client: { type: "string" },
-                project_description: { type: "string" },
-              }
-            }
-          }
-        }
-      }
-    });
-
-    const dailyRecords = extracted.daily_records || [];
-    if (dailyRecords.length === 0) {
-      setStatus("error");
-      setError("Não foram encontrados registos diários no ficheiro. Verifica se o ficheiro é uma Folha de Imputação ATM válida com a aba 'TimeSheet' preenchida.");
-      return;
-    }
-
-    setStatus("saving");
-    setProgress(`A guardar ${dailyRecords.length} registos...`);
-
-    const canCreateTimesheet = typeof base44.entities?.Timesheet?.create === "function";
-
-    // 3. Create a new timesheet (do not delete older imports)
-    const timesheetPayload = {
-      employee_name: extracted.employee_name || "Desconhecido",
-      employee_number: String(extracted.employee_number || ""),
-      month: extracted.month || "",
-      year: extracted.year || new Date().getFullYear(),
-      department: extracted.department || extracted.observations || "",
-      source_filename: file?.name || "",
-      source_file_url: file_url || "",
-      total_compensation_hours: extracted.total_compensation_hours ?? 0,
-      total_descanso_compensatorio_hours: extracted.total_descanso_compensatorio_hours ?? 0
-    };
-
-    let timesheet = null;
-    if (canCreateTimesheet) {
+      let fileUrl = "";
       try {
-        timesheet = await base44.entities.Timesheet.create(timesheetPayload);
-      } catch (err) {
-        if (err && typeof err === "object" && err.status === 409) {
-          const period = `${timesheetPayload.month} ${timesheetPayload.year}`.trim();
-          const employeeLabel = timesheetPayload.employee_number
-            ? `${timesheetPayload.employee_name} (Nº ${timesheetPayload.employee_number})`
-            : timesheetPayload.employee_name;
-
-          const ok = await requestReplaceConfirmation({ period, employeeLabel });
-
-          if (!ok) {
-            setStatus("idle");
-            setProgress("");
-            return;
-          }
-
-          timesheet = await base44.entities.Timesheet.create({ ...timesheetPayload, replace: true });
-        } else {
-          throw err;
-        }
-      }
-    }
-
-    // 4. Create new records
-    const toCreate = dailyRecords.map(r => ({
-      ...(timesheet ? { timesheet_id: timesheet.id } : {}),
-      employee_name: extracted.employee_name || "Desconhecido",
-      employee_number: String(extracted.employee_number || ""),
-      month: extracted.month || "",
-      year: extracted.year || new Date().getFullYear(),
-      date: r.date,
-      normal_hours: r.normal_hours || 0,
-      extra_hours: r.extra_hours || 0,
-      travel_hours: r.travel_hours || 0,
-      absence_hours: r.absence_hours || 0,
-      day_type: r.day_type || "",
-      absence_type: r.absence_type || "",
-      project_number: r.project_number || "",
-      project_client: r.project_client || "",
-      project_description: r.project_description || "",
-      compensated: false,
-      period_start: r.period_start || "",
-      period_end: r.period_end || "",
-      pause_hours: r.pause_hours || 0,
-      status: "normal",
-      observations: extracted.department || "",
-    }));
-
-    await base44.entities.TimesheetRecord.bulkCreate(toCreate);
-
-    setProgress("A atualizar o catálogo de projetos...");
-    if (Array.isArray(extracted.projects) && extracted.projects.length > 0) {
-      await base44.reference.mergeProjects(extracted.projects);
-    } else {
-      await base44.reference.syncProjects();
-    }
-    await Promise.all([
-      queryClientInstance.invalidateQueries({ queryKey: ["timesheet-config"] }),
-      queryClientInstance.invalidateQueries({ queryKey: ["projects"] })
-    ]);
-    if (timesheet?.id) {
-      try {
-        localStorage.setItem("atm.selectedTimesheetId", timesheet.id);
+        setStatus("uploading");
+        setProgress("A guardar o ficheiro original no servidor...");
+        const uploadResult = await base44.integrations.Core.UploadFile({ file });
+        fileUrl = String(uploadResult?.file_url || "");
       } catch {
-        // ignore
+        // Non-fatal: a importação continua mesmo sem guardar o ficheiro original.
       }
-    }
 
-    setStatus("done");
-    setProgress(`${toCreate.length} registos importados com sucesso!`);
+      setStatus("saving");
+      setProgress(`A guardar ${dailyRecords.length} registos...`);
 
-    setTimeout(() => navigate("/"), 2000);
+      const totalCompensationHours = dailyRecords.reduce((acc, row) => acc + Number(row?.extra_hours || 0), 0);
+      const timesheetPayload = {
+        employee_name: employeeName,
+        employee_number: employeeNumber,
+        month: finalMonth,
+        year: finalYear,
+        department: clean(importedMeta?.department),
+        funcao: clean(importedMeta?.funcao),
+        direcao: clean(importedMeta?.direcao),
+        centro_custo: clean(importedMeta?.centro_custo),
+        cct: clean(importedMeta?.cct),
+        horario: clean(importedMeta?.horario),
+        email_remetente: clean(importedMeta?.email_remetente),
+        email_nivel1: clean(importedMeta?.email_nivel1),
+        email_nivel2: clean(importedMeta?.email_nivel2),
+        source_filename: file?.name || "",
+        source_file_url: fileUrl,
+        total_compensation_hours: totalCompensationHours,
+        total_descanso_compensatorio_hours: 0
+      };
+
+      let timesheet = null;
+      if (typeof base44.entities?.Timesheet?.create === "function") {
+        try {
+          timesheet = await base44.entities.Timesheet.create(timesheetPayload);
+        } catch (err) {
+          if (err && typeof err === "object" && err.status === 409) {
+            const period = `${timesheetPayload.month} ${timesheetPayload.year}`.trim();
+            const employeeLabel = timesheetPayload.employee_number
+              ? `${timesheetPayload.employee_name} (Nº ${timesheetPayload.employee_number})`
+              : timesheetPayload.employee_name;
+
+            const ok = await requestReplaceConfirmation({ period, employeeLabel });
+            if (!ok) {
+              setStatus("idle");
+              setProgress("");
+              return;
+            }
+
+            timesheet = await base44.entities.Timesheet.create({ ...timesheetPayload, replace: true });
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      const toCreate = dailyRecords.map((r) => ({
+        ...(timesheet ? { timesheet_id: timesheet.id } : {}),
+        employee_name: employeeName,
+        employee_number: employeeNumber,
+        month: finalMonth,
+        year: finalYear,
+        date: r.date,
+        normal_hours: Number(r.normal_hours || 0),
+        extra_hours: Number(r.extra_hours || 0),
+        travel_hours: Number(r.travel_hours || 0),
+        absence_hours: Number(r.absence_hours || 0),
+        day_type: r.day_type || "",
+        absence_type: r.absence_type || "",
+        project_number: r.project_number || "",
+        project_client: r.project_client || "",
+        project_description: r.project_description || "",
+        compensated: false,
+        period_start: r.period_start || "",
+        period_end: r.period_end || "",
+        pause_hours: Number(r.pause_hours || 0),
+        status: "normal",
+        observations: r.observacoes || r.observations || "",
+        extra1_start: r.extra1_start || "",
+        extra1_end: r.extra1_end || "",
+        extra2_start: r.extra2_start || "",
+        extra2_end: r.extra2_end || "",
+        extra_motivo: r.extra_motivo || "",
+        travel1_start: r.travel1_start || "",
+        travel1_end: r.travel1_end || "",
+        travel2_start: r.travel2_start || "",
+        travel2_end: r.travel2_end || "",
+        absence_start: r.absence_start || "",
+        absence_end: r.absence_end || "",
+        subsidio_almoco: Boolean(r.subsidio_almoco),
+        prevencao: Boolean(r.prevencao),
+        deslocado: Boolean(r.deslocado),
+        local_deslocacao: r.local_deslocacao || "",
+        motivo_deslocacao: r.motivo_deslocacao || ""
+      }));
+
+      await base44.entities.TimesheetRecord.bulkCreate(toCreate);
+
+      setProgress("A atualizar o catálogo de projetos...");
+      if (Array.isArray(projects) && projects.length > 0) {
+        await base44.reference.mergeProjects(projects);
+      } else {
+        await base44.reference.syncProjects();
+      }
+
+      await Promise.all([
+        queryClientInstance.invalidateQueries({ queryKey: ["timesheet-config"] }),
+        queryClientInstance.invalidateQueries({ queryKey: ["projects"] }),
+        queryClientInstance.invalidateQueries({ queryKey: ["timesheets"] }),
+        queryClientInstance.invalidateQueries({ queryKey: ["timesheet-records", "all"] })
+      ]);
+
+      if (timesheet?.id) {
+        try {
+          localStorage.setItem("atm.selectedTimesheetId", timesheet.id);
+        } catch {
+          // ignore
+        }
+      }
+
+      setStatus("done");
+      setProgress(`${toCreate.length} registos importados com sucesso!`);
+      setTimeout(() => navigate("/"), 2000);
     } catch (e) {
       setStatus("error");
       const message = e instanceof Error ? e.message : String(e);
-      setError(
-        `Falha ao processar o upload no ambiente local. (${message})\n\n` +
-          `Isto acontece porque as integrações (UploadFile/ExtractDataFromUploadedFile/InvokeLLM) não estão implementadas no backend local.\n` +
-          `Opções: (1) configurar o Base44 cloud e definir VITE_USE_LOCAL_BACKEND=false, ou (2) implementar estas integrações no backend.`
-      );
+      setError(`Falha ao importar a folha de ponto. ${message}`);
     }
   }
 

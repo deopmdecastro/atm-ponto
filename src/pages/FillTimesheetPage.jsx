@@ -128,6 +128,29 @@ function clean(v) {
   return String(v ?? "").trim();
 }
 
+function normalizeMonthKey(value) {
+  return clean(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .slice(0, 3);
+}
+
+function normalizeMonthLabel(value) {
+  const label = clean(value);
+  const key = normalizeMonthKey(label);
+  const idx = MONTH_NAMES_PT.findIndex((month) => normalizeMonthKey(month) === key);
+  return idx >= 0 ? MONTH_NAMES_PT[idx] : label;
+}
+
+function normalizeEmployeeKey(value) {
+  return clean(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ");
+}
+
 function dayTypeAccent(type) {
   switch (clean(type)) {
     case "Desc. Obrig":
@@ -743,12 +766,12 @@ export default function FillTimesheetPage() {
       try {
         const ts = await base44.entities.Timesheet.get(editTimesheetId);
         if (!ts) throw new Error("Folha de ponto não encontrada.");
-        const recordsData = await base44.entities.TimesheetRecord.list("date", 5000, {
+
+        let recordsData = await base44.entities.TimesheetRecord.list("date", 5000, {
           timesheet_id: editTimesheetId
         });
-        if (cancelled) return;
 
-        const newMeta = {
+        let newMeta = {
           ...EMPTY_META,
           employee_name: clean(ts.employee_name),
           employee_number: clean(ts.employee_number),
@@ -758,12 +781,70 @@ export default function FillTimesheetPage() {
           centro_custo: clean(ts.centro_custo),
           cct: clean(ts.cct),
           horario: clean(ts.horario),
-          month: clean(ts.month),
+          month: normalizeMonthLabel(ts.month),
           year: Number(ts.year) || new Date().getFullYear(),
           email_remetente: clean(ts.email_remetente),
           email_nivel1: clean(ts.email_nivel1),
           email_nivel2: clean(ts.email_nivel2)
         };
+
+        if (!Array.isArray(recordsData) || recordsData.length === 0) {
+          const allRecords = await base44.entities.TimesheetRecord.list("date", 5000);
+          const targetMonthKey = normalizeMonthKey(ts.month);
+          const targetYear = Number(ts.year) || null;
+          const targetEmployeeNumber = clean(ts.employee_number).replace(/\s+/g, "");
+          const targetEmployeeName = normalizeEmployeeKey(ts.employee_name);
+
+          recordsData = (Array.isArray(allRecords) ? allRecords : []).filter((record) => {
+            const sameYear = targetYear == null || Number(record?.year) === targetYear;
+            const sameMonth = normalizeMonthKey(record?.month) === targetMonthKey;
+            const recordEmployeeNumber = clean(record?.employee_number).replace(/\s+/g, "");
+            const sameEmployee = targetEmployeeNumber
+              ? recordEmployeeNumber === targetEmployeeNumber
+              : normalizeEmployeeKey(record?.employee_name) === targetEmployeeName;
+            return sameYear && sameMonth && sameEmployee;
+          });
+        }
+
+        if ((!Array.isArray(recordsData) || recordsData.length === 0) && typeof base44.entities?.Timesheet?.downloadOriginal === "function") {
+          try {
+            const { blob } = await base44.entities.Timesheet.downloadOriginal(editTimesheetId);
+            if (blob) {
+              const fallbackName = clean(ts.source_filename) || `timesheet-${editTimesheetId}.xlsx`;
+              const parsed = await readTimesheetFile(
+                new File([blob], fallbackName, {
+                  type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                })
+              );
+              if (Array.isArray(parsed?.records) && parsed.records.length > 0) {
+                recordsData = parsed.records;
+                if (Array.isArray(parsed?.projects) && parsed.projects.length > 0) {
+                  setImportedProjects(parsed.projects);
+                }
+                newMeta = {
+                  ...newMeta,
+                  employee_name: clean(parsed?.meta?.employee_name) || newMeta.employee_name,
+                  employee_number: clean(parsed?.meta?.employee_number) || newMeta.employee_number,
+                  funcao: clean(parsed?.meta?.funcao) || newMeta.funcao,
+                  department: clean(parsed?.meta?.department) || newMeta.department,
+                  direcao: clean(parsed?.meta?.direcao) || newMeta.direcao,
+                  centro_custo: clean(parsed?.meta?.centro_custo) || newMeta.centro_custo,
+                  cct: clean(parsed?.meta?.cct) || newMeta.cct,
+                  horario: clean(parsed?.meta?.horario) || newMeta.horario,
+                  month: normalizeMonthLabel(parsed?.meta?.month) || newMeta.month,
+                  year: Number(parsed?.meta?.year) || newMeta.year,
+                  email_remetente: clean(parsed?.meta?.email_remetente) || newMeta.email_remetente,
+                  email_nivel1: clean(parsed?.meta?.email_nivel1) || newMeta.email_nivel1,
+                  email_nivel2: clean(parsed?.meta?.email_nivel2) || newMeta.email_nivel2
+                };
+              }
+            }
+          } catch {
+            // non-fatal: if the original file is unavailable, we keep the empty grid fallback
+          }
+        }
+
+        if (cancelled) return;
 
         const grid = buildMonthGrid(newMeta.month, Number(newMeta.year));
         const byDate = new Map((Array.isArray(recordsData) ? recordsData : []).map((r) => [r.date, r]));
@@ -773,10 +854,7 @@ export default function FillTimesheetPage() {
           return recomputeRow({
             ...slot,
             ...r,
-            // O campo interno usado nos inputs é "observacoes" (PT); a API
-            // guarda-o como "observations" — faz-se aqui a mesma tradução
-            // que já acontece ao gravar (ver handleSave).
-            observacoes: r.observations || "",
+            observacoes: r.observations || r.observacoes || "",
             day: slot.day,
             weekday: slot.weekday,
             isWeekend: slot.isWeekend,
