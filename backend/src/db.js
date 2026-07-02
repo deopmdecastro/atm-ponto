@@ -15,13 +15,35 @@ types.setTypeParser(1082, (value) => value);
 
 let pool = null;
 
+// `pg` (via `pg-connection-string`) does NOT read the PGSSLMODE env var when
+// building the Pool config from a connectionString — it only honors an
+// explicit `ssl` option or a `?sslmode=` query param embedded in the URL
+// itself. Render's managed Postgres requires SSL and uses a certificate that
+// isn't in Node's default CA list, so without an explicit `ssl` option every
+// connection attempt fails (surfacing here as "Database not available").
+// We derive the ssl option from PGSSLMODE / NODE_ENV so render.yaml's
+// PGSSLMODE=require actually has an effect.
+function resolveSslConfig(url) {
+  const mode = String(process.env.PGSSLMODE || "").toLowerCase();
+  if (mode === "disable") return undefined;
+  if (mode === "require" || mode === "prefer" || mode === "verify-ca" || mode === "verify-full") {
+    return { rejectUnauthorized: false };
+  }
+  // Fall back: Render's internal/external Postgres URLs both need SSL in
+  // production even if PGSSLMODE wasn't explicitly set.
+  if (process.env.NODE_ENV === "production" || /\.render\.com/i.test(url)) {
+    return { rejectUnauthorized: false };
+  }
+  return undefined;
+}
+
 function getPool() {
   if (pool) return pool;
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error("DATABASE_URL is not set. Load environment variables before importing db.js or ensure DATABASE_URL is configured.");
   }
-  pool = new Pool({ connectionString: url });
+  pool = new Pool({ connectionString: url, ssl: resolveSslConfig(url) });
   return pool;
 }
 
