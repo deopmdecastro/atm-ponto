@@ -88,15 +88,17 @@ export function calculateSummary(records, options = {}) {
 
   const totalPool = compensationTotalHours != null ? compensationTotalHours : totalExtraHours;
   const rawBank = totalPool - totalCompensatedHours;
+  // rawBank can be negative when the employee used more hours than available (debt)
   const hourBank = Math.max(0, rawBank);
+  const debtHours = rawBank < 0 ? Math.abs(rawBank) : 0;
   const totalCompensationHours = hourBank + totalCompensatedHours;
   const totalAbsenceDays = absenceDates.size;
   
-  if (rawBank < 0) {
+  if (debtHours > 0) {
     alerts.push({
-      type: "error",
+      type: "warning",
       date: "-",
-      message: `Horas gozadas acima do total concedido: ${formatHours(Math.abs(rawBank))}h`
+      message: `Tem ${formatHours(debtHours)}h em dívida (horas antecipadas pela empresa que ainda não acumulou).`
     });
   }
 
@@ -108,13 +110,16 @@ export function calculateSummary(records, options = {}) {
     totalCompensationHours,
     compensationUsedHours: totalCompensatedHours,
     compensationAvailableHours: hourBank,
+    compensationDebtHours: debtHours,
     totalCompensationDays: totalCompensationHours / 8,
     compensationUsedDays: totalCompensatedHours / 8,
     compensationAvailableDays: hourBank / 8,
+    compensationDebtDays: debtHours / 8,
     totalAbsenceHours,
     totalAbsenceDays,
     totalTravelHours,
     hourBank,
+    debtHours,
     alerts,
   };
 }

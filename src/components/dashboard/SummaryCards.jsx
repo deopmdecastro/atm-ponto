@@ -1,4 +1,4 @@
-import { Briefcase, CalendarDays, CalendarX, Clock, Plane, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, Briefcase, CalendarDays, CalendarX, Clock, Plane, TrendingDown, TrendingUp } from "lucide-react";
 import { formatHours } from "@/lib/formatHours";
 
 const cards = [
@@ -31,6 +31,9 @@ function formatDays(value) {
 export default function SummaryCards({ summary }) {
   if (!summary) return null;
 
+  const debtHours = Number(summary.compensationDebtHours ?? summary.debtHours ?? 0);
+  const showDebt = debtHours > 0;
+
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-4">
       {cards.map((card) => (
@@ -57,6 +60,24 @@ export default function SummaryCards({ summary }) {
           <p className="text-xs text-muted-foreground mt-1 font-medium break-words">{card.label}</p>
         </div>
       ))}
+
+      {showDebt && (
+        <div className="group relative bg-orange-50 rounded-xl border border-orange-200 p-5 hover:shadow-lg hover:border-orange-300 transition-all duration-300 min-w-0">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-8 w-8 rounded-lg bg-orange-100 flex items-center justify-center">
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold tracking-tight text-orange-600 break-words">
+            -{formatHours(debtHours)}
+            <span className="text-sm font-normal text-orange-400">h</span>
+          </p>
+          <p className="mt-1 text-xs font-medium text-orange-400">
+            {formatDays(Number(summary.compensationDebtDays ?? debtHours / 8))} dias
+          </p>
+          <p className="text-xs text-orange-600 mt-1 font-medium break-words">Horas em Dívida</p>
+        </div>
+      )}
     </div>
   );
 }

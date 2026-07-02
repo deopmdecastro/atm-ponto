@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { ArrowDown, ArrowUp, Calendar, MinusCircle, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Calendar, MinusCircle, TrendingDown, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar as UiCalendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -33,17 +33,21 @@ export default function HourBankSummary({ summary, history, filterMode = "all", 
   const available = Number(summary.compensationAvailableHours ?? summary.hourBank ?? 0);
   const used = Number(summary.compensationUsedHours ?? summary.totalCompensatedHours ?? 0);
   const total = Number(summary.totalCompensationHours ?? available + used);
+  const debt = Number(summary.compensationDebtHours ?? summary.debtHours ?? 0);
   const availableDays = Number(summary.compensationAvailableDays ?? available / 8);
   const usedDays = Number(summary.compensationUsedDays ?? used / 8);
   const totalDays = Number(summary.totalCompensationDays ?? total / 8);
+  const debtDays = Number(summary.compensationDebtDays ?? debt / 8);
 
+  const isInDebt = debt > 0;
+
+  // Allow enjoying hours even when in debt (company permits advance), but warn
   const canEnjoy =
     filterMode === "all" &&
     typeof onCreateEnjoyment === "function" &&
     !saving &&
     Number.isFinite(parsedEnjoy) &&
     parsedEnjoy > 0 &&
-    parsedEnjoy <= available &&
     enjoyDate instanceof Date &&
     !Number.isNaN(enjoyDate.getTime());
 
@@ -89,6 +93,34 @@ export default function HourBankSummary({ summary, history, filterMode = "all", 
                   </p>
                 )}
 
+                {isInDebt && (
+                  <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 flex gap-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-orange-700">
+                      Está atualmente com <span className="font-semibold">{formatHours(debt)}h em dívida</span>. A empresa
+                      permite antecipar horas que ainda não acumulou. Qualquer hora gozada agora aumentará a dívida.
+                    </p>
+                  </div>
+                )}
+
+                {!isInDebt && available > 0 && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                    <p className="text-xs text-green-700">
+                      Tem <span className="font-semibold">{formatHours(available)}h disponíveis</span>. Pode também
+                      antecipar horas além do saldo disponível (fica em dívida).
+                    </p>
+                  </div>
+                )}
+
+                {!isInDebt && available === 0 && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <p className="text-xs text-blue-700">
+                      Não tem horas disponíveis. A empresa permite antecipar horas — qualquer hora gozada ficará em
+                      dívida.
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="enjoy-hours">Horas a gozar</Label>
                   <Input
@@ -99,7 +131,11 @@ export default function HourBankSummary({ summary, history, filterMode = "all", 
                     placeholder="Ex: 1.5"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Disponível agora: <span className="font-medium text-foreground tabular-nums">{formatHours(available)}h</span>
+                    Disponível agora:{" "}
+                    <span className="font-medium text-foreground tabular-nums">{formatHours(available)}h</span>
+                    {isInDebt && (
+                      <span className="ml-2 text-orange-600 font-medium">({formatHours(debt)}h em dívida)</span>
+                    )}
                   </p>
                 </div>
 
@@ -141,10 +177,6 @@ export default function HourBankSummary({ summary, history, filterMode = "all", 
                       setError("Indique um número de horas válido.");
                       return;
                     }
-                    if (parsedEnjoy > available) {
-                      setError("Não tens horas suficientes disponíveis.");
-                      return;
-                    }
                     try {
                       setSaving(true);
                       const iso = format(enjoyDate, "yyyy-MM-dd");
@@ -163,7 +195,7 @@ export default function HourBankSummary({ summary, history, filterMode = "all", 
                   }}
                   disabled={!canEnjoy}
                 >
-                  Confirmar
+                  {parsedEnjoy > available ? "Antecipar (Dívida)" : "Confirmar"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -172,21 +204,40 @@ export default function HourBankSummary({ summary, history, filterMode = "all", 
       </div>
 
       <div className="grid grid-cols-1 gap-3">
-        <div className="flex items-center justify-between gap-4 bg-accent/50 rounded-lg p-4 min-w-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Wallet className="h-5 w-5 text-primary" />
+        {/* Available hours (or debt indicator) */}
+        {isInDebt ? (
+          <div className="flex items-center justify-between gap-4 bg-orange-50 rounded-lg p-4 min-w-0 border border-orange-100">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-10 w-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="h-5 w-5 text-orange-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-orange-700">Em Dívida</p>
+                <p className="text-sm text-orange-600">Horas antecipadas pela empresa</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Disponível</p>
-              <p className="text-sm text-muted-foreground">Horas que ainda pode gozar</p>
+            <div className="text-right whitespace-nowrap">
+              <p className="text-xl font-bold text-orange-600 tabular-nums">-{formatHours(debt)}h</p>
+              <p className="text-xs text-orange-500">{formatDays(debtDays)} dias em dívida</p>
             </div>
           </div>
-          <div className="text-right whitespace-nowrap">
-            <p className="text-xl font-bold text-primary tabular-nums">{formatHours(available)}h</p>
-            <p className="text-xs text-muted-foreground">{formatDays(availableDays)} dias</p>
+        ) : (
+          <div className="flex items-center justify-between gap-4 bg-accent/50 rounded-lg p-4 min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Wallet className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Disponível</p>
+                <p className="text-sm text-muted-foreground">Horas que ainda pode gozar</p>
+              </div>
+            </div>
+            <div className="text-right whitespace-nowrap">
+              <p className="text-xl font-bold text-primary tabular-nums">{formatHours(available)}h</p>
+              <p className="text-xs text-muted-foreground">{formatDays(availableDays)} dias</p>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex items-center justify-between gap-4 bg-green-50 rounded-lg p-4 min-w-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -218,6 +269,20 @@ export default function HourBankSummary({ summary, history, filterMode = "all", 
             <div className="text-right whitespace-nowrap">
               <p className="text-xl font-bold text-blue-700 tabular-nums">{formatHours(used)}h</p>
               <p className="text-xs text-muted-foreground">{formatDays(usedDays)} dias</p>
+            </div>
+          </div>
+        )}
+
+        {/* Debt breakdown row — always visible when in debt so user sees context */}
+        {isInDebt && (
+          <div className="rounded-lg border border-orange-200 bg-orange-50/60 px-4 py-3">
+            <div className="flex items-start gap-2">
+              <TrendingDown className="h-4 w-4 text-orange-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-orange-700 leading-snug">
+                A empresa autorizou o gozo antecipado de{" "}
+                <span className="font-semibold">{formatHours(debt)}h</span> que ainda não acumulou. Estas horas serão
+                compensadas automaticamente à medida que acumular horas extra.
+              </p>
             </div>
           </div>
         )}
