@@ -129,6 +129,7 @@ export function calculateSalaryForRecords(records, config, monthKey) {
   const grossTotal = truncateDecimal(baseSalary + extraHoursAmount + mealSubsidy + vacationSubsidyAmount + christmasSubsidyAmount);
   const totalDeductions = truncateDecimal(irsAmount + ssAmount + irsExtraAmount + ssExtraAmount);
   const netTotal = truncateDecimal(grossTotal - totalDeductions);
+  const totalTaxableIncome = truncateDecimal(taxableIncome + extraTaxableIncome);
 
   return {
     workedDays,
@@ -140,6 +141,7 @@ export function calculateSalaryForRecords(records, config, monthKey) {
     christmasSubsidyAmount,
     irsAmount: truncateDecimal(irsAmount + irsExtraAmount),
     ssAmount: truncateDecimal(ssAmount + ssExtraAmount),
+    totalTaxableIncome,
     grossTotal,
     totalDeductions,
     netTotal,
@@ -180,6 +182,7 @@ export function aggregateSalary(timesheets, recordsByTimesheetId, config) {
       christmasSubsidyAmount: truncateDecimal(acc.christmasSubsidyAmount + m.christmasSubsidyAmount),
       irsAmount: truncateDecimal(acc.irsAmount + m.irsAmount),
       ssAmount: truncateDecimal(acc.ssAmount + m.ssAmount),
+      totalTaxableIncome: truncateDecimal(acc.totalTaxableIncome + m.totalTaxableIncome),
       grossTotal: truncateDecimal(acc.grossTotal + m.grossTotal),
       totalDeductions: truncateDecimal(acc.totalDeductions + m.totalDeductions),
       netTotal: truncateDecimal(acc.netTotal + m.netTotal)
@@ -194,6 +197,7 @@ export function aggregateSalary(timesheets, recordsByTimesheetId, config) {
       christmasSubsidyAmount: 0,
       irsAmount: 0,
       ssAmount: 0,
+      totalTaxableIncome: 0,
       grossTotal: 0,
       totalDeductions: 0,
       netTotal: 0

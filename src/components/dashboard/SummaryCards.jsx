@@ -32,10 +32,11 @@ export default function SummaryCards({ summary }) {
   if (!summary) return null;
 
   const debtHours = Number(summary.compensationDebtHours ?? summary.debtHours ?? 0);
-  const showDebt = debtHours > 0;
+  const debtDays = Number(summary.compensationDebtDays ?? debtHours / 8);
+  const isInDebt = debtHours > 0;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-8 gap-4">
       {cards.map((card) => (
         <div
           key={card.key}
@@ -61,23 +62,30 @@ export default function SummaryCards({ summary }) {
         </div>
       ))}
 
-      {showDebt && (
-        <div className="group relative bg-orange-50 rounded-xl border border-orange-200 p-5 hover:shadow-lg hover:border-orange-300 transition-all duration-300 min-w-0">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-8 w-8 rounded-lg bg-orange-100 flex items-center justify-center">
-              <AlertTriangle className="h-4 w-4 text-orange-500" />
-            </div>
+      <div
+        className={`group relative rounded-xl border p-5 hover:shadow-lg transition-all duration-300 min-w-0 ${
+          isInDebt
+            ? "bg-orange-50 border-orange-200 hover:border-orange-300"
+            : "bg-card border-border hover:border-primary/20"
+        }`}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${isInDebt ? "bg-orange-100" : "bg-accent"}`}>
+            <AlertTriangle className={`h-4 w-4 ${isInDebt ? "text-orange-500" : "text-accent-foreground"}`} />
           </div>
-          <p className="text-2xl font-bold tracking-tight text-orange-600 break-words">
-            -{formatHours(debtHours)}
-            <span className="text-sm font-normal text-orange-400">h</span>
-          </p>
-          <p className="mt-1 text-xs font-medium text-orange-400">
-            {formatDays(Number(summary.compensationDebtDays ?? debtHours / 8))} dias
-          </p>
-          <p className="text-xs text-orange-600 mt-1 font-medium break-words">Horas em Dívida</p>
         </div>
-      )}
+        <p className={`text-2xl font-bold tracking-tight break-words ${isInDebt ? "text-orange-600" : "text-foreground"}`}>
+          {isInDebt ? "-" : ""}
+          {formatHours(debtHours)}
+          <span className={`text-sm font-normal ${isInDebt ? "text-orange-400" : "text-muted-foreground"}`}>h</span>
+        </p>
+        <p className={`mt-1 text-xs font-medium ${isInDebt ? "text-orange-400" : "text-muted-foreground"}`}>
+          {formatDays(debtDays)} dias
+        </p>
+        <p className={`text-xs mt-1 font-medium break-words ${isInDebt ? "text-orange-600" : "text-muted-foreground"}`}>
+          Horas Compensatórias a Dever
+        </p>
+      </div>
     </div>
   );
 }
