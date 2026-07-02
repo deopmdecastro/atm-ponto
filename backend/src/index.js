@@ -211,7 +211,13 @@ app.get("/health", (req, res) =>
   res.status(dbReady ? 200 : 503).json({
     ok: dbReady,
     dbReady,
-    dbError: !isProduction && !dbReady ? dbLastError || null : undefined
+    // Surfaced in all environments (dev and prod): this never contains the
+    // connection string or credentials, only the driver's error message
+    // (e.g. "password authentication failed", "ENOTFOUND host", "DATABASE_URL
+    // is not set"). Without this, production failures were only reported as
+    // a generic "Database not available" with no way to diagnose them short
+    // of reading Render's server logs.
+    dbError: !dbReady ? dbLastError || null : undefined
   })
 );
 
@@ -355,7 +361,7 @@ app.use(
       error:
         "Database not available. Configure DATABASE_URL (Render) / PGSSLMODE=require, or start Postgres locally (docker compose up -d db) and restart the backend.",
       status: 503,
-      details: !isProduction && dbLastError ? `DB init error: ${dbLastError}` : undefined
+      details: dbLastError ? `DB init error: ${dbLastError}` : undefined
     });
   })
 );
@@ -379,7 +385,7 @@ app.post(
       res.status(503).json({
         error: "Database not available",
         status: 503,
-        details: !isProduction && dbLastError ? `DB init error: ${dbLastError}` : undefined
+        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
       });
       return;
     }
@@ -428,7 +434,7 @@ app.post(
       res.status(503).json({
         error: "Database not available",
         status: 503,
-        details: !isProduction && dbLastError ? `DB init error: ${dbLastError}` : undefined
+        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
       });
       return;
     }
@@ -463,7 +469,7 @@ app.get(
       res.status(503).json({
         error: "Database not available",
         status: 503,
-        details: !isProduction && dbLastError ? `DB init error: ${dbLastError}` : undefined
+        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
       });
       return;
     }
@@ -480,7 +486,7 @@ app.put(
       res.status(503).json({
         error: "Database not available",
         status: 503,
-        details: !isProduction && dbLastError ? `DB init error: ${dbLastError}` : undefined
+        details: dbLastError ? `DB init error: ${dbLastError}` : undefined
       });
       return;
     }
