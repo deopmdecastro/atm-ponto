@@ -1,11 +1,12 @@
 /* eslint-disable react/no-unescaped-entities */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowDown,
+  ArrowLeft,
   Calendar as CalendarIcon,
   Check,
   ChevronsUpDown,
@@ -553,6 +554,8 @@ function CalendarMonthView({ rows, validation, onDayClick }) {
 
 export default function FillTimesheetPage() {
   const navigate = useNavigate();
+  const { timesheetId: editTimesheetId } = useParams();
+  const isEditing = !!editTimesheetId;
   const fileInputRef = useRef(null);
   const confirmResolveRef = useRef(null);
 
@@ -570,6 +573,7 @@ export default function FillTimesheetPage() {
   const [viewMode, setViewMode] = useState("table"); // "table" | "calendar"
   const [calendarDayIdx, setCalendarDayIdx] = useState(null);
   const [fillAllOpen, setFillAllOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(isEditing);
   const [fillAllConfig, setFillAllConfig] = useState({
     period_start: "08:00",
     period_end: "17:00",
@@ -670,6 +674,7 @@ export default function FillTimesheetPage() {
 
   // Auto-fill employee data from previous timesheets
   useEffect(() => {
+    if (isEditing) return; // em edição os metadados vêm da folha existente
     if (meta.employee_name) return; // already set (e.g. from uploaded file)
     try {
       // 1) Try to restore from the last selected timesheet
@@ -718,10 +723,92 @@ export default function FillTimesheetPage() {
   useEffect(() => {
     if (!meta.month || !meta.year) return;
     if (rows.length > 0) return;
+    if (isEditing) return; // o effect de edição abaixo trata de preencher a grelha
     const grid = buildMonthGrid(meta.month, Number(meta.year));
     setRows(grid);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta.month, meta.year]);
+
+  // Modo edição: carrega a folha de ponto existente (metadados + registos) e
+  // preenche a mesma grelha/tabela usada no preenchimento normal, para que a
+  // edição use exatamente o mesmo template — desktop e mobile — do "Preencher".
+  useEffect(() => {
+    if (!editTimesheetId) {
+      setEditLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setEditLoading(true);
+      try {
+        const ts = await base44.entities.Timesheet.get(editTimesheetId);
+        if (!ts) throw new Error("Folha de ponto não encontrada.");
+        const recordsData = await base44.entities.TimesheetRecord.list("date", 5000, {
+          timesheet_id: editTimesheetId
+        });
+        if (cancelled) return;
+
+        const newMeta = {
+          ...EMPTY_META,
+          employee_name: clean(ts.employee_name),
+          employee_number: clean(ts.employee_number),
+          funcao: clean(ts.funcao),
+          department: clean(ts.department),
+          direcao: clean(ts.direcao),
+          centro_custo: clean(ts.centro_custo),
+          cct: clean(ts.cct),
+          horario: clean(ts.horario),
+          month: clean(ts.month),
+          year: Number(ts.year) || new Date().getFullYear(),
+          email_remetente: clean(ts.email_remetente),
+          email_nivel1: clean(ts.email_nivel1),
+          email_nivel2: clean(ts.email_nivel2)
+        };
+
+        const grid = buildMonthGrid(newMeta.month, Number(newMeta.year));
+        const byDate = new Map((Array.isArray(recordsData) ? recordsData : []).map((r) => [r.date, r]));
+        const merged = grid.map((slot) => {
+          const r = byDate.get(slot.date);
+          if (!r) return slot;
+          return recomputeRow({
+            ...slot,
+            ...r,
+            // O campo interno usado nos inputs é "observacoes" (PT); a API
+            // guarda-o como "observations" — faz-se aqui a mesma tradução
+            // que já acontece ao gravar (ver handleSave).
+            observacoes: r.observations || "",
+            day: slot.day,
+            weekday: slot.weekday,
+            isWeekend: slot.isWeekend,
+            day_type: clean(r.day_type) || slot.day_type
+          });
+        });
+
+        setMeta(newMeta);
+        setRows(merged);
+        setSourceFile(null);
+        try {
+          localStorage.setItem("atm.selectedTimesheetId", ts.id);
+        } catch {
+          /* ignore */
+        }
+      } catch (err) {
+        if (cancelled) return;
+        toast({
+          variant: "destructive",
+          title: "Falha ao carregar folha de ponto",
+          description: err?.message || "Não foi possível carregar os dados para edição."
+        });
+        navigate("/historico");
+      } finally {
+        if (!cancelled) setEditLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTimesheetId]);
 
   function requestReplaceConfirmation({ period, employeeLabel }) {
     setConfirmInfo({ period, employeeLabel });
@@ -1018,8 +1105,11 @@ export default function FillTimesheetPage() {
       if (ts?.id) {
         try { localStorage.setItem("atm.selectedTimesheetId", ts.id); } catch { /* ignore */ }
       }
-      toast({ title: "Folha de ponto guardada", description: `Excel exportado e ${rows.length} registos salvos no histórico.` });
-      setTimeout(() => navigate("/"), 1000);
+      toast({
+        title: isEditing ? "Folha de ponto atualizada" : "Folha de ponto guardada",
+        description: `Excel exportado e ${rows.length} registos salvos no histórico.`
+      });
+      setTimeout(() => navigate(isEditing ? "/historico" : "/"), 1000);
     },
     onError: (err) => {
       const message = err instanceof Error ? err.message : String(err);
@@ -1166,13 +1256,37 @@ export default function FillTimesheetPage() {
 
   const hasGrid = rows.length > 0;
 
+  if (editLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+        <p className="text-sm text-muted-foreground">A carregar folha de ponto para edição...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Preencher Folha de Ponto</h2>
+          {isEditing && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mb-1 -ml-2 h-7 text-xs text-muted-foreground"
+              onClick={() => navigate("/historico")}
+            >
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Voltar ao Histórico
+            </Button>
+          )}
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">
+            {isEditing ? `Editar Folha de Ponto — ${meta.month} ${meta.year}` : "Preencher Folha de Ponto"}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Faça upload de um time sheet para auto-preenchimento ou comece do zero — editável, com cálculo automático.
+            {isEditing
+              ? `${meta.employee_name || "Colaborador"} — as alterações substituem a folha de ponto guardada para este mês.`
+              : "Faça upload de um time sheet para auto-preenchimento ou comece do zero — editável, com cálculo automático."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1197,7 +1311,7 @@ export default function FillTimesheetPage() {
           </Button>
           <Button type="button" size="sm" className="gap-1.5 h-9 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handleSave} disabled={!canSave || saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Guardar & Exportar
+            {isEditing ? "Guardar Alterações" : "Guardar & Exportar"}
           </Button>
         </div>
       </div>

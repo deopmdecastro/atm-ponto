@@ -14,7 +14,6 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
 const FillTimesheetPage = lazy(() => import("./pages/FillTimesheetPage"));
 const HistoryPage = lazy(() => import("./pages/HistoryPage"));
-const TimesheetEditPage = lazy(() => import("./pages/TimesheetEditPage"));
 const ProjectsPage = lazy(() => import("./pages/ProjectsPage"));
 const AlertsPage = lazy(() => import("./pages/AlertsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
@@ -73,13 +72,13 @@ const AuthenticatedApp = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/preencher" element={<FillTimesheetPage />} />
+          <Route path="/preencher/:timesheetId" element={<FillTimesheetPage />} />
           <Route path="/historico" element={<HistoryPage />} />
           <Route path="/projetos" element={<ProjectsPage />} />
           <Route path="/alertas" element={<AlertsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/colaboradores" element={isAdmin ? <EmployeesPage /> : <Navigate to="/" replace />} />
           <Route path="/historico/:timesheetId" element={<TimesheetDetailPage />} />
-          <Route path="/historico/:timesheetId/editar" element={<TimesheetEditPage />} />
           <Route path="/historico/:timesheetId/visualizar" element={<TimesheetViewPage />} />
           <Route path="/historico/:employeeName/:year/:month" element={<TimesheetDetailPage />} />
           <Route path="*" element={<PageNotFound />} />

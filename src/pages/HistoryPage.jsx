@@ -337,7 +337,7 @@ export default function HistoryPage() {
                         </Link>
                       </Button>
                       <Button variant="outline" size="sm" asChild>
-                        <Link to={`/historico/${ts.id}/editar`}>
+                        <Link to={`/preencher/${ts.id}`}>
                           <Pencil className="h-4 w-4 mr-1" /> Editar
                         </Link>
                       </Button>
