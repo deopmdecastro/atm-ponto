@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
 import PasswordInput from "@/components/PasswordInput";
+import SalarySettingsCard from "@/components/settings/SalarySettingsCard";
 
 const monthOptions = [
   { value: "1", label: "Janeiro" },
@@ -186,6 +187,8 @@ export default function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      <SalarySettingsCard />
     </div>
   );
 }

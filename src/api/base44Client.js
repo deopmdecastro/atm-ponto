@@ -241,6 +241,26 @@ function createFetchClient(baseUrl) {
           if (err?.status === 404) return null;
           throw err;
         }
+      },
+      getSalaryConfig: async () => {
+        try {
+          return await request("GET", "/api/salary-config");
+        } catch (err) {
+          if (err?.status === 401 || err?.status === 404) {
+            return { defaults: {}, months: {} };
+          }
+          throw err;
+        }
+      },
+      updateSalaryConfig: async (data) => {
+        try {
+          return await request("PUT", "/api/salary-config", data);
+        } catch (err) {
+          if (err?.status === 404) {
+            throw new Error("Endpoint /api/salary-config não existe no backend local. Atualize/reinicie o backend local.");
+          }
+          throw err;
+        }
       }
     },
     users: {
@@ -317,6 +337,10 @@ function ensureReference(client) {
     syncProjects: async () => null,
     updateTimesheetConfig: async () => {
       throw new Error("Configuração indisponível neste modo (use o backend local).");
+    },
+    getSalaryConfig: async () => ({ defaults: {}, months: {} }),
+    updateSalaryConfig: async () => {
+      throw new Error("Configuração de salário indisponível neste modo (use o backend local).");
     }
   };
 }

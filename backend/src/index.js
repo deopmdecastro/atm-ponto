@@ -735,6 +735,80 @@ app.post(
   })
 );
 
+const DEFAULT_SALARY_DEFAULTS = {
+  base_salary: 1000,
+  meal_subsidy_daily: 10.46,
+  extra_hour_rate: 11.25,
+  irs_rate_percent: 3.5,
+  ss_rate_percent: 11
+};
+
+function toFiniteNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeSalaryDefaults(value, fallback = DEFAULT_SALARY_DEFAULTS) {
+  const src = value && typeof value === "object" ? value : {};
+  return {
+    base_salary: toFiniteNumber(src.base_salary, fallback.base_salary),
+    meal_subsidy_daily: toFiniteNumber(src.meal_subsidy_daily, fallback.meal_subsidy_daily),
+    extra_hour_rate: toFiniteNumber(src.extra_hour_rate, fallback.extra_hour_rate),
+    irs_rate_percent: toFiniteNumber(src.irs_rate_percent, fallback.irs_rate_percent),
+    ss_rate_percent: toFiniteNumber(src.ss_rate_percent, fallback.ss_rate_percent)
+  };
+}
+
+function normalizeSalaryMonths(value, fallback = {}) {
+  const src = value && typeof value === "object" ? value : {};
+  const result = {};
+  for (const [key, entry] of Object.entries(src)) {
+    if (!/^\d{4}-(?:[1-9]|1[0-2])$/.test(String(key))) continue;
+    const e = entry && typeof entry === "object" ? entry : {};
+    const normalized = {};
+    if (e.base_salary !== undefined && e.base_salary !== null && e.base_salary !== "")
+      normalized.base_salary = toFiniteNumber(e.base_salary);
+    if (e.meal_subsidy_daily !== undefined && e.meal_subsidy_daily !== null && e.meal_subsidy_daily !== "")
+      normalized.meal_subsidy_daily = toFiniteNumber(e.meal_subsidy_daily);
+    if (e.extra_hour_rate !== undefined && e.extra_hour_rate !== null && e.extra_hour_rate !== "")
+      normalized.extra_hour_rate = toFiniteNumber(e.extra_hour_rate);
+    if (e.irs_rate_percent !== undefined && e.irs_rate_percent !== null && e.irs_rate_percent !== "")
+      normalized.irs_rate_percent = toFiniteNumber(e.irs_rate_percent);
+    if (e.ss_rate_percent !== undefined && e.ss_rate_percent !== null && e.ss_rate_percent !== "")
+      normalized.ss_rate_percent = toFiniteNumber(e.ss_rate_percent);
+    if (e.vacation_subsidy_amount !== undefined && e.vacation_subsidy_amount !== null && e.vacation_subsidy_amount !== "")
+      normalized.vacation_subsidy_amount = toFiniteNumber(e.vacation_subsidy_amount);
+    if (e.christmas_subsidy_amount !== undefined && e.christmas_subsidy_amount !== null && e.christmas_subsidy_amount !== "")
+      normalized.christmas_subsidy_amount = toFiniteNumber(e.christmas_subsidy_amount);
+    if (Object.keys(normalized).length > 0) result[key] = normalized;
+  }
+  return Object.keys(result).length > 0 ? result : fallback;
+}
+
+app.get(
+  "/api/salary-config",
+  asyncHandler(async (req, res) => {
+    const existing = await getReference(`salary_config:${req.user.id}`);
+    res.json({
+      defaults: normalizeSalaryDefaults(existing?.defaults, DEFAULT_SALARY_DEFAULTS),
+      months: normalizeSalaryMonths(existing?.months, {})
+    });
+  })
+);
+
+app.put(
+  "/api/salary-config",
+  asyncHandler(async (req, res) => {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const key = `salary_config:${req.user.id}`;
+    const existing = (await getReference(key)) || {};
+    const defaults = normalizeSalaryDefaults(body.defaults, normalizeSalaryDefaults(existing.defaults, DEFAULT_SALARY_DEFAULTS));
+    const months = normalizeSalaryMonths(body.months, normalizeSalaryMonths(existing.months, {}));
+    const saved = await setReference(key, { defaults, months });
+    res.json(saved);
+  })
+);
+
 app.post(
   "/api/reference/projects/sync",
   asyncHandler(async (req, res) => {

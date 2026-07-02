@@ -10,8 +10,10 @@ import AlertsList from "@/components/dashboard/AlertsList";
 import EmployeeInfo from "@/components/dashboard/EmployeeInfo";
 import HourBankChart from "@/components/dashboard/HourBankChart";
 import HourBankSummary from "@/components/dashboard/HourBankSummary";
+import SalaryCards from "@/components/dashboard/SalaryCards";
 import SummaryCards from "@/components/dashboard/SummaryCards";
 import { useAuth } from "@/lib/AuthContext";
+import { aggregateSalary, calculateSalaryForRecords, salaryMonthKey } from "@/lib/calculateSalary";
 import { truncateDecimal } from "@/lib/formatHours";
 import { buildHourBankHistory, calculateSummary } from "@/lib/parseTimesheet";
 
@@ -134,9 +136,16 @@ export default function Dashboard() {
     staleTime: 30_000
   });
 
+  const salaryConfigQuery = useQuery({
+    queryKey: ["salary-config"],
+    queryFn: () => base44.reference.getSalaryConfig(),
+    staleTime: 60_000
+  });
+
   const timesheets = Array.isArray(timesheetsQuery.data) ? timesheetsQuery.data : [];
   const allRecords = Array.isArray(allRecordsQuery.data) ? allRecordsQuery.data : [];
   const enjoyments = Array.isArray(enjoymentsQuery.data) ? enjoymentsQuery.data : [];
+  const salaryConfig = salaryConfigQuery.data || { defaults: {}, months: {} };
 
   const enjoyedByMonthKey = useMemo(() => {
     const map = new Map();
@@ -174,7 +183,8 @@ export default function Dashboard() {
     return allRecords.filter((r) => String(r?.timesheet_id || "") === String(monthTimesheetId));
   }, [allRecords, filterMode, monthTimesheetId]);
 
-  const loading = timesheetsQuery.isLoading || allRecordsQuery.isLoading || enjoymentsQuery.isLoading;
+  const loading =
+    timesheetsQuery.isLoading || allRecordsQuery.isLoading || enjoymentsQuery.isLoading || salaryConfigQuery.isLoading;
   const sortedAllRecords = [...allRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
   const sortedFilteredRecords = [...filteredRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -221,6 +231,27 @@ export default function Dashboard() {
     compensationTotalHours: selectedCompensationTotalHours,
     compensationUsedHours: selectedCompensationUsedHours
   });
+
+  const recordsByTimesheetId = useMemo(() => {
+    const map = new Map();
+    for (const r of allRecords) {
+      const tsId = r?.timesheet_id;
+      if (!tsId) continue;
+      if (!map.has(tsId)) map.set(tsId, []);
+      map.get(tsId).push(r);
+    }
+    return map;
+  }, [allRecords]);
+
+  const salarySummary = useMemo(() => {
+    if (filterMode === "month" && selectedMeta) {
+      const monthKey = salaryMonthKey(selectedMeta);
+      const records = recordsByTimesheetId.get(selectedMeta.id) || [];
+      return calculateSalaryForRecords(records, salaryConfig, monthKey);
+    }
+    const { totals } = aggregateSalary(timesheets, recordsByTimesheetId, salaryConfig);
+    return totals;
+  }, [filterMode, selectedMeta, recordsByTimesheetId, salaryConfig, timesheets]);
 
   const dueTimesheetAlerts = (() => {
     const now = new Date();
@@ -514,6 +545,7 @@ export default function Dashboard() {
 
       <EmployeeInfo info={employeeInfo} />
       <SummaryCards summary={summary} />
+      <SalaryCards summary={salarySummary} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
