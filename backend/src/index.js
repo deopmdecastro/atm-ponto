@@ -1076,7 +1076,12 @@ app.get(
       prisma,
       `
       SELECT
-        t.*,
+        t.id, t.user_id, t.employee_name, t.employee_number, t.month, t.year,
+        t.department, t.funcao, t.direcao, t.centro_custo, t.cct, t.horario,
+        t.email_remetente, t.email_nivel1, t.email_nivel2,
+        t.default_project_number, t.default_project_client, t.default_project_description,
+        t.source_filename, t.source_file_url,
+        t.total_compensation_hours, t.total_descanso_compensatorio_hours, t.created_date,
         COUNT(r.id)::int AS record_count,
         COALESCE(SUM(r.normal_hours), 0)::float AS total_normal_hours,
         COALESCE(SUM(r.extra_hours), 0)::float AS total_extra_hours,
@@ -1150,8 +1155,22 @@ app.post(
         }
       }
 
-      const id = randomUUID();
-      const rows = await query(
+    const id = randomUUID();
+
+    // Attempt to read the file content from disk to store persistently in the DB
+    let sourceFileData = null;
+    if (sourceFileUrl) {
+      try {
+        const { filePath } = resolveUploadedFile(sourceFileUrl);
+        if (fs.existsSync(filePath)) {
+          sourceFileData = fs.readFileSync(filePath);
+        }
+      } catch {
+        // non-fatal: file will be stored without binary data
+      }
+    }
+
+    const rows = await query(
         tx,
         `
         INSERT INTO timesheets
@@ -1176,12 +1195,17 @@ app.post(
             default_project_description,
             source_filename,
             source_file_url,
+            source_file_data,
             total_compensation_hours,
             total_descanso_compensatorio_hours
           )
         VALUES
-          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
-        RETURNING *;
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+        RETURNING id, user_id, employee_name, employee_number, month, year, department,
+                  funcao, direcao, centro_custo, cct, horario, email_remetente,
+                  email_nivel1, email_nivel2, default_project_number, default_project_client,
+                  default_project_description, source_filename, source_file_url,
+                  total_compensation_hours, total_descanso_compensatorio_hours, created_date;
         `,
         [
           id,
@@ -1204,6 +1228,7 @@ app.post(
           data.default_project_description || "",
           data.source_filename || "",
           sourceFileUrl,
+          sourceFileData,
           data.total_compensation_hours != null ? Number(data.total_compensation_hours) : 0,
           data.total_descanso_compensatorio_hours != null
             ? Number(data.total_descanso_compensatorio_hours)
@@ -1228,7 +1253,7 @@ app.post(
 app.get(
   "/api/timesheets/:id",
   asyncHandler(async (req, res) => {
-    const rows = await query(prisma, `SELECT * FROM timesheets WHERE id = $1 AND user_id = $2`, [
+    const rows = await query(prisma, `SELECT id, user_id, employee_name, employee_number, month, year, department, funcao, direcao, centro_custo, cct, horario, email_remetente, email_nivel1, email_nivel2, default_project_number, default_project_client, default_project_description, source_filename, source_file_url, total_compensation_hours, total_descanso_compensatorio_hours, created_date FROM timesheets WHERE id = $1 AND user_id = $2`, [
       req.params.id,
       req.user.id
     ]);
@@ -1242,25 +1267,19 @@ app.get(
   asyncHandler(async (req, res) => {
     const rows = await query(
       prisma,
-      `SELECT source_file_url, source_filename, employee_name, month, year FROM timesheets WHERE id = $1 AND user_id = $2`,
+      `SELECT source_file_url, source_filename, source_file_data, employee_name, month, year FROM timesheets WHERE id = $1 AND user_id = $2`,
       [req.params.id, req.user.id]
     );
     const timesheet = rows[0];
     if (!timesheet) throw httpError(404, "Timesheet não encontrado.");
 
     const fileUrl = String(timesheet.source_file_url || "").trim();
-    if (!fileUrl) {
+    const fileData = timesheet.source_file_data; // Buffer or null
+
+    if (!fileUrl && !fileData) {
       throw httpError(
         404,
         "O arquivo original não está disponível para este timesheet. Isso pode acontecer se ele foi importado antes do suporte ao salvamento do arquivo original ou se o arquivo foi removido do armazenamento do servidor."
-      );
-    }
-
-    const { filename, filePath } = resolveUploadedFile(fileUrl);
-    if (!fs.existsSync(filePath)) {
-      throw httpError(
-        404,
-        "O arquivo original não foi encontrado no servidor. Ele pode ter sido excluído do diretório de uploads ou o armazenamento local foi limpo."
       );
     }
 
@@ -1275,10 +1294,39 @@ app.get(
     const employeePart = safeName(timesheet.employee_name, "Nome_Sobrenome");
     const monthPart = safeName(timesheet.month, "mes");
     const yearPart = safeName(timesheet.year, String(new Date().getFullYear()));
-    const extension = path.extname(filename) || ".xlsx";
+    const originalName = String(timesheet.source_filename || fileUrl || "");
+    const extension = path.extname(originalName) || ".xlsx";
     const downloadName = `${employeePart}_ATM_TimeSheet_${monthPart}_${yearPart}${extension}`;
 
-    res.download(filePath, downloadName);
+    // Try disk first (fastest), fall back to DB binary data
+    if (fileUrl) {
+      try {
+        const { filePath } = resolveUploadedFile(fileUrl);
+        if (fs.existsSync(filePath)) {
+          res.download(filePath, downloadName);
+          return;
+        }
+      } catch {
+        // file resolution failed, fall through to DB data
+      }
+    }
+
+    // Serve from DB binary data
+    if (fileData && fileData.length > 0) {
+      const mimeType = extension === ".xls"
+        ? "application/vnd.ms-excel"
+        : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Content-Disposition", `attachment; filename="${downloadName}"`);
+      res.setHeader("Content-Length", fileData.length);
+      res.send(fileData);
+      return;
+    }
+
+    throw httpError(
+      404,
+      "O arquivo original não foi encontrado no servidor. Ele pode ter sido excluído do diretório de uploads ou o armazenamento local foi limpo."
+    );
   })
 );
 

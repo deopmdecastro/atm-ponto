@@ -47,6 +47,7 @@ model Timesheet {
   department                          String?           @db.Text
   source_filename                     String?           @db.Text
   source_file_url                     String?           @db.Text
+  source_file_data                    Bytes?            @db.ByteA
   total_compensation_hours            Float             @default(0) @db.DoublePrecision
   total_descanso_compensatorio_hours  Float             @default(0) @db.DoublePrecision
   records                             TimesheetRecord[]
