@@ -145,7 +145,7 @@ export default function Dashboard() {
   const timesheets = Array.isArray(timesheetsQuery.data) ? timesheetsQuery.data : [];
   const allRecords = Array.isArray(allRecordsQuery.data) ? allRecordsQuery.data : [];
   const enjoyments = Array.isArray(enjoymentsQuery.data) ? enjoymentsQuery.data : [];
-  const salaryConfig = salaryConfigQuery.data || { defaults: {}, months: {} };
+  const salaryConfig = salaryConfigQuery.data || { defaults: {}, months: {}, visible_on_dashboard: false };
 
   const enjoyedByMonthKey = useMemo(() => {
     const map = new Map();
@@ -545,7 +545,7 @@ export default function Dashboard() {
 
       <EmployeeInfo info={employeeInfo} />
       <SummaryCards summary={summary} />
-      <SalaryCards summary={salarySummary} />
+      {salaryConfig.visible_on_dashboard ? <SalaryCards summary={salarySummary} /> : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">

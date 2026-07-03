@@ -1,6 +1,9 @@
 import { truncateDecimal } from "./formatHours";
 
 export const DEFAULT_SALARY_CONFIG = {
+  // Salary figures are sensitive; hidden on the dashboard by default and
+  // only shown once the user explicitly enables it in Settings.
+  visible_on_dashboard: false,
   defaults: {
     base_salary: 1000,
     meal_subsidy_daily: 10.46,

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/use-toast";
 import { DEFAULT_SALARY_CONFIG, salaryMonthKey } from "@/lib/calculateSalary";
 
@@ -31,6 +32,7 @@ export default function SalarySettingsCard() {
   const queryClient = useQueryClient();
   const [defaults, setDefaults] = useState(DEFAULT_SALARY_CONFIG.defaults);
   const [months, setMonths] = useState({});
+  const [visibleOnDashboard, setVisibleOnDashboard] = useState(DEFAULT_SALARY_CONFIG.visible_on_dashboard);
   const [hydrated, setHydrated] = useState(false);
 
   const timesheetsQuery = useQuery({
@@ -61,6 +63,7 @@ export default function SalarySettingsCard() {
     if (!salaryConfigQuery.data) return;
     setDefaults({ ...DEFAULT_SALARY_CONFIG.defaults, ...(salaryConfigQuery.data.defaults || {}) });
     setMonths(salaryConfigQuery.data.months || {});
+    setVisibleOnDashboard(Boolean(salaryConfigQuery.data.visible_on_dashboard));
     setHydrated(true);
   }, [salaryConfigQuery.data, hydrated]);
 
@@ -118,7 +121,20 @@ export default function SalarySettingsCard() {
       if (Object.keys(cleanEntry).length > 0) cleanMonths[key] = cleanEntry;
     }
 
-    saveMutation.mutate({ defaults: cleanDefaults, months: cleanMonths });
+    saveMutation.mutate({ defaults: cleanDefaults, months: cleanMonths, visible_on_dashboard: visibleOnDashboard });
+  }
+
+  function handleToggleVisibility(checked) {
+    setVisibleOnDashboard(checked);
+    // Applies immediately (independent of the "Salvar salário" button below),
+    // since this is a simple on/off preference like any other settings toggle.
+    const cleanDefaults = {};
+    for (const field of DEFAULT_FIELDS) {
+      const raw = defaults[field.key];
+      const num = Number(raw);
+      cleanDefaults[field.key] = Number.isFinite(num) ? num : DEFAULT_SALARY_CONFIG.defaults[field.key];
+    }
+    saveMutation.mutate({ defaults: cleanDefaults, months, visible_on_dashboard: checked });
   }
 
   const loading = timesheetsQuery.isLoading || salaryConfigQuery.isLoading;
@@ -139,6 +155,20 @@ export default function SalarySettingsCard() {
           </div>
         ) : (
           <>
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 p-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Mostrar no Dashboard</p>
+                <p className="text-xs text-muted-foreground">
+                  Por padrão, os valores de salário ficam ocultos no dashboard. Ative para mostrá-los lá.
+                </p>
+              </div>
+              <Switch
+                checked={visibleOnDashboard}
+                onCheckedChange={handleToggleVisibility}
+                aria-label="Mostrar salário no dashboard"
+              />
+            </div>
+
             <div>
               <p className="text-sm font-semibold text-foreground mb-3">Valores padrão</p>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
