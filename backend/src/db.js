@@ -235,6 +235,10 @@ export async function initDb() {
   await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS user_id uuid;`);
   await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS source_filename text;`);
   await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS source_file_url text;`);
+  // Binary contents of the originally uploaded .xlsx, stored so the file can
+  // be re-downloaded later even if the on-disk upload is gone (Render's free
+  // web service disk is ephemeral across deploys/restarts).
+  await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS source_file_data bytea;`);
   await query(prisma, `ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS total_compensation_hours double precision NOT NULL DEFAULT 0;`);
   await query(prisma, `ALTER TABLE timesheet_records ADD COLUMN IF NOT EXISTS total_descanso_compensatorio_hours double precision NOT NULL DEFAULT 0;`);
   // Employee profile columns added to timesheets
