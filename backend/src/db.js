@@ -456,10 +456,10 @@ export async function initDb() {
       JOIN fixable_timesheets f ON f.timesheet_id = r.timesheet_id
     )
     UPDATE timesheet_records r
-    SET date = make_date(rr.target_year, rr.target_month, 1) + (rr.day_index - 1)
+    SET date = make_date(rr.target_year, rr.target_month, 1) + (rr.day_index - 1)::int
     FROM ranked_records rr
     WHERE r.id = rr.record_id
-      AND r.date <> (make_date(rr.target_year, rr.target_month, 1) + (rr.day_index - 1));
+      AND r.date <> (make_date(rr.target_year, rr.target_month, 1) + (rr.day_index - 1)::int);
   `);
 
   await query(prisma, `CREATE INDEX IF NOT EXISTS idx_timesheet_records_timesheet_id ON timesheet_records(timesheet_id);`);
